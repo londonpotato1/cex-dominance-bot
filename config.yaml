@@ -1,0 +1,61 @@
+# CEX Dominance Bot 설정
+# 거래소별 거래량 지배력 모니터링
+
+# 모니터링할 티커 목록
+tickers:
+  - BTC/USDT
+  - ETH/USDT
+
+# 거래소 설정
+exchanges:
+  # 한국 거래소
+  korean:
+    - name: upbit
+      market: KRW  # 원화 마켓
+      enabled: true
+    - name: bithumb
+      market: KRW
+      enabled: true
+
+  # 글로벌 거래소
+  global:
+    - name: binance
+      market: USDT
+      enabled: true
+    - name: bybit
+      market: USDT
+      enabled: true
+    - name: okx
+      market: USDT
+      enabled: true
+    - name: coinbase
+      market: USD
+      enabled: false  # API 제한으로 비활성화
+    - name: kraken
+      market: USD
+      enabled: false
+
+# 알림 설정
+alerts:
+  # 한국 지배력 임계값 (%)
+  korean_dominance_threshold: 25.0
+
+  # 지배력 급변 감지 (% 변화)
+  dominance_change_threshold: 5.0
+
+  # 알림 쿨다운 (초)
+  cooldown_seconds: 300
+
+# 텔레그램 설정 (선택)
+telegram:
+  enabled: false
+  bot_token: ""  # 환경변수 TELEGRAM_BOT_TOKEN 사용 권장
+  chat_id: ""    # 환경변수 TELEGRAM_CHAT_ID 사용 권장
+
+# 업데이트 주기 (초)
+update_interval: 60
+
+# 로깅 설정
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR
+  file: logs/dominance.log
