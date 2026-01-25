@@ -136,21 +136,83 @@ class DominanceCalculator:
             logger.warning(f"거래량 조회 실패 ({exchange_name}/{actual_ticker}): {e}")
             return None
 
-    async def calculate(self, ticker: str) -> Optional[DominanceResult]:
-        """지배력 계산"""
+    async def _fetch_volume_ohlcv(
+        self,
+        exchange_name: str,
+        ticker: str,
+        region: str,
+        timeframe: str,
+        limit: int
+    ) -> Optional[ExchangeVolume]:
+        """OHLCV 기반 거래량 조회 (기간별)"""
+        if exchange_name not in self.exchanges:
+            return None
+
+        exchange = self.exchanges[exchange_name]
+        actual_ticker = self._get_ticker_for_exchange(exchange_name, ticker)
+
+        try:
+            ohlcv = await exchange.fetch_ohlcv(actual_ticker, timeframe, limit=limit)
+            if not ohlcv:
+                return None
+
+            # OHLCV: [timestamp, open, high, low, close, volume]
+            total_volume = sum(candle[5] for candle in ohlcv)
+            last_price = ohlcv[-1][4] if ohlcv else 0
+
+            # Quote volume 계산 (volume * price)
+            volume_quote = sum(candle[5] * candle[4] for candle in ohlcv)
+
+            # USD 환산
+            if region == "korean":
+                volume_usd = volume_quote / self._krw_rate if self._krw_rate else 0
+            else:
+                volume_usd = volume_quote
+
+            return ExchangeVolume(
+                exchange=exchange_name,
+                ticker=ticker,
+                volume_24h=total_volume,
+                volume_usd=volume_usd,
+                price=last_price,
+                region=region,
+            )
+
+        except Exception as e:
+            logger.warning(f"OHLCV 조회 실패 ({exchange_name}/{actual_ticker}): {e}")
+            return None
+
+    async def calculate(self, ticker: str, period: str = "24h") -> Optional[DominanceResult]:
+        """지배력 계산 (period: 1h, 4h, 24h, 7d)"""
         import time
 
+        # 기간별 OHLCV 설정
+        period_config = {
+            "1h": ("1m", 60),      # 1분봉 60개
+            "4h": ("5m", 48),      # 5분봉 48개
+            "24h": ("1h", 24),     # 1시간봉 24개
+            "7d": ("4h", 42),      # 4시간봉 42개
+        }
+
         tasks = []
+        use_ohlcv = period != "24h"
+        timeframe, limit = period_config.get(period, ("1h", 24))
 
         # 한국 거래소
         for ex in self.config["exchanges"]["korean"]:
             if ex.get("enabled", True):
-                tasks.append(self._fetch_volume(ex["name"], ticker, "korean"))
+                if use_ohlcv:
+                    tasks.append(self._fetch_volume_ohlcv(ex["name"], ticker, "korean", timeframe, limit))
+                else:
+                    tasks.append(self._fetch_volume(ex["name"], ticker, "korean"))
 
         # 글로벌 거래소
         for ex in self.config["exchanges"]["global"]:
             if ex.get("enabled", True):
-                tasks.append(self._fetch_volume(ex["name"], ticker, "global"))
+                if use_ohlcv:
+                    tasks.append(self._fetch_volume_ohlcv(ex["name"], ticker, "global", timeframe, limit))
+                else:
+                    tasks.append(self._fetch_volume(ex["name"], ticker, "global"))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -181,7 +243,7 @@ class DominanceCalculator:
             timestamp=time.time(),
         )
 
-    async def calculate_total_market(self, tickers: list[str] = None) -> Optional[DominanceResult]:
+    async def calculate_total_market(self, tickers: list[str] = None, period: str = "24h") -> Optional[DominanceResult]:
         """전체 마켓 지배력 계산 (여러 티커 합산)"""
         import time
 
@@ -191,7 +253,7 @@ class DominanceCalculator:
         all_volumes: list[ExchangeVolume] = []
 
         for ticker in tickers:
-            result = await self.calculate(ticker)
+            result = await self.calculate(ticker, period)
             if result:
                 all_volumes.extend(result.exchanges)
 

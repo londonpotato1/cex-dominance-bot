@@ -300,9 +300,18 @@ st.markdown("""
     }
 
     .stSelectbox > div > div {
-        background: rgba(255, 255, 255, 0.03) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        background: #1a1a1a !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
         border-radius: 10px !important;
+    }
+
+    .stSelectbox > div > div > div {
+        color: #ffffff !important;
+    }
+
+    /* Period selector pills style */
+    div[data-testid="stHorizontalBlock"]:first-child .stSelectbox {
+        margin-top: 0.5rem;
     }
 
     .stButton > button {
@@ -353,7 +362,7 @@ def load_config():
 
 
 @st.cache_data(ttl=60)
-def fetch_all_data(_config):
+def fetch_all_data(_config, period: str = "24h"):
     """전체 마켓 + 주요 티커 데이터 조회"""
     async def _fetch():
         calc = DominanceCalculator(_config)
@@ -363,11 +372,11 @@ def fetch_all_data(_config):
         connected = list(calc.exchanges.keys())
 
         # 전체 마켓
-        total = await calc.calculate_total_market(["BTC/USDT", "ETH/USDT", "XRP/USDT", "SOL/USDT"])
+        total = await calc.calculate_total_market(["BTC/USDT", "ETH/USDT", "XRP/USDT", "SOL/USDT"], period)
 
         # 개별 티커
-        btc = await calc.calculate("BTC/USDT")
-        eth = await calc.calculate("ETH/USDT")
+        btc = await calc.calculate("BTC/USDT", period)
+        eth = await calc.calculate("ETH/USDT", period)
 
         await calc.close()
         return {"total": total, "BTC": btc, "ETH": eth, "connected_exchanges": connected}
@@ -376,11 +385,11 @@ def fetch_all_data(_config):
 
 
 @st.cache_data(ttl=60)
-def fetch_ticker_data(_config, ticker: str):
+def fetch_ticker_data(_config, ticker: str, period: str = "24h"):
     async def _fetch():
         calc = DominanceCalculator(_config)
         await calc.initialize()
-        result = await calc.calculate(ticker)
+        result = await calc.calculate(ticker, period)
         await calc.close()
         return result
     return asyncio.run(_fetch())
@@ -476,20 +485,32 @@ def render_ticker_card(result: DominanceResult, title: str):
 def main():
     config = load_config()
 
-    # Header
-    st.markdown("""
-    <div class="header-row">
-        <div class="logo">
-            <span class="logo-icon">⚡</span>
-            <span class="logo-text">CEX Dominance</span>
-            <span class="logo-badge">LIVE</span>
+    # Header with period selector
+    header_col1, header_col2 = st.columns([4, 1])
+
+    with header_col1:
+        st.markdown("""
+        <div class="header-row" style="border:none;padding-bottom:0;">
+            <div class="logo">
+                <span class="logo-icon">⚡</span>
+                <span class="logo-text">CEX Dominance</span>
+                <span class="logo-badge">LIVE</span>
+            </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+
+    with header_col2:
+        period = st.selectbox(
+            "Period",
+            options=["1h", "4h", "24h", "7d"],
+            index=2,  # Default to 24h
+            label_visibility="collapsed",
+            key="period_select"
+        )
 
     # Fetch all data
     with st.spinner(""):
-        data = fetch_all_data(config)
+        data = fetch_all_data(config, period)
 
     if not data.get("total"):
         st.error("Failed to fetch market data")
@@ -549,7 +570,7 @@ def main():
         ticker = f"{ticker_input.upper()}/USDT" if "/" not in ticker_input else ticker_input.upper()
 
         if ticker_input:
-            custom_result = fetch_ticker_data(config, ticker)
+            custom_result = fetch_ticker_data(config, ticker, period)
             if custom_result and custom_result.total_volume_usd > 0:
                 kr_vol = custom_result.korean_volume_usd
                 kr_display = format_volume(kr_vol)
