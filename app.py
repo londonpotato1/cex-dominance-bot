@@ -359,6 +359,9 @@ def fetch_all_data(_config):
         calc = DominanceCalculator(_config)
         await calc.initialize()
 
+        # 연결된 거래소 목록
+        connected = list(calc.exchanges.keys())
+
         # 전체 마켓
         total = await calc.calculate_total_market(["BTC/USDT", "ETH/USDT", "XRP/USDT", "SOL/USDT"])
 
@@ -367,7 +370,7 @@ def fetch_all_data(_config):
         eth = await calc.calculate("ETH/USDT")
 
         await calc.close()
-        return {"total": total, "BTC": btc, "ETH": eth}
+        return {"total": total, "BTC": btc, "ETH": eth, "connected_exchanges": connected}
 
     return asyncio.run(_fetch())
 
@@ -592,7 +595,9 @@ def main():
 
     # Footer
     update_time = datetime.fromtimestamp(total.timestamp).strftime("%H:%M:%S")
-    st.markdown(f'<div class="footer">Updated {update_time} · Auto-refresh 60s · BTC+ETH+XRP+SOL aggregated</div>', unsafe_allow_html=True)
+    connected = data.get("connected_exchanges", [])
+    exchanges_str = ", ".join([ex.capitalize() for ex in connected]) if connected else "None"
+    st.markdown(f'<div class="footer">Updated {update_time} · Connected: {exchanges_str} · Auto-refresh 60s</div>', unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
