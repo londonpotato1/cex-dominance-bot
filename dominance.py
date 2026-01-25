@@ -60,11 +60,14 @@ class DominanceCalculator:
             name = ex_config["name"]
             try:
                 exchange_class = getattr(ccxt, name)
-                self.exchanges[name] = exchange_class({
+                exchange = exchange_class({
                     "enableRateLimit": True,
                     "timeout": 30000,
                 })
-                logger.info(f"거래소 연결: {name}")
+                # 마켓 정보 로드
+                await exchange.load_markets()
+                self.exchanges[name] = exchange
+                logger.info(f"거래소 연결 성공: {name} ({len(exchange.markets)} markets)")
             except Exception as e:
                 logger.warning(f"거래소 연결 실패 ({name}): {e}")
 
@@ -130,7 +133,7 @@ class DominanceCalculator:
             )
 
         except Exception as e:
-            logger.debug(f"거래량 조회 실패 ({exchange_name}/{actual_ticker}): {e}")
+            logger.warning(f"거래량 조회 실패 ({exchange_name}/{actual_ticker}): {e}")
             return None
 
     async def calculate(self, ticker: str) -> Optional[DominanceResult]:
