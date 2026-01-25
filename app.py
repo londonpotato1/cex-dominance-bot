@@ -502,7 +502,7 @@ def main():
     with header_col2:
         period = st.selectbox(
             "Period",
-            options=["1h", "4h", "24h", "7d"],
+            options=["1h", "4h", "24h", "7d", "30d"],
             index=2,  # Default to 24h
             label_visibility="collapsed",
             key="period_select"
