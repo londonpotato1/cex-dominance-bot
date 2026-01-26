@@ -563,9 +563,9 @@ def main():
 
         col_input, col_btn = st.columns([3, 1])
         with col_input:
-            ticker_input = st.text_input("", value="SOL", placeholder="SOL, XRP...", label_visibility="collapsed", key="search")
+            ticker_input = st.text_input("Search Ticker", value="SOL", placeholder="SOL, XRP...", label_visibility="collapsed", key="search")
         with col_btn:
-            search = st.button("Go", use_container_width=True)
+            search = st.button("Go", width="stretch")
 
         ticker = f"{ticker_input.upper()}/USDT" if "/" not in ticker_input else ticker_input.upper()
 
@@ -596,12 +596,12 @@ def main():
     with col1:
         st.markdown('<p class="chart-title" style="margin:1rem 0 0.5rem 0;">📊 Total Market Distribution</p>', unsafe_allow_html=True)
         fig = create_mini_donut(total, height=220)
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
     with col2:
         st.markdown('<p class="chart-title" style="margin:1rem 0 0.5rem 0;">📈 Korean vs Global Volume</p>', unsafe_allow_html=True)
         fig = create_bar_comparison(total, height=220)
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
     # Exchange Rankings (Compact)
     st.markdown('<p class="chart-title" style="margin:1rem 0 0.5rem 0;">🏆 Exchange Rankings (Total Market)</p>', unsafe_allow_html=True)
