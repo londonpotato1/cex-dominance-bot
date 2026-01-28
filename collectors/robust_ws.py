@@ -66,7 +66,7 @@ class RobustWebSocket(ABC):
 
     @property
     def last_msg_time(self) -> float:
-        """마지막 메시지 수신 시각 (monotonic)."""
+        """마지막 메시지 수신 시각 (Unix timestamp)."""
         return self._last_msg_time
 
     async def run(self) -> None:
@@ -189,7 +189,7 @@ class RobustWebSocket(ABC):
         """메시지 수신 루프."""
         assert self._ws is not None
         async for msg in self._ws:
-            self._last_msg_time = time.monotonic()
+            self._last_msg_time = time.time()
             try:
                 await self.on_message(msg)
             except Exception:
