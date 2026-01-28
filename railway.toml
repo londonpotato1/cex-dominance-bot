@@ -1,5 +1,3 @@
 [deploy]
-startCommand = "bash start.sh"
-# healthcheck 비활성화 - Streamlit 시작이 느릴 수 있음
-healthcheckPath = ""
+startCommand = "python start.py"
 restartPolicyType = "ON_FAILURE"
