@@ -1,4 +1,5 @@
 [deploy]
 startCommand = "bash start.sh"
-healthcheckPath = "/"
-healthcheckTimeout = 300
+# healthcheck 비활성화 - Streamlit 시작이 느릴 수 있음
+healthcheckPath = ""
+restartPolicyType = "ON_FAILURE"
