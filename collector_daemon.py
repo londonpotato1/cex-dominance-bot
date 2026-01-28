@@ -166,22 +166,26 @@ async def main() -> None:
         len(UPBIT_MARKETS), len(BITHUMB_MARKETS),
     )
 
-    # ---- 8. 시그널 핸들링 (Windows 호환) ----
+    # ---- 8. 시그널 핸들링 (메인 스레드에서만) ----
     loop = asyncio.get_running_loop()
-    if sys.platform == "win32":
-        # Windows: signal 모듈 사용.
-        # signal handler는 메인 스레드 임의 시점에서 호출되므로
-        # asyncio.Event.set()을 직접 호출하면 race condition 발생 가능.
-        # call_soon_threadsafe()로 이벤트루프에 안전하게 전달.
-        def _win_handler(signum: int, frame: object) -> None:
-            loop.call_soon_threadsafe(stop_event.set)
+    import threading
+    is_main_thread = threading.current_thread() is threading.main_thread()
 
-        signal.signal(signal.SIGINT, _win_handler)
-        signal.signal(signal.SIGTERM, _win_handler)
+    if is_main_thread:
+        if sys.platform == "win32":
+            # Windows: signal 모듈 사용.
+            def _win_handler(signum: int, frame: object) -> None:
+                loop.call_soon_threadsafe(stop_event.set)
+
+            signal.signal(signal.SIGINT, _win_handler)
+            signal.signal(signal.SIGTERM, _win_handler)
+        else:
+            # Unix: 이벤트루프 시그널 핸들러
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(sig, stop_event.set)
     else:
-        # Unix: 이벤트루프 시그널 핸들러
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, stop_event.set)
+        # 백그라운드 스레드: signal 핸들러 설정 불가, 무한 실행
+        logger.info("백그라운드 스레드 실행 모드 (signal 핸들러 없음)")
 
     # ---- 9. 실행 대기 ----
     await stop_event.wait()
