@@ -68,8 +68,8 @@ BITHUMB_MARKETS = [
     "BCH_KRW", "APT_KRW", "ARB_KRW", "OP_KRW", "SUI_KRW",
 ]
 
-# ---- health.json 경로 ----
-_HEALTH_PATH = _ROOT / "health.json"
+# ---- health.json 경로 (Railway Volume 지원) ----
+_HEALTH_PATH = Path(os.environ.get("HEALTH_PATH", str(_ROOT / "health.json")))
 _HEALTH_INTERVAL = 30.0  # 초
 
 
@@ -143,6 +143,24 @@ async def main() -> None:
             name="health",
         ),
     ]
+
+    # ---- 7b. Telegram 인터랙티브 봇 (Feature Flag) ----
+    features = gate_checker._features
+    if features.get("telegram_interactive") and alert.is_configured:
+        from alerts.telegram_bot import TelegramBot
+        bot = TelegramBot(
+            alert._bot_token, alert._chat_id,
+            read_conn, gate_checker, writer,
+        )
+        tasks.append(asyncio.create_task(bot.run(stop_event), name="telegram_bot"))
+        logger.info("Telegram 인터랙티브 봇 활성화")
+    else:
+        logger.info(
+            "Telegram 봇 비활성 (feature=%s, configured=%s)",
+            features.get("telegram_interactive", False),
+            alert.is_configured,
+        )
+
     logger.info(
         "데몬 시작 완료: 업비트 %d마켓, 빗썸 %d마켓",
         len(UPBIT_MARKETS), len(BITHUMB_MARKETS),

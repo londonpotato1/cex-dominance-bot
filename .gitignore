@@ -23,8 +23,10 @@ logs/
 config.local.yaml
 
 # Data / DB
-data/
 *.db
+*.db-shm
+*.db-wal
+!data/labeling/
 
 # Runtime
 health.json
@@ -32,3 +34,13 @@ health.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Plan history (only keep latest)
+PLAN_v[0-9].md
+PLAN_v[0-9][0-9].md
+
+# Documentation PDFs
+*.pdf
+
+# 가이드 폴더
+따리가이드/

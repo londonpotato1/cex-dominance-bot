@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Optional, TYPE_CHECKING
 
 import aiohttp
@@ -275,10 +276,23 @@ class MarketMonitor:
         # 2. WS 수집기에 동적 마켓 추가
         await self._add_market_to_collectors(exchange, symbol)
 
-        # 3. Gate 파이프라인 (Phase 3)
+        # 3. Gate 파이프라인 (Phase 3) + 관측성 (Phase 4)
         if self._gate_checker:
             try:
+                t0 = time.monotonic()
                 result = await self._gate_checker.analyze_listing(symbol, exchange)
+                duration_ms = (time.monotonic() - t0) * 1000
+
+                # Gate 분석 로그 DB 기록 (Phase 4)
+                try:
+                    from metrics.observability import log_gate_analysis
+                    await log_gate_analysis(self._writer, result, duration_ms)
+                except Exception as e:
+                    logger.warning(
+                        "[MarketMonitor] Gate 로그 기록 실패 (%s@%s): %s",
+                        symbol, exchange, e,
+                    )
+
                 # 4. 텔레그램 알림
                 if self._alert:
                     alert_msg = self._format_alert(symbol, exchange, result)

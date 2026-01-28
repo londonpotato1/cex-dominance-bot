@@ -1,0 +1,100 @@
+# ============================================================
+# Phase 0 임계값 설정 (실측값 반영 - 2026-01-27)
+# ============================================================
+# 데이터: 67건 (빗썸 19 + 업비트 48) — Part 04 Ch01/Ch02 + Part 05 Ch01 추출
+# 판정: 대흥따리 21 / 흥따리 13 / 보통 13 / 망따리 20
+# 흥따리율: 전체 50.7% (34/67) | 업비트 41.7% (20/48) | 빗썸 73.7% (14/19)
+# 주의: 빗썸 데이터는 여전히 성공 편향 존재 (73.7% vs 업비트 41.7%)
+# 분석 스크립트: scripts/phase0_analysis.py
+# ============================================================
+
+# --- Turnover Ratio 사분위수 ---
+# Phase 0 실측값 (67건 중 turnover 데이터 있는 54건 기반)
+turnover_ratio:
+  extreme_high: 5.5    # P90 실측 (54건)
+  high: 4.0            # P75
+  normal: 1.9          # P50
+  low: 1.4             # P25
+  # 흥따리 건만 (28건): 중앙값 3.92, 평균 4.72
+
+# --- Turnover Ratio None/저신뢰도 처리 (v9) ---
+turnover_none_handling:
+  epsilon_floor_krw: 1_000_000   # deposit < 이 값이면 floor 적용
+  confidence_levels:
+    manual_input: 1.0            # 사용자 직접 입력
+    hot_wallet_estimate: 0.5     # 온체인 핫월렛 추정
+    dex_outflow_estimate: 0.2    # DEX 유출 기반 추정
+  unknown_supply_action: "warn"  # warn (경고만) | block (차단)
+
+# --- SupplyClassifier 가중치 (5-Factor) ---
+# Phase 0 상관 분석 결과:
+#   withdrawal_open: 출금 닫힘(false) → 흥따리율 62.5%, 열림(true) → 40.0% (차이 22.5%)
+#   hot_wallet/dex_liquidity/airdrop/network: 데이터 부족 (1건 이하)
+# → withdrawal 가중치가 가장 유의미, 나머지는 이론적 가중치 유지
+supply_classifier_weights:
+  hot_wallet: 0.30
+  dex_liquidity: 0.25
+  withdrawal: 0.20
+  airdrop: 0.15
+  network: 0.10
+
+  # airdrop 데이터 없을 때 fallback 가중치
+  fallback_no_airdrop:
+    hot_wallet: 0.35
+    dex_liquidity: 0.30
+    withdrawal: 0.23
+    network: 0.12
+
+# --- 시나리오 확률 계수 ---
+# Phase 0 실측값 (67건 데이터 기반, 2026-01-27 산출)
+# 기저 확률: P(흥따리) = 50.7% (34/67) — 빗썸 편향 포함
+# 업비트만: P(흥따리) = 41.7% (20/48) — 균형 데이터
+scenario_coefficients:
+  supply_constrained: 0.18    # P(흥|constrained)=69.0% - base 50.7% = +18.3%
+  supply_smooth: -0.16        # P(흥|smooth)=35.1% - base 50.7% = -15.6%
+  # v14: 헤징 유형 3단계 계수 (hedging_possible bool → hedge_type enum)
+  hedge_cex: 0.0              # CEX 선물 헤징 가능 → 기저(baseline)
+  hedge_dex_only: 0.15        # DEX 선물만 가능 → 중간 시그널 (추정치, Phase 0 재검증)
+  hedge_none: 0.37            # 헤징 불가 → P(흥|no_hedge)=87.5% ★최강 시그널
+  market_bull: 0.07           # P(흥|bull)=57.9% - base 50.7% = +7.2%
+  market_neutral: 0.15        # P(흥|neutral)=65.6% - base 50.7% = +14.9%
+  market_bear: -0.38          # P(흥|bear)=12.5% - base 50.7% = -38.2% ★최강 역시그널
+  prev_heung: 0.0             # 데이터 부족 (0건)
+  base_probability: 0.51      # 전체 흥따리율 (빗썸 편향 포함)
+  base_probability_upbit: 0.42  # 업비트만 흥따리율 (균형 데이터)
+
+# --- 계수 신뢰성 관리 원칙 (v15) ---
+# 적용 범위: scenario_coefficients 내 모든 계수에 동일 적용
+# (hedge_dex_only뿐 아니라 supply_constrained, market_bull, prev_heung 등 전체)
+coefficient_governance:
+  scope: "all_scenario_coefficients"  # 전체 시나리오 계수 대상
+  min_sample_size: 10          # 이 미만이면 해당 계수를 baseline(0.0)으로 shrink
+  shrinkage_formula: "coeff * min(1.0, sample_count / min_sample_size)"
+  # 예: hedge_dex_only 사례가 4건이면 → 0.15 * (4/10) = 0.06으로 축소
+  # 예: supply_constrained 사례가 7건이면 → 0.18 * (7/10) = 0.126으로 축소
+  # 예: market_bull 사례가 25건이면 → 0.07 * 1.0 = 0.07 (충분, 원본 유지)
+  # 충분한 표본(10건+) 확보 후 계수 재산출
+  review_cycle: "Phase 0 완료 후 분기 1회 재검증"
+
+# --- 상장 유형별 흥따리율 (참고) ---
+# TGE:    53.1% (17/32) — 기저 대비 +2.4%
+# 직상장: 47.1% (8/17)  — 기저 대비 -3.6%
+# 옆상장: 50.0% (9/18)  — 기저 대비 -0.7%
+# → 상장 유형은 흥따리율에 큰 영향 없음 (차이 <5%)
+
+# --- 거래소별 비교 (참고) ---
+# 업비트: 48건, 흥따리율 41.7%, 평균 최대김프 37.8%
+# 빗썸:   19건, 흥따리율 73.7%, 평균 최대김프 294.8%
+# → 빗썸이 흥따리율/김프 모두 높음 (선택 편향 + 소규모 시장 효과)
+
+# --- 흥/망따리 판정 기준 ---
+heung_definition:
+  min_premium_pct: 8           # 최소 김프 8%
+  min_duration_sec: 300        # 5분 이상 유지
+  lightning_rod_window_sec: 60 # 1분 내 소멸 → 피뢰침 (neutral)
+
+# --- 판정 등급 ---
+# 대흥따리: 최대 김프 >= 30%
+# 흥따리:   최대 김프 >= 8% AND 5분+ 유지
+# 보통:     최대 김프 3~8% OR 피뢰침
+# 망따리:   최대 김프 < 3% OR 역프

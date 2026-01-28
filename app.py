@@ -1,16 +1,51 @@
 """
 CEX Dominance Dashboard
 Modern Compact UI
+
+Railway 단일 서비스 모드:
+  - Streamlit web (메인)
+  - collector_daemon (백그라운드 스레드)
 """
 
 import streamlit as st
 import asyncio
+import os
+import threading
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 from pathlib import Path
 
 from dominance import DominanceCalculator, DominanceResult
+from ui.health_display import render_health_banner
+from ui.ddari_tab import render_ddari_tab
+
+
+# ============================================================
+# 백그라운드 데몬 (Railway 단일 서비스용)
+# ============================================================
+def _run_daemon_in_thread():
+    """별도 스레드에서 collector_daemon 실행."""
+    import collector_daemon
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(collector_daemon.main())
+    except Exception as e:
+        print(f"[Daemon] 에러: {e}")
+    finally:
+        loop.close()
+
+
+@st.cache_resource
+def start_background_daemon():
+    """데몬을 백그라운드 스레드로 시작 (앱 시작 시 1회만 실행)."""
+    # RAILWAY_ENVIRONMENT 또는 DAEMON_ENABLED=true 일 때만 실행
+    if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("DAEMON_ENABLED") == "true":
+        daemon_thread = threading.Thread(target=_run_daemon_in_thread, daemon=True)
+        daemon_thread.start()
+        return {"status": "started", "thread": daemon_thread}
+    return {"status": "disabled"}
 
 st.set_page_config(
     page_title="CEX Dominance",
@@ -483,7 +518,26 @@ def render_ticker_card(result: DominanceResult, title: str):
 
 
 def main():
+    # Railway 환경에서 데몬 자동 시작
+    daemon_info = start_background_daemon()
+
     config = load_config()
+
+    # Health 배너 (최상단)
+    render_health_banner(st)
+
+    # 탭 구조
+    tab1, tab2 = st.tabs(["CEX Dominance", "따리분석"])
+
+    with tab1:
+        _render_dominance_tab(config)
+
+    with tab2:
+        render_ddari_tab()
+
+
+def _render_dominance_tab(config):
+    """CEX Dominance 탭 (기존 기능 100% 보존)."""
 
     # Header with period selector
     header_col1, header_col2 = st.columns([4, 1])

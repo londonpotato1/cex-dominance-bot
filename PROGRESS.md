@@ -1,7 +1,7 @@
 # CEX Dominance Bot - 진행 상황 기록
 
 **마지막 업데이트**: 2026-01-28 (Day 3)
-**현재 단계**: Phase 3 구현 + 코드 리뷰 수정 + 통합 테스트 완료
+**현재 단계**: Phase 4 구현 + 통합 테스트 완료
 
 ---
 
@@ -199,17 +199,128 @@
 | Phase 2 회귀 검증 (20/20) | PASS |
 | **총 결과** | **54/54 PASS** |
 
+### Phase 4: UI + 안정화 (완료)
+
+| 파일 | 타입 | 역할 |
+|------|------|------|
+| `migrations/003_add_gate_log.sql` | 신규 | gate_analysis_log 테이블 (스키마 v3) |
+| `metrics/__init__.py` | 신규 | 패키지 초기화 |
+| `metrics/observability.py` | 신규 | Gate 분석 로그 DB 기록 (`log_gate_analysis`) |
+| `ui/__init__.py` | 신규 | 패키지 초기화 |
+| `ui/health_display.py` | 신규 | health.json 판정 (RED/YELLOW/GREEN) + 배너 |
+| `ui/ddari_tab.py` | 신규 | 따리분석 탭 (Gate 결과 카드 + 열화 UI + VASP 배지 + 통계) |
+| `alerts/telegram_bot.py` | 신규 | 인터랙티브 봇 (`/status`, `/recent`, `/gate`, `/help`) |
+| `scripts/test_phase4.py` | 신규 | Phase 4 통합 테스트 (60건) |
+| `scripts/test_replay.py` | 신규 | 67건 과거 상장 Replay 테스트 |
+| `app.py` | 수정 | 탭 구조 (CEX Dominance + 따리분석) + health 배너 |
+| `collector_daemon.py` | 수정 | Telegram Bot 태스크 (feature-flagged) |
+| `collectors/market_monitor.py` | 수정 | Gate 분석 타이밍 + `log_gate_analysis()` 호출 |
+| `Procfile` | 수정 | `worker:` 프로세스 추가 |
+
+### Phase 4 설계 결정
+
+| 결정 | 이유 |
+|------|------|
+| `ddari_tab.py` streamlit lazy import | 순수 로직 함수 테스트 가능 (streamlit 없이) |
+| Telegram Bot feature flag OFF 기본 | 안전한 배포 — 수동 활성화 |
+| gate_analysis_log additive only | 기존 테이블 변경 없음 (마이그레이션 안전) |
+| health.json IPC | Streamlit ↔ Daemon 프로세스 간 통신 (파일 기반) |
+| 캐싱 TTL 3단계 | gate_log=60s, VASP=300s, 통계=3600s |
+
+### Phase 4 통합 테스트 (Day 3)
+
+| 항목 | 결과 |
+|------|------|
+| DB 마이그레이션 v3 | PASS |
+| gate_analysis_log 컬럼 확인 (17개) | PASS |
+| gate_analysis_log 인덱스 확인 (2개) | PASS |
+| log_gate_analysis DB insert | PASS |
+| can_proceed 값 검증 | PASS |
+| alert_level 값 검증 | PASS |
+| premium_pct 값 검증 | PASS |
+| gate_duration_ms 값 검증 | PASS |
+| blockers_json 검증 | PASS |
+| warnings_json 검증 | PASS |
+| gate_input=None 기록 | PASS |
+| Health GREEN 판정 | PASS |
+| Health RED (heartbeat > 60초) | PASS |
+| Health YELLOW (Upbit stale) | PASS |
+| Health YELLOW (queue > 10K) | PASS |
+| Health YELLOW (drops > 0) | PASS |
+| Health load 파일 없음 → None | PASS |
+| Health load 깨진 JSON → None | PASS |
+| FX hardcoded 빨간 배지 | PASS |
+| FX 2차 소스 노란 배지 | PASS |
+| 헤지 불가 배지 | PASS |
+| 네트워크 기본값 배지 | PASS |
+| 신뢰 상태 배지 없음 | PASS |
+| VASP ok + alt_note | PASS |
+| VASP blocked | PASS |
+| VASP partial | PASS |
+| 빈 테이블 조회 (no crash) | PASS |
+| features.yaml 존재 확인 | PASS |
+| hard_gate 활성화 확인 | PASS |
+| telegram_interactive 정의 확인 | PASS |
+| Procfile 존재 확인 | PASS |
+| Procfile web 프로세스 | PASS |
+| Procfile worker 프로세스 | PASS |
+| ui.health_display import | PASS |
+| ui.ddari_tab import | PASS |
+| metrics.observability import | PASS |
+| alerts.telegram_bot import | PASS |
+| 캐싱 TTL=60 (recent) | PASS |
+| 캐싱 TTL=3600 (stats) | PASS |
+| 캐싱 TTL=300 (vasp) | PASS |
+| 동시 상장 ALPHA GO | PASS |
+| 동시 상장 BETA GO | PASS |
+| 동시 상장 DB 2건 기록 | PASS |
+| WAL 동시 읽기/쓰기 | PASS |
+| Feature flag OFF 기본값 | PASS |
+| GateInput 전체 기본값 | PASS |
+| Zero profit → blocker | PASS |
+| listing_data.csv 존재 | PASS |
+| CSV 67건 확인 | PASS |
+| Replay 67건 무크래시 | PASS |
+| Phase 3 GO 회귀 | PASS |
+| Phase 3 입금 차단 회귀 | PASS |
+| Phase 3 출금 차단 회귀 | PASS |
+| Phase 3 수익성 부족 회귀 | PASS |
+| Phase 3 전송 시간 초과 회귀 | PASS |
+| Phase 3 WATCH_ONLY 회귀 | PASS |
+| Phase 3 유동성 경고 회귀 | PASS |
+| Phase 3 CRITICAL 레벨 회귀 | PASS |
+| Bot /help 명령 | PASS |
+| Bot /status 명령 | PASS |
+| **총 결과** | **60/60 PASS** |
+
+### 67건 과거 상장 Replay 결과
+
+| 항목 | 값 |
+|------|-----|
+| 전체 처리 | 67/67 무크래시 |
+| 판정 가능 건수 | 54건 (label 없음 13건 제외) |
+| 정확도 (Phase 3 Hard Gate) | 51.9% (28/54) |
+| GO 정확 | 대흥따리/흥따리 중 GO 판정 |
+| NO-GO 정확 | 망따리 중 NO-GO 판정 |
+
+> **참고**: 51.9%는 Phase 3 Hard Gate만으로의 baseline.
+> 과거 데이터에 실시간 입출금 상태/글로벌 가격이 없어 기본값 사용.
+> Phase 5+ (supply_classifier, listing_type) 추가 시 개선 기대.
+
 ---
 
 ## 2. 다음 세션 작업
 
 ### 즉시 진행 가능
 1. **라이브 WS 테스트** — `python scripts/test_pipeline.py --duration 30`으로 실제 업비트/빗썸 WS 연결 확인
-2. **전체 데몬 테스트** — `python collector_daemon.py` 실행 (Phase 3 컴포넌트 포함)
+2. **전체 데몬 테스트** — `python collector_daemon.py` 실행 (Phase 4 컴포넌트 포함)
+3. **Streamlit 확인** — `streamlit run app.py`로 2개 탭 + health 배너 동작 확인
+4. **Telegram 봇 활성화** — `features.yaml`에서 `telegram_interactive: true` + 환경변수 설정
 
-### Phase 4 진행
-- PLAN_v15.md 기준 다음 Phase 확인
-- 현재 Phase 3까지 구현 + 리뷰 + 테스트 완료 상태
+### Phase 5 진행
+- Phase 5a: Core Analysis (supply_classifier, listing_type)
+- Phase 5b: 글로벌 거래소 WebSocket (Binance/OKX/Bybit)
+- Replay 정확도 개선 (51.9% → 목표 70%+)
 
 ---
 
@@ -217,7 +328,9 @@
 
 ```
 cex_dominance_bot/
-├── collector_daemon.py          # 메인 데몬 (Phase 2+3)
+├── collector_daemon.py          # 메인 데몬 (Phase 2+3+4)
+├── app.py                       # Streamlit 대시보드 (2탭: Dominance + 따리분석)
+├── Procfile                     # web + worker 프로세스
 ├── PROGRESS.md                  # ← 이 파일
 │
 ├── collectors/
@@ -228,7 +341,7 @@ cex_dominance_bot/
 │   ├── bithumb_ws.py            # 빗썸 수집기
 │   ├── aggregator.py            # 1s→1m 롤업
 │   ├── notice_parser.py         # 빗썸 공지 파싱
-│   └── market_monitor.py        # 상장 감지 + Gate/Alert 연결
+│   └── market_monitor.py        # 상장 감지 + Gate/Alert + 관측성
 │
 ├── analysis/                    # Phase 3: 분석 파이프라인
 │   ├── __init__.py
@@ -237,9 +350,19 @@ cex_dominance_bot/
 │   ├── gate.py                  # Hard Gate 4 Blockers + 3 Warnings
 │   └── tokenomics.py            # MC/FDV/유통량 조회
 │
-├── alerts/                      # Phase 3: 알림 시스템
+├── alerts/                      # Phase 3+4: 알림 시스템
 │   ├── __init__.py
-│   └── telegram.py              # AlertLevel 5단계 + Debounce
+│   ├── telegram.py              # AlertLevel 5단계 + Debounce
+│   └── telegram_bot.py          # 인터랙티브 봇 (/status /recent /gate)
+│
+├── metrics/                     # Phase 4: 관측성
+│   ├── __init__.py
+│   └── observability.py         # Gate 분석 로그 DB 기록
+│
+├── ui/                          # Phase 4: UI 모듈
+│   ├── __init__.py
+│   ├── health_display.py        # health.json → RED/YELLOW/GREEN
+│   └── ddari_tab.py             # 따리분석 탭 (Gate 결과 + 열화 + VASP)
 │
 ├── store/
 │   ├── __init__.py
@@ -249,7 +372,7 @@ cex_dominance_bot/
 │   └── cache.py                 # CoinGecko TTL 캐시
 │
 ├── config/                      # Phase 3: 설정 파일
-│   ├── features.yaml            # Feature Flags
+│   ├── features.yaml            # Feature Flags (telegram_interactive 포함)
 │   ├── networks.yaml            # 블록체인 네트워크 설정
 │   ├── exchanges.yaml           # 거래소 API 설정
 │   ├── fees.yaml                # 수수료 설정
@@ -257,17 +380,23 @@ cex_dominance_bot/
 │
 ├── migrations/
 │   ├── 001_initial.sql          # 초기 스키마
-│   └── 002_add_fx_snapshots.sql # FX 스냅샷 + 디바운스 (v2)
+│   ├── 002_add_fx_snapshots.sql # FX 스냅샷 + 디바운스 (v2)
+│   └── 003_add_gate_log.sql     # Gate 분석 로그 (v3)
 │
 ├── scripts/
 │   ├── test_pipeline.py         # Phase 1 검증 (라이브 WS)
-│   ├── test_phase2.py           # Phase 2 통합 테스트 (오프라인)
+│   ├── test_phase2.py           # Phase 2 통합 테스트 (20건)
 │   ├── test_phase3.py           # Phase 3 통합 테스트 (54건)
+│   ├── test_phase4.py           # Phase 4 통합 테스트 (60건)
+│   ├── test_replay.py           # 67건 과거 상장 Replay
 │   └── phase0_analysis.py       # Phase 0 분석
 │
-├── data/                        # SQLite DB 파일
+├── data/
+│   └── labeling/
+│       └── listing_data.csv     # 67건 과거 상장 데이터
+│
 ├── requirements.txt             # 의존성 목록
-├── main.py, dominance.py, app.py  # 기존 파일
+├── main.py, dominance.py        # 기존 CLI/계산 모듈
 └── PLAN_v15.md                  # 최신 계획서
 ```
 
@@ -276,6 +405,8 @@ cex_dominance_bot/
 ## 4. 핵심 아키텍처 요약
 
 ```
+[Process 1: collector_daemon.py]
+
 [업비트 WS] ──┐
               ├──→ SecondBucket ──→ Writer Queue ──→ SQLite (1s)
 [빗썸 WS] ───┘                                        │
@@ -288,6 +419,7 @@ cex_dominance_bot/
                 ──→ 빗썸 공지 폴링 (60초)  ──→ → 토큰 자동 등록
                                                 → WS 동적 구독 추가
                                                 → Gate 파이프라인 (Phase 3)
+                                                → log_gate_analysis() (Phase 4)
 
 [Gate 파이프라인] (Phase 3)
   MarketMonitor._on_new_listing(exchange, symbol)
@@ -299,14 +431,45 @@ cex_dominance_bot/
       ├─ CostModel.calculate_total_cost()       [fees.yaml + networks.yaml]
       ├─ VASP 매트릭스 조회                      [vasp_matrix.yaml]
       └─ check_hard_blockers()                  → GateResult
+    → log_gate_analysis(writer, result, duration_ms)  → gate_analysis_log DB
     → TelegramAlert.send(level, message, key)
       ├─ CRITICAL/HIGH → 즉시 전송
       ├─ MEDIUM → 5분 debounce
       ├─ LOW → batch (1시간 flush)
       └─ INFO → 로그만
 
+[TelegramBot] (feature-flagged: telegram_interactive)
+  /status  → health.json → RED/YELLOW/GREEN
+  /recent  → gate_analysis_log 최근 5건
+  /gate    → 수동 Gate 분석 실행
+  /help    → 명령어 목록
+
 [Health Loop] ──→ health.json (30초마다 갱신)
+
+───────────────────────────────────────────────────
+
+[Process 2: app.py (Streamlit)]
+
+  Health 배너     ← health.json IPC (RED/YELLOW/GREEN)
+  Tab 1: CEX Dominance (기존 기능 100% 보존)
+  Tab 2: 따리분석  ← gate_analysis_log DB (read-only)
+    ├─ 최근 분석 카드 (GO/NO-GO 배지, 프리미엄, 비용, FX)
+    ├─ Gate 열화 배지 (FX 기본값, 2차 소스, 헤지 불가, 네트워크 기본값)
+    ├─ VASP alt_note 배지 (차단/부분제한/참고)
+    └─ 통계 요약 (GO/NO-GO 건수, 평균 프리미엄, FX 분포)
 ```
 
+**Dual Process**: collector_daemon.py (worker) + app.py (web) — Procfile 2줄.
 **Single Writer 원칙**: 모든 DB 쓰기는 `DatabaseWriter` 큐 경유 (thread-safe).
+**Streamlit read-only**: 따리분석 탭은 gate_analysis_log DB 조회만 (쓰기 없음).
 **Graceful Shutdown**: stop_event → WS close → flush → force rollup → alert flush → task cancel → Writer shutdown (6단계).
+
+## 5. 테스트 누적 현황
+
+| Phase | 테스트 파일 | 건수 | 결과 |
+|-------|------------|------|------|
+| Phase 2 | `scripts/test_phase2.py` | 20건 | 20/20 PASS |
+| Phase 3 | `scripts/test_phase3.py` | 54건 | 54/54 PASS |
+| Phase 4 | `scripts/test_phase4.py` | 60건 | 60/60 PASS |
+| Replay | `scripts/test_replay.py` | 67건 | 67/67 무크래시 (정확도 51.9%) |
+| **누적** | | **201건** | **ALL PASS** |
