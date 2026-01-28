@@ -46,11 +46,14 @@ from analysis.cost_model import CostModel
 from analysis.gate import GateChecker
 from alerts.telegram import TelegramAlert
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+# 로깅 설정: 이미 설정된 핸들러가 있으면 재설정하지 않음
+# (app.py에서 파일 핸들러를 설정했을 수 있음)
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 logger = logging.getLogger("collector_daemon")
 
 # ---- 감시 마켓 (Phase 2: 주요 20개) ----
