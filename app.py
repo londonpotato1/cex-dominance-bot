@@ -26,15 +26,35 @@ from ui.ddari_tab import render_ddari_tab
 # ============================================================
 def _run_daemon_in_thread():
     """별도 스레드에서 collector_daemon 실행."""
-    import collector_daemon
+    import traceback
+    import sys
+
+    print("[Daemon] Thread function started", flush=True)
+
+    try:
+        import collector_daemon
+        print("[Daemon] collector_daemon imported", flush=True)
+    except Exception as e:
+        print(f"[Daemon] Import error: {e}", flush=True)
+        traceback.print_exc()
+        return
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    print("[Daemon] Event loop created", flush=True)
+
     try:
+        print("[Daemon] Starting main()...", flush=True)
         loop.run_until_complete(collector_daemon.main())
+        print("[Daemon] main() completed normally", flush=True)
     except Exception as e:
-        print(f"[Daemon] 에러: {e}")
+        print(f"[Daemon] CRASH: {type(e).__name__}: {e}", flush=True)
+        traceback.print_exc()
+        sys.stdout.flush()
+        sys.stderr.flush()
     finally:
         loop.close()
+        print("[Daemon] Event loop closed", flush=True)
 
 
 @st.cache_resource
