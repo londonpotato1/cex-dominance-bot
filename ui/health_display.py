@@ -110,15 +110,19 @@ def render_health_banner(st_module) -> None:
         st_module: streamlit 모듈 (import st).
     """
     data = load_health()
+    logger.info(f"[Health] load_health() returned: {data is not None}, path: {_HEALTH_PATH}")
 
     if data is None:
         st_module.info("수집 데몬 미실행 (health.json 없음)")
         return
 
     status, issues = evaluate_health(data)
+    logger.info(f"[Health] status={status}, issues={issues}")
 
     if status == "RED":
-        st_module.error(f"시스템 이상: {' | '.join(issues)}")
+        st_module.error(f"🔴 시스템 이상: {' | '.join(issues)}")
     elif status == "YELLOW":
-        st_module.warning(f"주의: {' | '.join(issues)}")
-    # GREEN → 배너 없음
+        st_module.warning(f"🟡 주의: {' | '.join(issues)}")
+    else:
+        # GREEN → 정상 상태 표시
+        st_module.success("🟢 수집 데몬 정상 작동 중")
