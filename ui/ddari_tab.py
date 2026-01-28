@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from pathlib import Path
 
@@ -20,7 +21,9 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-_DB_PATH = Path(__file__).resolve().parent.parent / "ddari.db"
+# Railway Volume 지원: DATABASE_URL 환경변수 우선
+_DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "ddari.db"
+_DB_PATH = Path(os.environ.get("DATABASE_URL", str(_DEFAULT_DB_PATH)))
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 
 
