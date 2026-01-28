@@ -196,7 +196,25 @@ async def main() -> None:
         logger.info("백그라운드 스레드 실행 모드 (signal 핸들러 없음)")
 
     # ---- 9. 실행 대기 ----
-    await stop_event.wait()
+    # 백그라운드 스레드 모드에서는 무한 실행 (태스크 모니터링)
+    if not is_main_thread:
+        logger.info("백그라운드 모드: 태스크 모니터링 시작")
+        while True:
+            done, pending = await asyncio.wait(
+                tasks, return_when=asyncio.FIRST_COMPLETED, timeout=60.0
+            )
+            if done:
+                for t in done:
+                    if t.exception():
+                        logger.error(f"태스크 {t.get_name()} 실패: {t.exception()}")
+                        # 실패한 태스크를 다시 시작하거나 전체 종료
+                        raise RuntimeError(f"Critical task {t.get_name()} failed")
+            # 60초마다 상태 로깅
+            alive_tasks = [t.get_name() for t in pending if not t.done()]
+            logger.debug(f"실행 중 태스크: {alive_tasks}")
+    else:
+        await stop_event.wait()
+
     logger.info("종료 시그널 수신, Graceful Shutdown 시작")
 
     # ---- 10. Graceful Shutdown ----
