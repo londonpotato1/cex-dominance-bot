@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Screenshots
+*.png
+
+# Config with secrets
+config.local.yaml
+
+# Data / DB
+data/
+*.db
+
+# Runtime
+health.json
+
+# OS
+.DS_Store
+Thumbs.db

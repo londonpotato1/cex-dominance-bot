@@ -1,0 +1,56 @@
+# ============================================================
+# 거래소 API 설정
+# Phase 3: REST API on-demand 호출용
+# ============================================================
+
+# 글로벌 거래소 (VWAP 계산용)
+global:
+  binance:
+    display_name: "Binance"
+    ticker_url: "https://api.binance.com/api/v3/ticker/24hr"
+    orderbook_url: "https://api.binance.com/api/v3/depth"
+    symbol_format: "{base}USDT"    # e.g., BTCUSDT
+    rate_limit_per_min: 1200
+    weight_per_ticker: 1
+    weight_per_orderbook: 5
+
+  okx:
+    display_name: "OKX"
+    ticker_url: "https://www.okx.com/api/v5/market/ticker"
+    orderbook_url: "https://www.okx.com/api/v5/market/books"
+    symbol_format: "{base}-USDT"   # e.g., BTC-USDT
+    rate_limit_per_min: 60
+    weight_per_ticker: 1
+    weight_per_orderbook: 1
+
+  bybit:
+    display_name: "Bybit"
+    ticker_url: "https://api.bybit.com/v5/market/tickers"
+    orderbook_url: "https://api.bybit.com/v5/market/orderbook"
+    symbol_format: "{base}USDT"    # e.g., BTCUSDT
+    rate_limit_per_min: 120
+    weight_per_ticker: 1
+    weight_per_orderbook: 1
+
+# 국내 거래소 (KRW 가격 조회용)
+domestic:
+  upbit:
+    display_name: "Upbit"
+    ticker_url: "https://api.upbit.com/v1/ticker"
+    symbol_format: "KRW-{base}"    # e.g., KRW-BTC
+    rate_limit_per_min: 600
+
+  bithumb:
+    display_name: "Bithumb"
+    ticker_url: "https://api.bithumb.com/public/ticker/{base}_KRW"
+    symbol_format: "{base}_KRW"    # e.g., BTC_KRW
+    rate_limit_per_min: 150
+
+# VWAP 계산 설정
+vwap:
+  # 거래량 가중 평균 계산에 포함할 거래소 (우선순위)
+  exchanges: ["binance", "okx", "bybit"]
+  # 최소 참여 거래소 수 (1개라도 응답하면 VWAP 가능)
+  min_exchanges: 1
+  # API 타임아웃 (초)
+  timeout_sec: 10

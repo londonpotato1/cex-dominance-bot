@@ -1,0 +1,76 @@
+# ============================================================
+# 블록체인 네트워크 전송 설정
+# 전송 시간 (분), P90 확인 시간, 가스비 임계값
+# ============================================================
+
+networks:
+  ethereum:
+    display_name: "Ethereum (L1)"
+    avg_transfer_min: 5        # 평균 전송 시간 (분)
+    p90_transfer_min: 15       # P90 전송 시간 (분)
+    gas_warn_gwei: 50          # 가스비 경고 임계값 (gwei)
+    gas_critical_gwei: 150     # 가스비 위험 임계값 (gwei)
+    confirmation_blocks: 12
+
+  solana:
+    display_name: "Solana"
+    avg_transfer_min: 0.5
+    p90_transfer_min: 2
+    gas_warn_gwei: 0           # 매우 저렴, 실질적으로 무시
+    gas_critical_gwei: 0
+    confirmation_blocks: 32
+
+  bsc:
+    display_name: "BNB Smart Chain"
+    avg_transfer_min: 1
+    p90_transfer_min: 5
+    gas_warn_gwei: 10
+    gas_critical_gwei: 50
+    confirmation_blocks: 15
+
+  arbitrum:
+    display_name: "Arbitrum One"
+    avg_transfer_min: 1
+    p90_transfer_min: 5
+    gas_warn_gwei: 0.1
+    gas_critical_gwei: 1
+    confirmation_blocks: 1
+
+  polygon:
+    display_name: "Polygon PoS"
+    avg_transfer_min: 2
+    p90_transfer_min: 8
+    gas_warn_gwei: 100
+    gas_critical_gwei: 500
+    confirmation_blocks: 128
+
+  base:
+    display_name: "Base"
+    avg_transfer_min: 1
+    p90_transfer_min: 5
+    gas_warn_gwei: 0.1
+    gas_critical_gwei: 1
+    confirmation_blocks: 1
+
+  tron:
+    display_name: "TRON"
+    avg_transfer_min: 1
+    p90_transfer_min: 3
+    gas_warn_gwei: 0
+    gas_critical_gwei: 0
+    confirmation_blocks: 19
+
+  avalanche:
+    display_name: "Avalanche C-Chain"
+    avg_transfer_min: 1
+    p90_transfer_min: 3
+    gas_warn_gwei: 25
+    gas_critical_gwei: 100
+    confirmation_blocks: 1
+
+# 전송 시간 경고 임계값 (분)
+transfer_time_thresholds:
+  fast: 3           # 3분 이하: 빠름
+  acceptable: 10    # 10분 이하: 수용 가능
+  slow: 30          # 30분 이하: 느림 (경고)
+  # 30분 초과: Hard Blocker

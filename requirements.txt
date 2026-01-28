@@ -1,0 +1,18 @@
+# CEX Dominance Bot 의존성
+
+# 거래소 API
+ccxt>=4.0.0
+
+# 설정
+pyyaml>=6.0
+
+# 텔레그램 알림 (선택)
+aiohttp>=3.9.0
+
+# WebSocket 수집기
+websockets>=12.0
+
+# 웹 대시보드
+streamlit>=1.30.0
+plotly>=5.18.0
+pandas>=2.0.0

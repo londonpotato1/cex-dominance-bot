@@ -1,0 +1,59 @@
+# ============================================================
+# 거래 수수료 + 출금(네트워크) 수수료 설정
+# ============================================================
+
+# 거래 수수료 (maker/taker)
+trading_fees:
+  binance:
+    maker: 0.0010    # 0.10%
+    taker: 0.0010    # 0.10%
+    # BNB 할인 적용 시: maker 0.075%, taker 0.075%
+  okx:
+    maker: 0.0008    # 0.08%
+    taker: 0.0010    # 0.10%
+  bybit:
+    maker: 0.0010    # 0.10%
+    taker: 0.0010    # 0.10%
+  upbit:
+    maker: 0.0005    # 0.05%
+    taker: 0.0005    # 0.05%
+  bithumb:
+    maker: 0.0004    # 0.04%
+    taker: 0.0004    # 0.04%
+
+# 헤지 비용 (선물)
+hedge_fees:
+  cex_perpetual:
+    maker: 0.0002    # 0.02%
+    taker: 0.0005    # 0.05%
+    funding_8h_avg: 0.0001  # 평균 8시간 펀딩비 0.01%
+  dex_perpetual:
+    maker: 0.0000    # 0.00% (대부분 무료)
+    taker: 0.0005    # 0.05%
+    gas_per_trade_usd: 0.50  # 평균 가스비 (Arbitrum 기준)
+
+# 네트워크별 출금 수수료 (USDT 기준, 거래소 평균)
+withdrawal_fees:
+  ethereum:
+    usdt: 15.0       # ~15 USDT
+    eth: 0.005       # ~0.005 ETH
+  solana:
+    usdt: 1.0        # ~1 USDT
+    sol: 0.01        # ~0.01 SOL
+  bsc:
+    usdt: 1.0        # ~1 USDT
+    bnb: 0.0005      # ~0.0005 BNB
+  arbitrum:
+    usdt: 1.0        # ~1 USDT
+    eth: 0.0001      # ~0.0001 ETH
+  polygon:
+    usdt: 1.0        # ~1 USDT
+  base:
+    usdt: 1.0        # ~1 USDT
+  tron:
+    usdt: 1.0        # ~1 USDT
+
+# 비용 경고 임계값
+cost_thresholds:
+  gas_warn_pct: 0.01       # 원금 대비 가스비 1% 초과 시 경고
+  total_cost_warn_pct: 0.03 # 총 비용 3% 초과 시 경고
