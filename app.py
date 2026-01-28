@@ -60,43 +60,53 @@ def _run_daemon_in_thread():
     import time as _time
 
     logger.info("[Daemon] Thread function started")
+    logger.info(f"[Daemon] sys.path: {sys.path[:3]}...")  # 경로 확인
 
     try:
+        logger.info("[Daemon] Importing collector_daemon...")
         import collector_daemon
-        logger.info("[Daemon] collector_daemon imported")
+        logger.info("[Daemon] collector_daemon imported successfully")
     except Exception as e:
-        logger.error(f"[Daemon] Import error: {e}")
+        logger.error(f"[Daemon] Import error: {type(e).__name__}: {e}")
         logger.error(traceback.format_exc())
         return
 
     restart_count = 0
 
     while restart_count < _DAEMON_MAX_RESTARTS:
+        logger.info(f"[Daemon] Creating event loop (restart #{restart_count})...")
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         logger.info(f"[Daemon] Event loop created (restart #{restart_count})")
 
+        start_time = _time.time()
         try:
-            logger.info("[Daemon] Starting main()...")
+            logger.info("[Daemon] Calling collector_daemon.main()...")
             loop.run_until_complete(collector_daemon.main())
-            logger.warning("[Daemon] main() completed normally — unexpected in background mode!")
+            elapsed = _time.time() - start_time
+            logger.warning(f"[Daemon] main() completed normally after {elapsed:.1f}s — unexpected!")
         except Exception as e:
-            logger.error(f"[Daemon] CRASH: {type(e).__name__}: {e}")
+            elapsed = _time.time() - start_time
+            logger.error(f"[Daemon] CRASH after {elapsed:.1f}s: {type(e).__name__}: {e}")
             logger.error(traceback.format_exc())
         finally:
             try:
                 loop.close()
-            except Exception:
-                pass
-            logger.info("[Daemon] Event loop closed")
+                logger.info("[Daemon] Event loop closed")
+            except Exception as ce:
+                logger.error(f"[Daemon] Error closing loop: {ce}")
 
         restart_count += 1
         logger.warning(f"[Daemon] Restarting in {_DAEMON_RESTART_DELAY}s... (attempt {restart_count}/{_DAEMON_MAX_RESTARTS})")
         _time.sleep(_DAEMON_RESTART_DELAY)
 
         # 모듈 리로드하여 fresh 상태로 시작
-        import importlib
-        importlib.reload(collector_daemon)
+        try:
+            import importlib
+            importlib.reload(collector_daemon)
+            logger.info("[Daemon] Module reloaded")
+        except Exception as re:
+            logger.error(f"[Daemon] Reload error: {re}")
 
     logger.error(f"[Daemon] Max restarts ({_DAEMON_MAX_RESTARTS}) exceeded — giving up")
 
