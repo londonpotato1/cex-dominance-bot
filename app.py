@@ -40,11 +40,19 @@ def _run_daemon_in_thread():
 @st.cache_resource
 def start_background_daemon():
     """데몬을 백그라운드 스레드로 시작 (앱 시작 시 1회만 실행)."""
+    # 환경변수 디버깅
+    railway_env = os.environ.get("RAILWAY_ENVIRONMENT")
+    daemon_enabled = os.environ.get("DAEMON_ENABLED")
+    print(f"[Daemon Check] RAILWAY_ENVIRONMENT={railway_env}, DAEMON_ENABLED={daemon_enabled}")
+
     # RAILWAY_ENVIRONMENT 또는 DAEMON_ENABLED=true 일 때만 실행
-    if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("DAEMON_ENABLED") == "true":
+    if railway_env or daemon_enabled == "true":
+        print("[Daemon] Starting background daemon thread...")
         daemon_thread = threading.Thread(target=_run_daemon_in_thread, daemon=True)
         daemon_thread.start()
+        print("[Daemon] Thread started successfully")
         return {"status": "started", "thread": daemon_thread}
+    print("[Daemon] Disabled - conditions not met")
     return {"status": "disabled"}
 
 st.set_page_config(
