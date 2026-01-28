@@ -95,13 +95,20 @@ async def main() -> None:
     # ---- 3. 읽기 전용 커넥션 ----
     read_conn = get_connection()
 
-    # ---- 4. Token Registry + CoinGecko 부트스트랩 ----
+    # ---- 4. Token Registry (CoinGecko 부트스트랩은 백그라운드에서) ----
     registry = TokenRegistry(read_conn, writer=writer)
-    try:
-        bootstrap_count = await bootstrap_top_tokens(registry)
-        logger.info("CoinGecko 부트스트랩: %d개 토큰", bootstrap_count)
-    except Exception as e:
-        logger.warning("CoinGecko 부트스트랩 실패 (계속 진행): %s", e)
+    # 부트스트랩은 별도 태스크로 실행하여 데몬 시작 차단 방지
+    async def _background_bootstrap():
+        try:
+            bootstrap_count = await asyncio.wait_for(
+                bootstrap_top_tokens(registry),
+                timeout=120.0,  # 2분 타임아웃
+            )
+            logger.info("CoinGecko 부트스트랩 완료: %d개 토큰", bootstrap_count)
+        except asyncio.TimeoutError:
+            logger.warning("CoinGecko 부트스트랩 타임아웃 (2분) — 계속 진행")
+        except Exception as e:
+            logger.warning("CoinGecko 부트스트랩 실패 (계속 진행): %s", e)
 
     # ---- 5. 종료 이벤트 ----
     stop_event = asyncio.Event()
@@ -142,6 +149,7 @@ async def main() -> None:
             _health_loop(writer, upbit, bithumb, schema_version, stop_event),
             name="health",
         ),
+        asyncio.create_task(_background_bootstrap(), name="bootstrap"),
     ]
 
     # ---- 7b. Telegram 인터랙티브 봇 (Feature Flag) ----
