@@ -10,15 +10,30 @@ Railway 단일 서비스 모드:
 import streamlit as st
 import asyncio
 import os
+import sys
 import threading
+import logging
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 from pathlib import Path
 
+# ============================================================
+# Railway 로깅 설정 (stderr로 출력 - Railway가 캡처)
+# ============================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+    handlers=[logging.StreamHandler(sys.stderr)]
+)
+logger = logging.getLogger("cex-bot")
+logger.info("=== CEX Dominance Bot Starting ===")
+
 from dominance import DominanceCalculator, DominanceResult
 from ui.health_display import render_health_banner
 from ui.ddari_tab import render_ddari_tab
+
+logger.info("Imports completed successfully")
 
 
 # ============================================================
@@ -27,34 +42,31 @@ from ui.ddari_tab import render_ddari_tab
 def _run_daemon_in_thread():
     """별도 스레드에서 collector_daemon 실행."""
     import traceback
-    import sys
 
-    print("[Daemon] Thread function started", flush=True)
+    logger.info("[Daemon] Thread function started")
 
     try:
         import collector_daemon
-        print("[Daemon] collector_daemon imported", flush=True)
+        logger.info("[Daemon] collector_daemon imported")
     except Exception as e:
-        print(f"[Daemon] Import error: {e}", flush=True)
-        traceback.print_exc()
+        logger.error(f"[Daemon] Import error: {e}")
+        logger.error(traceback.format_exc())
         return
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    print("[Daemon] Event loop created", flush=True)
+    logger.info("[Daemon] Event loop created")
 
     try:
-        print("[Daemon] Starting main()...", flush=True)
+        logger.info("[Daemon] Starting main()...")
         loop.run_until_complete(collector_daemon.main())
-        print("[Daemon] main() completed normally", flush=True)
+        logger.info("[Daemon] main() completed normally")
     except Exception as e:
-        print(f"[Daemon] CRASH: {type(e).__name__}: {e}", flush=True)
-        traceback.print_exc()
-        sys.stdout.flush()
-        sys.stderr.flush()
+        logger.error(f"[Daemon] CRASH: {type(e).__name__}: {e}")
+        logger.error(traceback.format_exc())
     finally:
         loop.close()
-        print("[Daemon] Event loop closed", flush=True)
+        logger.info("[Daemon] Event loop closed")
 
 
 @st.cache_resource
@@ -63,16 +75,16 @@ def start_background_daemon():
     # 환경변수 디버깅
     railway_env = os.environ.get("RAILWAY_ENVIRONMENT")
     daemon_enabled = os.environ.get("DAEMON_ENABLED")
-    print(f"[Daemon Check] RAILWAY_ENVIRONMENT={railway_env}, DAEMON_ENABLED={daemon_enabled}")
+    logger.info(f"[Daemon Check] RAILWAY_ENVIRONMENT={railway_env}, DAEMON_ENABLED={daemon_enabled}")
 
     # RAILWAY_ENVIRONMENT 또는 DAEMON_ENABLED=true 일 때만 실행
     if railway_env or daemon_enabled == "true":
-        print("[Daemon] Starting background daemon thread...")
+        logger.info("[Daemon] Starting background daemon thread...")
         daemon_thread = threading.Thread(target=_run_daemon_in_thread, daemon=True)
         daemon_thread.start()
-        print("[Daemon] Thread started successfully")
+        logger.info("[Daemon] Thread started successfully")
         return {"status": "started", "thread": daemon_thread}
-    print("[Daemon] Disabled - conditions not met")
+    logger.info("[Daemon] Disabled - conditions not met")
     return {"status": "disabled"}
 
 st.set_page_config(
