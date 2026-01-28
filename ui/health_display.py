@@ -113,7 +113,7 @@ def render_health_banner(st_module) -> None:
     logger.info(f"[Health] load_health() returned: {data is not None}, path: {_HEALTH_PATH}")
 
     if data is None:
-        st_module.info("수집 데몬 미실행 (health.json 없음)")
+        st_module.info(f"수집 데몬 미실행 (health.json 없음) - 경로: {_HEALTH_PATH}")
         return
 
     status, issues = evaluate_health(data)
@@ -126,3 +126,21 @@ def render_health_banner(st_module) -> None:
     else:
         # GREEN → 정상 상태 표시
         st_module.success("🟢 수집 데몬 정상 작동 중")
+
+    # 디버그: health.json 원본 데이터 표시
+    with st_module.expander("🔧 Health 디버그 정보"):
+        now = time.time()
+        st_module.code(f"파일 경로: {_HEALTH_PATH}")
+        st_module.code(f"현재 시각: {now:.0f}")
+
+        if data:
+            hb_ts = data.get("heartbeat_timestamp", 0)
+            st_module.code(f"heartbeat: {hb_ts:.0f} (age: {now - hb_ts:.0f}초)")
+
+            last_msg = data.get("last_msg_time", {})
+            if isinstance(last_msg, dict):
+                for ex, ts in last_msg.items():
+                    age = now - ts if ts > 0 else "N/A"
+                    st_module.code(f"{ex} last_msg: {ts:.0f} (age: {age}초)" if ts > 0 else f"{ex} last_msg: 0")
+
+            st_module.json(data)
