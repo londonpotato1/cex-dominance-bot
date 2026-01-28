@@ -52,6 +52,9 @@ withdrawal_fees:
     usdt: 1.0        # ~1 USDT
   tron:
     usdt: 1.0        # ~1 USDT
+  avalanche:
+    usdt: 1.0        # ~1 USDT
+    avax: 0.01       # ~0.01 AVAX
 
 # 비용 경고 임계값
 cost_thresholds:

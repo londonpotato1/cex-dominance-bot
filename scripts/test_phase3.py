@@ -392,7 +392,7 @@ async def test_08_alert_debounce() -> None:
     result("08 Not configured (no token)", not alert.is_configured, "dry-run mode")
 
     # 첫 debounce check (비어있음 → True)
-    can = alert._debounce_check("test_key_3", 300)
+    can = alert._debounce_check("test_key_3")
     result("08 First check: can send", can)
 
     # debounce 업데이트
@@ -400,11 +400,11 @@ async def test_08_alert_debounce() -> None:
     time.sleep(0.5)  # Writer 처리 대기
 
     # 두 번째 check (디바운스 중 → False)
-    can = alert._debounce_check("test_key_3", 300)
+    can = alert._debounce_check("test_key_3")
     result("08 Second check: debounced", not can)
 
     # 다른 키는 영향 없음
-    can = alert._debounce_check("other_key", 300)
+    can = alert._debounce_check("other_key")
     result("08 Different key: can send", can)
 
     writer.shutdown()

@@ -16,8 +16,8 @@ MarketMonitor._on_new_listing() → gate_checker.analyze_listing(symbol, exchang
 
 AlertLevel (v10 정밀화):
   - CRITICAL: GO + 행동 가능 전략 + 신뢰 FX
-  - HIGH: GO (일부 조건 미달)
-  - MEDIUM: WARNING 존재
+  - HIGH: GO (일부 미달) 또는 NO-GO (즉시 전송)
+  - MEDIUM: (미사용 — debounce 전용)
   - LOW: 정보성
   - INFO: 로그만
 """
@@ -289,7 +289,8 @@ class GateChecker:
             )
 
         # ---- Feature Flag 분기 ----
-        # Phase 5+: supply_analysis, listing_type, strategy, scenario
+        # Phase 5a: supply_classifier, listing_type
+        # Phase 6: scenario_planner
         # 현재는 stub만 — feature flag OFF → skip
 
         # ---- 결과 조립 ----
@@ -330,7 +331,7 @@ class GateChecker:
 
         - GO + 행동 가능 전략 + 신뢰 FX → CRITICAL
         - GO + 일부 미달 → HIGH
-        - NO-GO + blockers → MEDIUM
+        - NO-GO + blockers → HIGH (즉시 전송)
         - Warning만 → LOW
         - 기본 → INFO
         """
@@ -345,9 +346,9 @@ class GateChecker:
                 return AlertLevel.CRITICAL
             return AlertLevel.HIGH
 
-        # NO-GO
+        # NO-GO — 상장 감지는 시간 민감 → 즉시 전송 (HIGH)
         if blockers:
-            return AlertLevel.MEDIUM
+            return AlertLevel.HIGH
 
         if warnings:
             return AlertLevel.LOW

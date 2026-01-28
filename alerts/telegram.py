@@ -104,7 +104,7 @@ class TelegramAlert:
             return
 
         if level == AlertLevel.MEDIUM:
-            if key and not self._debounce_check(key, _DEFAULT_DEBOUNCE_SEC):
+            if key and not self._debounce_check(key):
                 logger.debug("[Alert/MEDIUM] 디바운스 skip: %s", key)
                 return
             if key:
@@ -125,12 +125,13 @@ class TelegramAlert:
         self._batch_buffer.clear()
         self._last_batch_flush = time.time()
 
-    def _debounce_check(self, key: str, min_interval: float) -> bool:
+    def _debounce_check(self, key: str) -> bool:
         """디바운스 체크: 전송 가능 여부 반환.
+
+        DB의 expires_at 기준 판정 (interval은 _debounce_update에서 설정).
 
         Args:
             key: 디바운스 키.
-            min_interval: 최소 간격 (초).
 
         Returns:
             True = 전송 가능, False = 디바운스 중.

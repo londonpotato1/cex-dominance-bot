@@ -6,11 +6,12 @@
 # Phase 3: Hard Gate (1단계) — 항상 활성
 hard_gate: true
 
-# Phase 5+: 추가 분석 단계 (stub 준비만)
-supply_analysis: false       # Phase 5a: SupplyClassifier
-listing_type_analysis: false  # Phase 5b: 상장 유형 분류
-strategy_engine: false        # Phase 5c: 전략 추천 엔진
-scenario_model: false         # Phase 5d: 시나리오 확률 모델
+# Phase 5a: Core Analysis (Feature Flag 기반 분기)
+supply_classifier: false     # SupplyClassifier 5-factor 분류
+listing_type: false          # TGE/직상장/옆상장 자동 분류
+
+# Phase 6: Strategy + Scenario + UI
+scenario_planner: false      # 흥/망따리 시나리오 카드 생성
 
 # Phase 4: 텔레그램 봇 상호작용
 telegram_interactive: false   # 텔레그램 인라인 키보드/콜백
