@@ -144,3 +144,18 @@ def render_health_banner(st_module) -> None:
                     st_module.code(f"{ex} last_msg: {ts:.0f} (age: {age}초)" if ts > 0 else f"{ex} last_msg: 0")
 
             st_module.json(data)
+
+        # 로그 파일 표시
+        st_module.markdown("---")
+        st_module.markdown("**📋 데몬 로그 (최근 50줄)**")
+        log_path = Path(os.environ.get("DATA_DIR", "/data")) / "daemon.log"
+        try:
+            if log_path.exists():
+                with open(log_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                    recent_lines = lines[-50:] if len(lines) > 50 else lines
+                    st_module.code("".join(recent_lines), language="log")
+            else:
+                st_module.info(f"로그 파일 없음: {log_path}")
+        except Exception as e:
+            st_module.error(f"로그 읽기 실패: {e}")

@@ -19,12 +19,24 @@ from datetime import datetime
 from pathlib import Path
 
 # ============================================================
-# Railway 로깅 설정 (stderr로 출력 - Railway가 캡처)
+# Railway 로깅 설정 (stderr + 파일)
 # ============================================================
+_LOG_FILE = Path(os.environ.get("DATA_DIR", "/data")) / "daemon.log"
+
+# 파일 핸들러 추가 (Railway 로그가 안 뜰 때 대비)
+handlers = [logging.StreamHandler(sys.stderr)]
+try:
+    _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    file_handler = logging.FileHandler(_LOG_FILE, mode='a', encoding='utf-8')
+    file_handler.setFormatter(logging.Formatter('%(asctime)s | %(levelname)s | %(name)s | %(message)s'))
+    handlers.append(file_handler)
+except Exception:
+    pass  # 파일 로깅 실패 시 무시
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
-    handlers=[logging.StreamHandler(sys.stderr)]
+    handlers=handlers
 )
 logger = logging.getLogger("cex-bot")
 logger.info("=== CEX Dominance Bot Starting ===")
