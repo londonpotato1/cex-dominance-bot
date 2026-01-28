@@ -39,9 +39,13 @@ logger.info("Imports completed successfully")
 # ============================================================
 # 백그라운드 데몬 (Railway 단일 서비스용)
 # ============================================================
+_DAEMON_RESTART_DELAY = 5  # 재시작 전 대기 시간 (초)
+_DAEMON_MAX_RESTARTS = 10  # 최대 재시작 횟수 (무한 루프 방지)
+
 def _run_daemon_in_thread():
-    """별도 스레드에서 collector_daemon 실행."""
+    """별도 스레드에서 collector_daemon 실행 (자동 재시작 포함)."""
     import traceback
+    import time as _time
 
     logger.info("[Daemon] Thread function started")
 
@@ -53,20 +57,36 @@ def _run_daemon_in_thread():
         logger.error(traceback.format_exc())
         return
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    logger.info("[Daemon] Event loop created")
+    restart_count = 0
 
-    try:
-        logger.info("[Daemon] Starting main()...")
-        loop.run_until_complete(collector_daemon.main())
-        logger.info("[Daemon] main() completed normally")
-    except Exception as e:
-        logger.error(f"[Daemon] CRASH: {type(e).__name__}: {e}")
-        logger.error(traceback.format_exc())
-    finally:
-        loop.close()
-        logger.info("[Daemon] Event loop closed")
+    while restart_count < _DAEMON_MAX_RESTARTS:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        logger.info(f"[Daemon] Event loop created (restart #{restart_count})")
+
+        try:
+            logger.info("[Daemon] Starting main()...")
+            loop.run_until_complete(collector_daemon.main())
+            logger.warning("[Daemon] main() completed normally — unexpected in background mode!")
+        except Exception as e:
+            logger.error(f"[Daemon] CRASH: {type(e).__name__}: {e}")
+            logger.error(traceback.format_exc())
+        finally:
+            try:
+                loop.close()
+            except Exception:
+                pass
+            logger.info("[Daemon] Event loop closed")
+
+        restart_count += 1
+        logger.warning(f"[Daemon] Restarting in {_DAEMON_RESTART_DELAY}s... (attempt {restart_count}/{_DAEMON_MAX_RESTARTS})")
+        _time.sleep(_DAEMON_RESTART_DELAY)
+
+        # 모듈 리로드하여 fresh 상태로 시작
+        import importlib
+        importlib.reload(collector_daemon)
+
+    logger.error(f"[Daemon] Max restarts ({_DAEMON_MAX_RESTARTS}) exceeded — giving up")
 
 
 @st.cache_resource
