@@ -64,6 +64,20 @@ def _run_daemon_in_thread():
 
     try:
         logger.info("[Daemon] Importing collector_daemon...")
+        # 개별 모듈 임포트 확인 (어디서 멈추는지 디버깅)
+        logger.info("[Daemon] import store.database...")
+        from store import database
+        logger.info("[Daemon] import store.writer...")
+        from store import writer
+        logger.info("[Daemon] import store.token_registry...")
+        from store import token_registry
+        logger.info("[Daemon] import collectors.upbit_ws...")
+        from collectors import upbit_ws
+        logger.info("[Daemon] import collectors.bithumb_ws...")
+        from collectors import bithumb_ws
+        logger.info("[Daemon] import collectors.aggregator...")
+        from collectors import aggregator
+        logger.info("[Daemon] All sub-imports OK, importing collector_daemon...")
         import collector_daemon
         logger.info("[Daemon] collector_daemon imported successfully")
     except Exception as e:
