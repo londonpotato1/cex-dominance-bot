@@ -25,5 +25,6 @@ withdrawal_tracker: true      # 입출금 상태 조회
 global_ws: false              # Binance/OKX/Bybit WS 실시간 스트림
 
 # Phase 5c: 공지 폴링 (Pre-detection)
-notice_polling: true          # 업비트/빗썸 공지 크롤링 (마켓 오픈 전 감지)
+# TODO: Railway에 Playwright 설치 후 활성화
+notice_polling: false         # 업비트/빗썸 공지 크롤링 (마켓 오픈 전 감지)
 notice_interval: 30           # 공지 폴링 간격 (초)
