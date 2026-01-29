@@ -256,9 +256,9 @@ class GateChecker:
             )
 
             # 5. 비용 계산
-            # 네트워크/헤지 유형은 Phase 3에서는 기본값 사용
-            network = "ethereum"  # Phase 5+에서 동적 결정
-            hedge_type = "none"   # Phase 5+에서 선물 마켓 탐색
+            network = "ethereum"  # TODO: Phase 5+ 네트워크 동적 결정
+            # 선물 마켓 탐색: Binance/Bybit에서 USDT-M 선물 존재 여부 확인
+            hedge_type = await self._check_futures_market(symbol, session)
 
             cost_result = self._cost_model.calculate_total_cost(
                 premium_pct=premium_result.premium_pct,
@@ -532,6 +532,56 @@ class GateChecker:
         if exchange == "bithumb":
             return f"{symbol}_KRW"
         return symbol
+
+    # ------------------------------------------------------------------
+    # 선물 마켓 탐색 (hedge_type 결정)
+    # ------------------------------------------------------------------
+
+    async def _check_futures_market(
+        self, symbol: str, session: aiohttp.ClientSession,
+    ) -> str:
+        """글로벌 거래소에서 USDT-M 선물 마켓 존재 여부 확인.
+
+        Bybit → Binance 순으로 조회 (첫 번째 성공 시 반환).
+
+        Returns:
+            "cex" if futures market exists, "none" otherwise.
+        """
+        futures_symbol = f"{symbol}USDT"
+
+        # 1. Bybit 선물 마켓 확인
+        try:
+            url = f"https://api.bybit.com/v5/market/instruments-info?category=linear&symbol={futures_symbol}"
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if data.get("retCode") == 0:
+                        instruments = data.get("result", {}).get("list", [])
+                        if instruments:
+                            logger.debug(
+                                "[Gate] 선물 마켓 발견: %s@Bybit", futures_symbol,
+                            )
+                            return "cex"
+        except Exception as e:
+            logger.debug("[Gate] Bybit 선물 조회 실패 (%s): %s", symbol, e)
+
+        # 2. Binance 선물 마켓 확인
+        try:
+            url = f"https://fapi.binance.com/fapi/v1/exchangeInfo"
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    symbols = [s["symbol"] for s in data.get("symbols", [])]
+                    if futures_symbol in symbols:
+                        logger.debug(
+                            "[Gate] 선물 마켓 발견: %s@Binance", futures_symbol,
+                        )
+                        return "cex"
+        except Exception as e:
+            logger.debug("[Gate] Binance 선물 조회 실패 (%s): %s", symbol, e)
+
+        logger.debug("[Gate] 선물 마켓 없음: %s", futures_symbol)
+        return "none"
 
     # ------------------------------------------------------------------
     # Phase 5b: External Data Collectors
