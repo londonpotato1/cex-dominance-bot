@@ -281,7 +281,11 @@ def _render_analysis_card(row: dict, vasp_matrix: dict) -> None:
         {vasp_html}
     </div>
     """
-    st.markdown(card_html, unsafe_allow_html=True)
+    # st.html()이 있으면 사용, 없으면 markdown 사용
+    if hasattr(st, 'html'):
+        st.html(card_html)
+    else:
+        st.markdown(card_html, unsafe_allow_html=True)
 
 
 def render_ddari_tab() -> None:
