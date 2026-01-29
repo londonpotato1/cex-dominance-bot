@@ -44,9 +44,9 @@ def fix_unknown_records(dry_run: bool = False) -> int:
     conn = sqlite3.connect(str(_DB_PATH))
     conn.row_factory = sqlite3.Row
 
-    # unknown 레코드 조회
+    # unknown 레코드 조회 (rowid를 id alias로)
     rows = conn.execute(
-        "SELECT rowid, symbol, exchange, blockers_json FROM gate_analysis_log "
+        "SELECT rowid as id, symbol, exchange, blockers_json FROM gate_analysis_log "
         "WHERE symbol = 'unknown' OR exchange = 'unknown'"
     ).fetchall()
 
@@ -54,7 +54,7 @@ def fix_unknown_records(dry_run: bool = False) -> int:
 
     fixed = 0
     for row in rows:
-        rowid = row["rowid"]
+        rowid = row["id"]
         blockers_json = row["blockers_json"] or "[]"
 
         try:
