@@ -137,10 +137,20 @@ async def main() -> None:
     upbit = UpbitCollector(markets=list(UPBIT_MARKETS), writer=writer)
     bithumb = BithumbCollector(markets=list(BITHUMB_MARKETS), writer=writer)
     aggregator = Aggregator(read_conn, writer)
+
+    # 공지 폴링 설정 (Phase 5c)
+    features = gate_checker._features
+    notice_polling = features.get("notice_polling", True)
+    notice_interval = features.get("notice_interval", 30)
+
     monitor = MarketMonitor(
         writer, registry, upbit, bithumb,
         gate_checker=gate_checker, alert=alert,
+        notice_polling=notice_polling,
+        notice_interval=notice_interval,
     )
+    if notice_polling:
+        logger.info("공지 폴링 활성화 (간격: %d초)", notice_interval)
 
     # ---- 7. 태스크 실행 ----
     tasks = [
@@ -156,7 +166,6 @@ async def main() -> None:
     ]
 
     # ---- 7b. Telegram 인터랙티브 봇 (Feature Flag) ----
-    features = gate_checker._features
     if features.get("telegram_interactive") and alert.is_configured:
         from alerts.telegram_bot import TelegramBot
         bot = TelegramBot(

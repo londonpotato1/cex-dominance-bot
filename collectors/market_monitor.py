@@ -1,7 +1,8 @@
-"""상장 감지 모니터 (업비트 + 빗썸 마켓 Diff).
+"""상장 감지 모니터 (업비트 + 빗썸 마켓 Diff + 공지 폴링).
 
 - 업비트: /v1/market/all API Diff (30초 주기)
 - 빗썸: /public/ticker/ALL_KRW API Diff (60초 주기)
+- 공지 폴링: 마켓 오픈 전 pre-detection (30초 주기)
 """
 
 from __future__ import annotations
@@ -14,6 +15,8 @@ from typing import Optional, TYPE_CHECKING
 import aiohttp
 
 from store.token_registry import TokenRegistry, fetch_token_by_symbol
+from collectors.notice_fetcher import NoticeFetcher
+from collectors.notice_parser import NoticeParseResult
 
 if TYPE_CHECKING:
     from store.writer import DatabaseWriter
@@ -49,6 +52,8 @@ class MarketMonitor:
         alert: Optional[TelegramAlert] = None,
         upbit_interval: float = 30.0,
         bithumb_interval: float = 60.0,
+        notice_polling: bool = True,
+        notice_interval: float = 30.0,
     ) -> None:
         self._writer = writer
         self._registry = token_registry
@@ -66,15 +71,35 @@ class MarketMonitor:
         self._upbit_baseline_set = False
         self._bithumb_baseline_set = False
 
+        # 공지 폴링 (pre-detection)
+        self._notice_polling = notice_polling
+        self._notice_fetcher: Optional[NoticeFetcher] = None
+        if notice_polling:
+            self._notice_fetcher = NoticeFetcher(
+                on_listing=self._on_notice_listing,
+                upbit_interval=notice_interval,
+                bithumb_interval=notice_interval,
+            )
+
+        # 이미 공지로 감지한 심볼 (마켓 Diff 중복 알림 방지)
+        self._notice_detected_symbols: set[str] = set()
+
     async def run(self, stop_event: asyncio.Event) -> None:
-        """메인 실행: 업비트 + 빗썸 감시를 병렬 실행."""
+        """메인 실행: 업비트 + 빗썸 감시 + 공지 폴링 병렬 실행."""
         async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
             self._session = session
-            await asyncio.gather(
+
+            tasks = [
                 self._upbit_loop(stop_event),
                 self._bithumb_loop(stop_event),
-                return_exceptions=True,
-            )
+            ]
+
+            # 공지 폴링 활성화 시 추가
+            if self._notice_fetcher:
+                tasks.append(self._notice_fetcher.run(stop_event))
+                logger.info("[MarketMonitor] 공지 폴링 활성화")
+
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     # ------------------------------------------------------------------
     # 업비트 마켓 Diff
@@ -264,9 +289,20 @@ class MarketMonitor:
     async def _on_new_listing(
         self, exchange: str, symbol: str, listing_time: Optional[str] = None
     ) -> None:
-        """신규 상장 감지 시 처리."""
+        """신규 상장 감지 시 처리 (마켓 API Diff)."""
+        # 이미 공지로 감지된 심볼이면 Gate 분석 스킵 (중복 방지)
+        key = f"{symbol}@{exchange}"
+        if key in self._notice_detected_symbols:
+            logger.info(
+                "[MarketMonitor] 마켓 오픈 확인 (공지로 이미 처리됨): %s @ %s",
+                symbol, exchange,
+            )
+            # WS 수집기에만 추가하고 Gate 파이프라인은 스킵
+            await self._add_market_to_collectors(exchange, symbol)
+            return
+
         logger.critical(
-            "[MarketMonitor] 신규 상장 감지: %s @ %s (시간: %s)",
+            "[MarketMonitor] 🚀 마켓 신규 상장 감지: %s @ %s (시간: %s)",
             symbol, exchange, listing_time or "미정",
         )
 
@@ -373,3 +409,108 @@ class MarketMonitor:
                 logger.info("[MarketMonitor] 토큰 최소 등록: %s", symbol)
             except Exception as e:
                 logger.warning("[MarketMonitor] 토큰 최소 등록 실패 (%s): %s", symbol, e)
+
+    # ------------------------------------------------------------------
+    # 공지 폴링 콜백 (pre-detection)
+    # ------------------------------------------------------------------
+
+    async def _on_notice_listing(self, result: NoticeParseResult) -> None:
+        """공지에서 상장 감지 시 콜백.
+
+        마켓 오픈 전에 공지를 통해 먼저 감지된 경우.
+        """
+        exchange = result.exchange
+        symbols = result.symbols
+
+        for symbol in symbols:
+            # 이미 처리한 심볼이면 스킵
+            key = f"{symbol}@{exchange}"
+            if key in self._notice_detected_symbols:
+                logger.debug("[MarketMonitor] 이미 공지로 처리됨: %s", key)
+                continue
+
+            self._notice_detected_symbols.add(key)
+
+            logger.critical(
+                "[MarketMonitor] 📢 공지 상장 감지: %s @ %s (시간: %s)",
+                symbol, exchange, result.listing_time or "미정",
+            )
+
+            # 1. token_registry 자동 등록
+            await self._auto_register_token(symbol)
+
+            # 2. Gate 파이프라인 (Phase 3) + 관측성 (Phase 4)
+            if self._gate_checker:
+                try:
+                    t0 = time.monotonic()
+                    gate_result = await self._gate_checker.analyze_listing(
+                        symbol, exchange
+                    )
+                    duration_ms = (time.monotonic() - t0) * 1000
+
+                    # Gate 분석 로그 DB 기록 (Phase 4)
+                    try:
+                        from metrics.observability import log_gate_analysis
+                        await log_gate_analysis(self._writer, gate_result, duration_ms)
+                    except Exception as e:
+                        logger.warning(
+                            "[MarketMonitor] Gate 로그 기록 실패 (%s@%s): %s",
+                            symbol, exchange, e,
+                        )
+
+                    # 3. 텔레그램 알림 (공지 링크 포함)
+                    if self._alert:
+                        alert_msg = self._format_notice_alert(
+                            symbol, exchange, gate_result, result
+                        )
+                        await self._alert.send(
+                            gate_result.alert_level,
+                            alert_msg,
+                            key=f"notice_listing:{symbol}",
+                        )
+                except Exception as e:
+                    logger.error(
+                        "[MarketMonitor] Gate 파이프라인 에러 (%s@%s): %s",
+                        symbol, exchange, e,
+                    )
+
+    @staticmethod
+    def _format_notice_alert(
+        symbol: str,
+        exchange: str,
+        result: GateResult,
+        notice: NoticeParseResult,
+    ) -> str:
+        """공지 기반 Gate 결과를 알림 메시지로 포맷."""
+        gi = result.gate_input
+        status = "GO" if result.can_proceed else "NO-GO"
+
+        lines = [
+            f"📢 *공지 감지* | {status}",
+            f"심볼: {symbol} @ {exchange.upper()}",
+        ]
+
+        if notice.listing_time:
+            lines.append(f"상장 시간: {notice.listing_time}")
+
+        if gi:
+            lines.append(
+                f"프리미엄: {gi.premium_pct:+.2f}% | "
+                f"순수익: {gi.cost_result.net_profit_pct:+.2f}%"
+            )
+            lines.append(f"FX: {gi.fx_source} ({gi.cost_result.total_cost_pct:.2f}% 비용)")
+
+        if result.blockers:
+            lines.append("Blockers:")
+            for b in result.blockers[:3]:
+                lines.append(f"  - {b}")
+
+        if result.warnings:
+            lines.append("Warnings:")
+            for w in result.warnings[:3]:
+                lines.append(f"  - {w}")
+
+        if notice.notice_url:
+            lines.append(f"\n공지: {notice.notice_url}")
+
+        return "\n".join(lines)

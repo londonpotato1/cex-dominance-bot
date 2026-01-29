@@ -21,6 +21,8 @@ logs/
 
 # Config with secrets
 config.local.yaml
+.env
+.env.*
 
 # Data / DB
 *.db

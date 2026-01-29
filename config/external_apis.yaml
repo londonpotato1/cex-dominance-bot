@@ -1,0 +1,129 @@
+# ============================================================
+# External APIs Configuration (Phase 5b)
+# API 키는 절대 직접 넣지 않음 — 환경변수 참조만
+# ============================================================
+
+# DexScreener API (무료)
+dex_screener:
+  base_url: "https://api.dexscreener.com/latest/dex"
+  rate_limit:
+    requests_per_minute: 300
+    tokens_per_second: 5.0
+  cache_ttl: 300  # 5분 (유동성 변동 큼)
+  chains:
+    - ethereum
+    - solana
+    - bsc
+    - arbitrum
+    - polygon
+    - base
+
+# Alchemy RPC (무료 티어: 300M compute units/month)
+alchemy:
+  api_key_env: "ALCHEMY_API_KEY"  # os.environ.get()
+  networks:
+    ethereum:
+      url_template: "https://eth-mainnet.g.alchemy.com/v2/{api_key}"
+      chain_id: 1
+    arbitrum:
+      url_template: "https://arb-mainnet.g.alchemy.com/v2/{api_key}"
+      chain_id: 42161
+    polygon:
+      url_template: "https://polygon-mainnet.g.alchemy.com/v2/{api_key}"
+      chain_id: 137
+    base:
+      url_template: "https://base-mainnet.g.alchemy.com/v2/{api_key}"
+      chain_id: 8453
+  cache_ttl: 900  # 15분 (온체인 데이터 상대적 안정)
+  rate_limit:
+    compute_units_per_request: 25  # eth_call 기준
+    requests_per_second: 10
+
+# Infura RPC (백업용)
+infura:
+  api_key_env: "INFURA_API_KEY"
+  networks:
+    ethereum:
+      url_template: "https://mainnet.infura.io/v3/{api_key}"
+    arbitrum:
+      url_template: "https://arbitrum-mainnet.infura.io/v3/{api_key}"
+    polygon:
+      url_template: "https://polygon-mainnet.infura.io/v3/{api_key}"
+  cache_ttl: 900
+
+# ============================================================
+# Withdrawal Status APIs
+# ============================================================
+
+withdrawal_status:
+  # Upbit (Public API - 키 불필요)
+  upbit:
+    url: "https://api.upbit.com/v1/status/wallet"
+    method: "GET"
+    requires_auth: false
+    cache_ttl: 60  # 1분 (상태 변경 빈번)
+    response_path: "data"
+
+  # Bithumb (공지사항 파싱 또는 API)
+  bithumb:
+    # API가 있으면 사용, 없으면 notice_parser 사용
+    url: "https://api.bithumb.com/public/assetsstatus/ALL"
+    method: "GET"
+    requires_auth: false
+    cache_ttl: 60
+    fallback: "notice_parser"  # API 실패 시 공지 파싱
+
+  # Binance (API Key 필요 — 있음)
+  binance:
+    url: "https://api.binance.com/sapi/v1/capital/config/getall"
+    method: "GET"
+    requires_auth: true
+    api_key_env: "BINANCE_API_KEY"
+    api_secret_env: "BINANCE_API_SECRET"
+    cache_ttl: 60
+    # 응답에서 필요한 필드
+    response_fields:
+      - coin
+      - depositAllEnable
+      - withdrawAllEnable
+      - networkList
+
+  # OKX (백업용)
+  okx:
+    url: "https://www.okx.com/api/v5/asset/currencies"
+    method: "GET"
+    requires_auth: true
+    api_key_env: "OKX_API_KEY"
+    api_secret_env: "OKX_API_SECRET"
+    passphrase_env: "OKX_PASSPHRASE"
+    cache_ttl: 60
+
+# ============================================================
+# Circuit Breaker 기본 설정
+# ============================================================
+
+circuit_breaker:
+  failure_threshold: 5      # OPEN 전환까지 실패 횟수
+  recovery_timeout: 60      # OPEN→HALF_OPEN 대기 시간(초)
+  half_open_max: 3          # HALF_OPEN 테스트 요청 수
+
+# ============================================================
+# Retry 기본 설정
+# ============================================================
+
+retry:
+  max_retries: 3
+  delay_base: 1.0           # 초기 대기(초)
+  delay_max: 30.0           # 최대 대기(초)
+  backoff_multiplier: 2.0   # 지수 백오프 배수
+
+# ============================================================
+# 환경변수 체크리스트 (.env 파일에 설정)
+# ============================================================
+# ALCHEMY_API_KEY=xxx        # Alchemy 무료 티어
+# BINANCE_API_KEY=xxx        # Binance Read-only
+# BINANCE_API_SECRET=xxx
+# INFURA_API_KEY=xxx         # (선택) 백업 RPC
+# OKX_API_KEY=xxx            # (선택) 추가 거래소
+# OKX_API_SECRET=xxx
+# OKX_PASSPHRASE=xxx

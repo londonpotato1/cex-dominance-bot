@@ -1,0 +1,170 @@
+# ============================================================
+# Exchange Hot Wallet Addresses (Phase 5b)
+# 출처: Etherscan Labels, Arkham Intelligence
+# ============================================================
+
+# 주의: 지갑 주소는 변경될 수 있음 — 정기적 업데이트 필요
+# 마지막 검증: 2026-01-29
+
+exchanges:
+  # ============================================================
+  # Binance
+  # ============================================================
+  binance:
+    label: "Binance"
+    wallets:
+      ethereum:
+        # Binance 14 (주요 핫월렛)
+        - address: "0x28C6c06298d514Db089934071355E5743bf21d60"
+          label: "Binance 14"
+          type: "hot"
+        # Binance 8
+        - address: "0x21a31Ee1afC51d94C2eFcCAa2092aD1028285549"
+          label: "Binance 8"
+          type: "hot"
+        # Binance 7
+        - address: "0xDFd5293D8e347dFe59E90eFd55b2956a1343963d"
+          label: "Binance 7"
+          type: "hot"
+      arbitrum:
+        - address: "0xB38e8c17e38363aF6EbdCb3dAE12e0243582891D"
+          label: "Binance Arbitrum"
+          type: "hot"
+      polygon:
+        - address: "0xe7804c37c13166fF0b37F5aE0BB07A3aEbb6e245"
+          label: "Binance Polygon"
+          type: "hot"
+      bsc:
+        - address: "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          label: "Binance BSC Hot"
+          type: "hot"
+
+  # ============================================================
+  # OKX
+  # ============================================================
+  okx:
+    label: "OKX"
+    wallets:
+      ethereum:
+        - address: "0x6cC5F688a315f3dC28A7781717a9A798a59fDA7b"
+          label: "OKX"
+          type: "hot"
+        - address: "0x236F233dBf78341d25fB0F1bD14cb2BA4b8a777c"
+          label: "OKX 2"
+          type: "hot"
+      arbitrum:
+        - address: "0x6cC5F688a315f3dC28A7781717a9A798a59fDA7b"
+          label: "OKX Arbitrum"
+          type: "hot"
+      polygon:
+        - address: "0x6cC5F688a315f3dC28A7781717a9A798a59fDA7b"
+          label: "OKX Polygon"
+          type: "hot"
+
+  # ============================================================
+  # Bybit
+  # ============================================================
+  bybit:
+    label: "Bybit"
+    wallets:
+      ethereum:
+        - address: "0xf89d7b9c864f589bbF53a82105107622B35EaA40"
+          label: "Bybit"
+          type: "hot"
+        - address: "0xd9D93951896B4EF97D251334Ef2A0E39F6F6D7D7"
+          label: "Bybit 2"
+          type: "hot"
+      arbitrum:
+        - address: "0xB6aE77E82AB94ce83Cd06F2F3d6d0E6F4f6e08f8"
+          label: "Bybit Arbitrum"
+          type: "hot"
+
+  # ============================================================
+  # Coinbase
+  # ============================================================
+  coinbase:
+    label: "Coinbase"
+    wallets:
+      ethereum:
+        - address: "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3"
+          label: "Coinbase 4"
+          type: "hot"
+        - address: "0x503828976D22510aad0201ac7EC88293211D23Da"
+          label: "Coinbase 2"
+          type: "hot"
+      base:
+        - address: "0x3304E22DDaa22bCdC5fCa2269b418046aE7b566A"
+          label: "Coinbase Base"
+          type: "hot"
+
+  # ============================================================
+  # Kraken
+  # ============================================================
+  kraken:
+    label: "Kraken"
+    wallets:
+      ethereum:
+        - address: "0x2910543Af39abA0Cd09dBb2D50200b3E800A63D2"
+          label: "Kraken"
+          type: "hot"
+        - address: "0x0A869d79a7052C7f1b55a8EbAbbEa3420F0D1E13"
+          label: "Kraken 4"
+          type: "hot"
+
+  # ============================================================
+  # Gate.io
+  # ============================================================
+  gateio:
+    label: "Gate.io"
+    wallets:
+      ethereum:
+        - address: "0x0D0707963952f2fBA59dD06f2b425ace40b492Fe"
+          label: "Gate.io 1"
+          type: "hot"
+        - address: "0x1C4b70a3968436B9A0a9cf5205c787eb81Bb558c"
+          label: "Gate.io 3"
+          type: "hot"
+
+  # ============================================================
+  # KuCoin
+  # ============================================================
+  kucoin:
+    label: "KuCoin"
+    wallets:
+      ethereum:
+        - address: "0x2B5634C42055806a59e9107ED44D43c426E58258"
+          label: "KuCoin 2"
+          type: "hot"
+        - address: "0x689C56AEf474Df92D44A1B70850f808488F9769C"
+          label: "KuCoin 3"
+          type: "hot"
+
+# ============================================================
+# ERC-20 Token Addresses (자주 조회하는 토큰)
+# ============================================================
+common_tokens:
+  USDT:
+    ethereum: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+    arbitrum: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9"
+    polygon: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
+  USDC:
+    ethereum: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+    arbitrum: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+    polygon: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+    base: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  WETH:
+    ethereum: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    arbitrum: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
+    polygon: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
+    base: "0x4200000000000000000000000000000000000006"
+
+# ============================================================
+# 업데이트 가이드
+# ============================================================
+# 1. Etherscan Labels: https://etherscan.io/labelcloud
+#    - "Exchange" 카테고리에서 주소 확인
+# 2. Arkham Intelligence: https://platform.arkhamintelligence.com/
+#    - 거래소 엔티티 검색
+# 3. 검증 방법:
+#    - 해당 주소로 거래소 입금 테스트
+#    - 블록 탐색기에서 거래 패턴 확인

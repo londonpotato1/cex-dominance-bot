@@ -54,7 +54,7 @@ scenario_coefficients:
   supply_smooth: -0.16        # P(흥|smooth)=35.1% - base 50.7% = -15.6%
   # v14: 헤징 유형 3단계 계수 (hedging_possible bool → hedge_type enum)
   hedge_cex: 0.0              # CEX 선물 헤징 가능 → 기저(baseline)
-  hedge_dex_only: 0.15        # DEX 선물만 가능 → 중간 시그널 (추정치, Phase 0 재검증)
+  hedge_dex_only: -0.15       # DEX 선물만 가능 → 망따리 방향 (Phase 0 분석 결과 부호 수정)
   hedge_none: 0.37            # 헤징 불가 → P(흥|no_hedge)=87.5% ★최강 시그널
   market_bull: 0.07           # P(흥|bull)=57.9% - base 50.7% = +7.2%
   market_neutral: 0.15        # P(흥|neutral)=65.6% - base 50.7% = +14.9%

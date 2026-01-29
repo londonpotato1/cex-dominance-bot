@@ -1,4 +1,4 @@
-"""텔레그램 인터랙티브 봇 (Phase 4).
+"""텔레그램 인터랙티브 봇 (Phase 4 + 공지 분석).
 
 Feature Flag: telegram_interactive: true 에서만 활성화.
 기본 false → daemon 시작 시 skip.
@@ -6,7 +6,9 @@ Feature Flag: telegram_interactive: true 에서만 활성화.
 명령어:
   /status — 시스템 상태 (health.json → RED/YELLOW/GREEN)
   /recent — 최근 Gate 분석 5건 요약
-  /gate <SYMBOL> — 수동 Gate 분석 실행
+  /gate <SYMBOL> — 수동 Gate 분석 (업비트 기본)
+  /analyze <SYMBOL> <EXCHANGE> — 지정 거래소 Gate 분석
+  /notice <URL> — 공지 URL 파싱 후 자동 분석
   /help — 명령어 목록
 
 aiohttp 기반 long polling (추가 의존성 없음).
@@ -136,6 +138,10 @@ class TelegramBot:
             response = self._cmd_recent()
         elif command == "/gate":
             response = await self._cmd_gate(args)
+        elif command == "/analyze":
+            response = await self._cmd_analyze(args)
+        elif command == "/notice":
+            response = await self._cmd_notice(args, session)
         elif command == "/help":
             response = self._cmd_help()
         else:
@@ -252,15 +258,214 @@ class TelegramBot:
         except Exception as e:
             return f"Gate 분석 실패: {e}"
 
+    async def _cmd_analyze(self, args: str) -> str:
+        """지정 거래소 Gate 분석 실행.
+
+        사용법: /analyze SYMBOL EXCHANGE
+        예: /analyze SENT bithumb
+        """
+        parts = args.strip().upper().split()
+        if len(parts) < 2:
+            return (
+                "사용법: /analyze <SYMBOL> <EXCHANGE>\n"
+                "예: /analyze SENT bithumb\n"
+                "    /analyze ELSA upbit\n"
+                "지원 거래소: upbit, bithumb"
+            )
+
+        symbol = parts[0]
+        exchange = parts[1].lower()
+
+        if exchange not in ("upbit", "bithumb"):
+            return f"미지원 거래소: {exchange}\n지원: upbit, bithumb"
+
+        try:
+            t0 = time.monotonic()
+            result = await self._gate_checker.analyze_listing(symbol, exchange)
+            duration_ms = (time.monotonic() - t0) * 1000
+
+            # 로그 기록
+            try:
+                from metrics.observability import log_gate_analysis
+                await log_gate_analysis(self._writer, result, duration_ms)
+            except Exception:
+                pass
+
+            return self._format_gate_result(symbol, exchange, result, duration_ms)
+
+        except Exception as e:
+            logger.exception("[TelegramBot] analyze 에러: %s", e)
+            return f"분석 실패: {e}"
+
+    async def _cmd_notice(
+        self, url: str, session: aiohttp.ClientSession
+    ) -> str:
+        """공지 URL 파싱 후 자동 분석.
+
+        사용법: /notice <URL>
+        예: /notice https://feed.bithumb.com/notice/1651725
+        """
+        url = url.strip()
+        if not url:
+            return (
+                "사용법: /notice <URL>\n"
+                "예: /notice https://feed.bithumb.com/notice/1651725"
+            )
+
+        # URL에서 거래소 판별
+        exchange = None
+        if "bithumb" in url.lower():
+            exchange = "bithumb"
+        elif "upbit" in url.lower():
+            exchange = "upbit"
+        else:
+            return "지원하지 않는 공지 URL입니다.\n빗썸/업비트 공지만 지원"
+
+        # 공지 페이지에서 심볼 추출 시도
+        try:
+            symbols = await self._parse_notice_symbols(url, session)
+        except Exception as e:
+            logger.warning("[TelegramBot] 공지 파싱 실패: %s", e)
+            return (
+                f"공지 파싱 실패: {e}\n"
+                f"직접 분석: /analyze SYMBOL {exchange}"
+            )
+
+        if not symbols:
+            return (
+                "공지에서 심볼을 추출하지 못했습니다.\n"
+                f"직접 분석: /analyze SYMBOL {exchange}"
+            )
+
+        # 추출된 심볼들 분석
+        results = []
+        for symbol in symbols[:5]:  # 최대 5개
+            try:
+                t0 = time.monotonic()
+                result = await self._gate_checker.analyze_listing(symbol, exchange)
+                duration_ms = (time.monotonic() - t0) * 1000
+
+                # 로그 기록
+                try:
+                    from metrics.observability import log_gate_analysis
+                    await log_gate_analysis(self._writer, result, duration_ms)
+                except Exception:
+                    pass
+
+                results.append(
+                    self._format_gate_result(symbol, exchange, result, duration_ms)
+                )
+            except Exception as e:
+                results.append(f"❌ {symbol}@{exchange}: 분석 실패 - {e}")
+
+        return "\n\n".join(results)
+
+    async def _parse_notice_symbols(
+        self, url: str, session: aiohttp.ClientSession
+    ) -> list[str]:
+        """공지 URL에서 심볼 추출."""
+        import re
+
+        # 공지 페이지 fetch (JavaScript 렌더링 불가 → 제한적)
+        try:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                if resp.status != 200:
+                    return []
+                html = await resp.text()
+        except Exception:
+            return []
+
+        symbols = []
+
+        # 패턴 1: (SYMBOL) 형태 - "센티언트(SENT)"
+        pattern1 = re.compile(r"\(([A-Z]{2,10})\)")
+        symbols.extend(pattern1.findall(html))
+
+        # 패턴 2: SYMBOL/KRW 형태
+        pattern2 = re.compile(r"([A-Z]{2,10})/KRW")
+        symbols.extend(pattern2.findall(html))
+
+        # 패턴 3: SYMBOL_KRW 형태
+        pattern3 = re.compile(r"([A-Z]{2,10})_KRW")
+        symbols.extend(pattern3.findall(html))
+
+        # 중복 제거 + 순서 유지
+        seen = set()
+        unique = []
+        for s in symbols:
+            if s not in seen and len(s) >= 2:
+                seen.add(s)
+                unique.append(s)
+
+        # 일반적인 단어 제외
+        exclude = {"KRW", "USD", "USDT", "BTC", "ETH", "API", "FAQ", "APP", "THE", "FOR"}
+        return [s for s in unique if s not in exclude]
+
+    def _format_gate_result(
+        self, symbol: str, exchange: str, result, duration_ms: float
+    ) -> str:
+        """Gate 결과 포맷팅."""
+        gi = result.gate_input
+        status = "✅ GO" if result.can_proceed else "❌ NO-GO"
+
+        lines = [
+            f"*{status}* | {symbol}@{exchange.upper()}",
+            f"Level: {result.alert_level.value}",
+        ]
+
+        if gi:
+            lines.append(
+                f"프리미엄: {gi.premium_pct:+.2f}% | "
+                f"순수익: {gi.cost_result.net_profit_pct:+.2f}%"
+            )
+            lines.append(
+                f"비용: {gi.cost_result.total_cost_pct:.2f}% | "
+                f"FX: {gi.fx_source}"
+            )
+
+        # Phase 5a 결과
+        if result.supply_result:
+            lines.append(
+                f"공급: {result.supply_result.classification.value} "
+                f"(score={result.supply_result.total_score:.2f})"
+            )
+
+        if result.listing_type_result:
+            lines.append(
+                f"유형: {result.listing_type_result.listing_type.value}"
+            )
+
+        if result.recommended_strategy:
+            lines.append(f"전략: {result.recommended_strategy.value}")
+
+        lines.append(f"⏱️ {duration_ms:.0f}ms")
+
+        if result.blockers:
+            lines.append("🚫 Blockers:")
+            for b in result.blockers[:3]:  # 최대 3개
+                lines.append(f"  • {b[:50]}")
+
+        if result.warnings:
+            lines.append("⚠️ Warnings:")
+            for w in result.warnings[:3]:
+                lines.append(f"  • {w[:50]}")
+
+        return "\n".join(lines)
+
     @staticmethod
     def _cmd_help() -> str:
         """도움말."""
         return (
-            "따리봇 명령어:\n"
+            "📊 따리봇 명령어:\n"
             "  /status — 시스템 상태\n"
             "  /recent — 최근 분석 5건\n"
-            "  /gate <SYMBOL> — 수동 Gate 분석\n"
-            "  /help — 이 도움말"
+            "  /gate <SYMBOL> — 수동 Gate 분석 (업비트)\n"
+            "  /analyze <SYMBOL> <EXCHANGE> — 거래소 지정 분석\n"
+            "  /notice <URL> — 공지 URL 자동 파싱/분석\n"
+            "  /help — 이 도움말\n\n"
+            "예시:\n"
+            "  /analyze SENT bithumb\n"
+            "  /notice https://feed.bithumb.com/notice/..."
         )
 
     async def _send_message(

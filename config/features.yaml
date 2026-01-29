@@ -7,8 +7,8 @@
 hard_gate: true
 
 # Phase 5a: Core Analysis (Feature Flag 기반 분기)
-supply_classifier: false     # SupplyClassifier 5-factor 분류
-listing_type: false          # TGE/직상장/옆상장 자동 분류
+supply_classifier: true      # SupplyClassifier 5-factor 분류
+listing_type: true           # TGE/직상장/옆상장 자동 분류
 
 # Phase 6: Strategy + Scenario + UI
 scenario_planner: false      # 흥/망따리 시나리오 카드 생성
@@ -16,5 +16,14 @@ scenario_planner: false      # 흥/망따리 시나리오 카드 생성
 # Phase 4: 텔레그램 봇 상호작용
 telegram_interactive: false   # 텔레그램 인라인 키보드/콜백
 
+# Phase 5b: External Data Collectors
+dex_monitor: true             # DEX 유동성 조회 (DexScreener)
+hot_wallet_tracker: true      # 거래소 핫월렛 잔액 (Alchemy RPC)
+withdrawal_tracker: true      # 입출금 상태 조회
+
 # Phase 5b: 글로벌 거래소 WebSocket
 global_ws: false              # Binance/OKX/Bybit WS 실시간 스트림
+
+# Phase 5c: 공지 폴링 (Pre-detection)
+notice_polling: true          # 업비트/빗썸 공지 크롤링 (마켓 오픈 전 감지)
+notice_interval: 30           # 공지 폴링 간격 (초)
