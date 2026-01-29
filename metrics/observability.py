@@ -40,12 +40,16 @@ async def log_gate_analysis(
         duration_ms: analyze_listing() 소요 시간 (밀리초).
     """
     gi = result.gate_input
+    # symbol과 exchange는 GateResult에서 직접 가져옴 (조기 실패 시에도 보존됨)
+    symbol = result.symbol or (gi.symbol if gi else "unknown")
+    exchange = result.exchange or (gi.exchange if gi else "unknown")
+
     if gi is None:
         # gate_input 없는 결과 (조기 실패 등) — 최소 정보 기록
         params = (
             time.time(),
-            "unknown",
-            "unknown",
+            symbol,
+            exchange,
             int(result.can_proceed),
             result.alert_level.value,
             None,  # premium_pct
@@ -63,8 +67,8 @@ async def log_gate_analysis(
     else:
         params = (
             time.time(),
-            gi.symbol,
-            gi.exchange,
+            symbol,
+            exchange,
             int(result.can_proceed),
             result.alert_level.value,
             gi.premium_pct,
@@ -83,8 +87,8 @@ async def log_gate_analysis(
     await writer.enqueue(_INSERT_GATE_LOG_SQL, params, priority="normal")
     logger.debug(
         "[Observability] Gate log: %s@%s %s (%.1fms)",
-        gi.symbol if gi else "?",
-        gi.exchange if gi else "?",
+        symbol,
+        exchange,
         "GO" if result.can_proceed else "NO-GO",
         duration_ms,
     )

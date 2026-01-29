@@ -115,6 +115,9 @@ class GateResult:
     warnings: list[str] = field(default_factory=list)    # Warning 목록
     alert_level: AlertLevel = AlertLevel.INFO
     gate_input: Optional[GateInput] = None
+    # 조기 실패 시에도 symbol/exchange 정보 보존
+    symbol: str = ""
+    exchange: str = ""
 
     # Phase 5a 확장 필드
     supply_result: Optional[SupplyResult] = None
@@ -202,6 +205,8 @@ class GateChecker:
                     can_proceed=False,
                     blockers=[f"국내 가격 조회 실패: {symbol}@{exchange}"],
                     alert_level=AlertLevel.LOW,
+                    symbol=symbol,
+                    exchange=exchange,
                 )
 
             if vwap_result is None or vwap_result.price_usd <= 0:
@@ -213,6 +218,8 @@ class GateChecker:
                     can_proceed=False,
                     blockers=["글로벌 가격 조회 실패 (VWAP 없음)"],
                     alert_level=AlertLevel.MEDIUM,
+                    symbol=symbol,
+                    exchange=exchange,
                 )
 
             # 4. 프리미엄 계산
@@ -361,6 +368,8 @@ class GateChecker:
             warnings=warnings,
             alert_level=alert_level,
             gate_input=gate_input,
+            symbol=gate_input.symbol,
+            exchange=gate_input.exchange,
         )
 
         logger.info(
