@@ -14,7 +14,7 @@ listing_type: true           # TGE/직상장/옆상장 자동 분류
 scenario_planner: false      # 흥/망따리 시나리오 카드 생성
 
 # Phase 4: 텔레그램 봇 상호작용
-telegram_interactive: false   # 텔레그램 인라인 키보드/콜백
+telegram_interactive: true    # 텔레그램 인라인 키보드/콜백
 
 # Phase 5b: External Data Collectors
 dex_monitor: true             # DEX 유동성 조회 (DexScreener)
