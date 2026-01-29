@@ -25,13 +25,18 @@ except ImportError:
     cloudscraper = None
 
 # Playwright 선택적 import (JavaScript 렌더링)
+# Railway/Docker에서 브라우저 바이너리 없으면 import 자체가 실패할 수 있음
 try:
     from playwright.async_api import async_playwright, Browser
     _HAS_PLAYWRIGHT = True
-except ImportError:
+except Exception as _pw_err:
     _HAS_PLAYWRIGHT = False
-    async_playwright = None
-    Browser = None
+    async_playwright = None  # type: ignore[assignment]
+    Browser = None  # type: ignore[assignment,misc]
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "[NoticeFetcher] Playwright import 실패 (업비트 공지 비활성): %s", _pw_err
+    )
 
 import aiohttp
 

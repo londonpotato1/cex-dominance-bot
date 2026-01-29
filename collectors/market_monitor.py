@@ -15,8 +15,9 @@ from typing import Optional, TYPE_CHECKING
 import aiohttp
 
 from store.token_registry import TokenRegistry, fetch_token_by_symbol
-from collectors.notice_fetcher import NoticeFetcher
 from collectors.notice_parser import NoticeParseResult
+
+# NoticeFetcher는 notice_polling=True일 때만 lazy import (Playwright 의존성 회피)
 
 if TYPE_CHECKING:
     from store.writer import DatabaseWriter
@@ -71,15 +72,20 @@ class MarketMonitor:
         self._upbit_baseline_set = False
         self._bithumb_baseline_set = False
 
-        # 공지 폴링 (pre-detection)
+        # 공지 폴링 (pre-detection) - Playwright 의존성으로 lazy import
         self._notice_polling = notice_polling
-        self._notice_fetcher: Optional[NoticeFetcher] = None
+        self._notice_fetcher = None  # type: ignore[assignment]
         if notice_polling:
-            self._notice_fetcher = NoticeFetcher(
-                on_listing=self._on_notice_listing,
-                upbit_interval=notice_interval,
-                bithumb_interval=notice_interval,
-            )
+            try:
+                from collectors.notice_fetcher import NoticeFetcher
+                self._notice_fetcher = NoticeFetcher(
+                    on_listing=self._on_notice_listing,
+                    upbit_interval=notice_interval,
+                    bithumb_interval=notice_interval,
+                )
+            except ImportError as e:
+                logger.warning("[MarketMonitor] NoticeFetcher import 실패: %s", e)
+                self._notice_polling = False
 
         # 이미 공지로 감지한 심볼 (마켓 Diff 중복 알림 방지)
         self._notice_detected_symbols: set[str] = set()
