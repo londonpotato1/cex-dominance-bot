@@ -167,9 +167,14 @@ class GateChecker:
         self._hot_wallet_tracker = None
         self._withdrawal_tracker = None
 
+        # 중복 분석 방지 캐시: "symbol@exchange" -> (timestamp, GateResult)
+        self._analysis_cache: dict[str, tuple[float, GateResult]] = {}
+        self._cache_ttl = 300.0  # 5분
+
     async def analyze_listing(
         self, symbol: str, exchange: str,
-    ) -> GateResult:
+        force: bool = False,
+    ) -> GateResult | None:
         """상장 감지 시 전체 분석 파이프라인 실행.
 
         MarketMonitor._on_new_listing()에서 호출.
@@ -177,10 +182,26 @@ class GateChecker:
         Args:
             symbol: 토큰 심볼 (e.g., "XYZ").
             exchange: 상장 거래소 (e.g., "upbit", "bithumb").
+            force: True면 캐시 무시하고 강제 분석.
 
         Returns:
-            GateResult.
+            GateResult. 캐시 히트 시 캐시된 결과 반환.
         """
+        import time
+        cache_key = f"{symbol}@{exchange}"
+        now = time.time()
+
+        # 중복 분석 방지: 5분 이내 동일 요청 시 캐시 반환
+        if not force and cache_key in self._analysis_cache:
+            cached_time, cached_result = self._analysis_cache[cache_key]
+            age = now - cached_time
+            if age < self._cache_ttl:
+                logger.info(
+                    "[Gate] 캐시 히트: %s (%.0f초 전 분석, TTL %.0f초)",
+                    cache_key, age, self._cache_ttl - age,
+                )
+                return cached_result
+
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=15)
         ) as session:
@@ -201,26 +222,30 @@ class GateChecker:
                 logger.warning(
                     "[Gate] 국내 가격 조회 실패: %s@%s", symbol, exchange,
                 )
-                return GateResult(
+                result = GateResult(
                     can_proceed=False,
                     blockers=[f"국내 가격 조회 실패: {symbol}@{exchange}"],
                     alert_level=AlertLevel.LOW,
                     symbol=symbol,
                     exchange=exchange,
                 )
+                self._analysis_cache[cache_key] = (now, result)
+                return result
 
             if vwap_result is None or vwap_result.price_usd <= 0:
                 logger.warning(
                     "[Gate] 글로벌 가격 조회 실패: %s", symbol,
                 )
                 # 글로벌 가격 없으면 프리미엄 계산 불가 → blocker는 아님, 경고 수준
-                return GateResult(
+                result = GateResult(
                     can_proceed=False,
                     blockers=["글로벌 가격 조회 실패 (VWAP 없음)"],
                     alert_level=AlertLevel.MEDIUM,
                     symbol=symbol,
                     exchange=exchange,
                 )
+                self._analysis_cache[cache_key] = (now, result)
+                return result
 
             # 4. 프리미엄 계산
             premium_result = await self._premium.calculate_premium(
@@ -272,6 +297,8 @@ class GateChecker:
             if result.can_proceed:
                 await self._run_phase5a_pipeline(result, gate_input, session)
 
+            # 캐시 저장
+            self._analysis_cache[cache_key] = (now, result)
             return result
 
     def check_hard_blockers(self, gate_input: GateInput) -> GateResult:
