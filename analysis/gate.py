@@ -1051,9 +1051,10 @@ class GateChecker:
             session: aiohttp 세션
         """
         now = time.time()
+        cache_age = now - self._futures_cache_time.get(exchange, 0)
 
-        # TTL 내면 갱신 불필요
-        if now - self._futures_cache_time.get(exchange, 0) < self._futures_cache_ttl:
+        # TTL 내면 갱신 불필요 (단, 캐시가 비어있으면 항상 갱신 시도)
+        if cache_age < self._futures_cache_ttl and self._futures_cache.get(exchange):
             return
 
         symbols: set[str] = set()
@@ -1117,23 +1118,34 @@ class GateChecker:
         await self._refresh_futures_cache("bybit", session)
         await self._refresh_futures_cache("binance", session)
 
+        # 캐시가 비어있으면 경고 (API 실패 가능성)
+        bybit_cache = self._futures_cache.get("bybit", set())
+        binance_cache = self._futures_cache.get("binance", set())
+        if not bybit_cache and not binance_cache:
+            logger.warning(
+                "[Gate] CEX 선물 캐시 비어있음 - API 연결 문제 가능성 (symbol=%s)",
+                symbol
+            )
+
         # Bybit 캐시에서 확인 (CEX 우선)
-        if futures_symbol in self._futures_cache["bybit"]:
+        if futures_symbol in bybit_cache:
             logger.debug("[Gate] 선물 발견: %s@Bybit (CEX)", futures_symbol)
             return "cex"
 
         # Binance 캐시에서 확인
-        if futures_symbol in self._futures_cache["binance"]:
+        if futures_symbol in binance_cache:
             logger.debug("[Gate] 선물 발견: %s@Binance (CEX)", futures_symbol)
             return "cex"
 
         # B3: Hyperliquid DEX 확인 (CEX 없을 때만)
         await self._refresh_futures_cache("hyperliquid", session)
-        if futures_symbol in self._futures_cache["hyperliquid"]:
+        hyperliquid_cache = self._futures_cache.get("hyperliquid", set())
+        if futures_symbol in hyperliquid_cache:
             logger.debug("[Gate] 선물 발견: %s@Hyperliquid (DEX)", futures_symbol)
             return "dex_only"
 
-        logger.debug("[Gate] 선물 마켓 없음: %s", futures_symbol)
+        logger.debug("[Gate] 선물 마켓 없음: %s (bybit=%d, binance=%d, hl=%d)",
+                     futures_symbol, len(bybit_cache), len(binance_cache), len(hyperliquid_cache))
         return "none"
 
     # ------------------------------------------------------------------
