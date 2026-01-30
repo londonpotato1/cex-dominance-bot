@@ -1,0 +1,565 @@
+# TGE 언락 스케줄 데이터
+#
+# TGE (Token Generation Event) 당일 언락 비율과 베스팅 스케줄 정보.
+#
+# 핵심 인사이트:
+#   "TGE 당일 언락 10%가 3년 락업 70%보다 위험"
+#   → 에어드랍/VC 덤핑 리스크는 언락 시점이 중요
+#
+# 사용처:
+#   - analysis/tokenomics.py: TGE 리스크 스코어 계산
+#   - analysis/scenario.py: GOOD/BAD 시나리오 생성
+#   - UI: 토크노믹스 경고 표시
+#
+# 데이터 수집:
+#   - 프로젝트 백서 (Tokenomics 섹션)
+#   - CoinGecko/CoinMarketCap 토크노믹스 페이지
+#   - 공식 발표 (Medium/Twitter)
+
+tokens:
+  # 고위험: TGE 언락 높음
+  SENT:
+    name: "Sentinel"
+    tge_unlock_pct: 15.0  # TGE 당일 15% 언락
+    cliff_months: 0
+    vesting_months: 24
+    categories:
+      team: 20.0      # 팀 20%
+      vc: 15.0        # VC 15%
+      public: 30.0    # 퍼블릭 30%
+      ecosystem: 25.0 # 생태계 25%
+      airdrop: 10.0   # 에어드랍 10%
+    unlock_schedule:
+      - month: 0
+        pct: 15.0  # TGE
+      - month: 6
+        pct: 10.0
+      - month: 12
+        pct: 15.0
+      - month: 18
+        pct: 20.0
+      - month: 24
+        pct: 40.0  # 잔여
+    risk_assessment: "HIGH"
+    reason: "TGE 당일 15% 언락으로 덤핑 우려"
+
+  MOCA:
+    name: "Moca Network"
+    tge_unlock_pct: 8.0
+    cliff_months: 3  # 3개월 cliff
+    vesting_months: 36
+    categories:
+      team: 15.0
+      vc: 20.0
+      public: 25.0
+      ecosystem: 30.0
+      airdrop: 10.0
+    unlock_schedule:
+      - month: 0
+        pct: 8.0  # TGE
+      - month: 3
+        pct: 5.0  # Cliff 후 첫 언락
+      - month: 12
+        pct: 20.0
+      - month: 24
+        pct: 30.0
+      - month: 36
+        pct: 37.0
+    risk_assessment: "MEDIUM"
+    reason: "TGE 8% + 3개월 cliff"
+
+  # 중위험: TGE 언락 보통
+  ACE:
+    name: "Fusionist"
+    tge_unlock_pct: 5.0
+    cliff_months: 6
+    vesting_months: 24
+    categories:
+      team: 18.0
+      vc: 22.0
+      public: 20.0
+      ecosystem: 30.0
+      airdrop: 10.0
+    unlock_schedule:
+      - month: 0
+        pct: 5.0  # TGE
+      - month: 6
+        pct: 10.0
+      - month: 12
+        pct: 20.0
+      - month: 18
+        pct: 25.0
+      - month: 24
+        pct: 40.0
+    risk_assessment: "MEDIUM"
+    reason: "TGE 5% + 6개월 cliff"
+
+  XAI:
+    name: "Xai"
+    tge_unlock_pct: 12.0
+    cliff_months: 0
+    vesting_months: 18
+    categories:
+      team: 15.0
+      vc: 25.0  # VC 비율 높음
+      public: 20.0
+      ecosystem: 25.0
+      airdrop: 15.0
+    unlock_schedule:
+      - month: 0
+        pct: 12.0  # TGE
+      - month: 6
+        pct: 18.0
+      - month: 12
+        pct: 30.0
+      - month: 18
+        pct: 40.0
+    risk_assessment: "HIGH"
+    reason: "TGE 12% + VC 비율 25%"
+
+  # 저위험: TGE 언락 낮음, cliff 길음
+  ARB:
+    name: "Arbitrum"
+    tge_unlock_pct: 2.5
+    cliff_months: 12
+    vesting_months: 48
+    categories:
+      team: 17.5
+      vc: 17.5
+      public: 11.6
+      ecosystem: 42.8
+      airdrop: 10.6
+    unlock_schedule:
+      - month: 0
+        pct: 2.5  # TGE (커뮤니티 에어드랍만)
+      - month: 12
+        pct: 5.0  # 1년 cliff 후
+      - month: 24
+        pct: 15.0
+      - month: 36
+        pct: 25.0
+      - month: 48
+        pct: 52.5
+    risk_assessment: "LOW"
+    reason: "TGE 2.5% + 12개월 cliff + 4년 베스팅"
+
+  OP:
+    name: "Optimism"
+    tge_unlock_pct: 5.0
+    cliff_months: 6
+    vesting_months: 36
+    categories:
+      team: 19.0
+      vc: 19.0
+      public: 14.0
+      ecosystem: 25.0
+      airdrop: 23.0  # 에어드랍 비율 높음
+    unlock_schedule:
+      - month: 0
+        pct: 5.0  # TGE
+      - month: 6
+        pct: 8.0
+      - month: 12
+        pct: 12.0
+      - month: 24
+        pct: 25.0
+      - month: 36
+        pct: 50.0
+    risk_assessment: "LOW"
+    reason: "TGE 5% + 에어드랍 분산"
+
+  # 매우 저위험: TGE 언락 매우 낮음
+  STRK:
+    name: "Starknet"
+    tge_unlock_pct: 1.3
+    cliff_months: 12
+    vesting_months: 48
+    categories:
+      team: 20.0
+      vc: 17.0
+      public: 9.0
+      ecosystem: 50.9  # 생태계 비중 매우 높음
+      airdrop: 3.1
+    unlock_schedule:
+      - month: 0
+        pct: 1.3  # TGE (에어드랍만)
+      - month: 12
+        pct: 3.0
+      - month: 24
+        pct: 10.0
+      - month: 36
+        pct: 20.0
+      - month: 48
+        pct: 65.7
+    risk_assessment: "VERY_LOW"
+    reason: "TGE 1.3% + 12개월 cliff + 50% 생태계"
+
+  # 중위험: TGE 보통, 베스팅 짧음
+  BLUR:
+    name: "Blur"
+    tge_unlock_pct: 10.0
+    cliff_months: 0
+    vesting_months: 12  # 베스팅 짧음
+    categories:
+      team: 25.0
+      vc: 18.9
+      public: 0.0  # 퍼블릭 세일 없음
+      ecosystem: 51.1
+      airdrop: 5.0
+    unlock_schedule:
+      - month: 0
+        pct: 10.0  # TGE
+      - month: 3
+        pct: 15.0
+      - month: 6
+        pct: 25.0
+      - month: 12
+        pct: 50.0
+    risk_assessment: "MEDIUM"
+    reason: "TGE 10% + 1년 베스팅 (짧음)"
+
+  # 고위험: TGE 매우 높음
+  MATIC:
+    name: "Polygon"
+    tge_unlock_pct: 20.0  # 매우 높은 TGE
+    cliff_months: 0
+    vesting_months: 24
+    categories:
+      team: 16.0
+      vc: 19.0
+      public: 4.0
+      ecosystem: 23.3
+      airdrop: 37.7  # 에어드랍 매우 높음
+    unlock_schedule:
+      - month: 0
+        pct: 20.0  # TGE (에어드랍 대량)
+      - month: 6
+        pct: 15.0
+      - month: 12
+        pct: 20.0
+      - month: 18
+        pct: 20.0
+      - month: 24
+        pct: 25.0
+    risk_assessment: "VERY_HIGH"
+    reason: "TGE 20% + 에어드랍 38%"
+
+  PORTAL:
+    name: "Portal"
+    tge_unlock_pct: 7.0
+    cliff_months: 3
+    vesting_months: 30
+    categories:
+      team: 18.0
+      vc: 22.0
+      public: 15.0
+      ecosystem: 35.0
+      airdrop: 10.0
+    unlock_schedule:
+      - month: 0
+        pct: 7.0  # TGE
+      - month: 3
+        pct: 8.0
+      - month: 12
+        pct: 20.0
+      - month: 24
+        pct: 30.0
+      - month: 30
+        pct: 35.0
+    risk_assessment: "MEDIUM"
+    reason: "TGE 7% + 3개월 cliff"
+
+  # ============================================================
+  # 2024-2025 신규 TGE 토큰 (추가)
+  # ============================================================
+
+  JTO:
+    name: "Jito"
+    tge_unlock_pct: 10.0
+    cliff_months: 0
+    vesting_months: 36
+    categories:
+      team: 24.5
+      vc: 16.2
+      public: 0.0
+      ecosystem: 49.3
+      airdrop: 10.0
+    unlock_schedule:
+      - month: 0
+        pct: 10.0
+      - month: 12
+        pct: 15.0
+      - month: 24
+        pct: 30.0
+      - month: 36
+        pct: 45.0
+    risk_assessment: "MEDIUM"
+    reason: "TGE 10% + 에어드랍"
+
+  TIA:
+    name: "Celestia"
+    tge_unlock_pct: 7.4
+    cliff_months: 12
+    vesting_months: 48
+    categories:
+      team: 20.0
+      vc: 19.5
+      public: 7.4
+      ecosystem: 26.8
+      airdrop: 26.3
+    unlock_schedule:
+      - month: 0
+        pct: 7.4
+      - month: 12
+        pct: 10.0
+      - month: 24
+        pct: 20.0
+      - month: 36
+        pct: 30.0
+      - month: 48
+        pct: 32.6
+    risk_assessment: "MEDIUM"
+    reason: "TGE 7.4% + 에어드랍 26%"
+
+  PYTH:
+    name: "Pyth Network"
+    tge_unlock_pct: 15.0
+    cliff_months: 6
+    vesting_months: 42
+    categories:
+      team: 22.0
+      vc: 10.0
+      public: 6.0
+      ecosystem: 52.0
+      airdrop: 10.0
+    unlock_schedule:
+      - month: 0
+        pct: 15.0
+      - month: 6
+        pct: 10.0
+      - month: 18
+        pct: 20.0
+      - month: 30
+        pct: 25.0
+      - month: 42
+        pct: 30.0
+    risk_assessment: "HIGH"
+    reason: "TGE 15% + cliff 6개월"
+
+  SEI:
+    name: "Sei Network"
+    tge_unlock_pct: 8.0
+    cliff_months: 0
+    vesting_months: 36
+    categories:
+      team: 20.0
+      vc: 20.0
+      public: 3.0
+      ecosystem: 48.0
+      airdrop: 9.0
+    unlock_schedule:
+      - month: 0
+        pct: 8.0
+      - month: 6
+        pct: 10.0
+      - month: 12
+        pct: 15.0
+      - month: 24
+        pct: 30.0
+      - month: 36
+        pct: 37.0
+    risk_assessment: "MEDIUM"
+    reason: "TGE 8% + VC 비율 20%"
+
+  SUI:
+    name: "Sui"
+    tge_unlock_pct: 5.0
+    cliff_months: 12
+    vesting_months: 48
+    categories:
+      team: 20.0
+      vc: 14.0
+      public: 6.0
+      ecosystem: 50.0
+      airdrop: 10.0
+    unlock_schedule:
+      - month: 0
+        pct: 5.0
+      - month: 12
+        pct: 8.0
+      - month: 24
+        pct: 20.0
+      - month: 36
+        pct: 30.0
+      - month: 48
+        pct: 37.0
+    risk_assessment: "LOW"
+    reason: "TGE 5% + 12개월 cliff"
+
+  APT:
+    name: "Aptos"
+    tge_unlock_pct: 3.0
+    cliff_months: 12
+    vesting_months: 48
+    categories:
+      team: 19.0
+      vc: 13.5
+      public: 0.0
+      ecosystem: 51.0
+      airdrop: 16.5
+    unlock_schedule:
+      - month: 0
+        pct: 3.0
+      - month: 12
+        pct: 10.0
+      - month: 24
+        pct: 20.0
+      - month: 36
+        pct: 30.0
+      - month: 48
+        pct: 37.0
+    risk_assessment: "LOW"
+    reason: "TGE 3% + 12개월 cliff"
+
+  EIGEN:
+    name: "EigenLayer"
+    tge_unlock_pct: 5.5
+    cliff_months: 12
+    vesting_months: 36
+    categories:
+      team: 25.5
+      vc: 29.5
+      public: 0.0
+      ecosystem: 30.0
+      airdrop: 15.0
+    unlock_schedule:
+      - month: 0
+        pct: 5.5
+      - month: 12
+        pct: 15.0
+      - month: 24
+        pct: 35.0
+      - month: 36
+        pct: 44.5
+    risk_assessment: "MEDIUM"
+    reason: "TGE 5.5% + VC 비율 30%"
+
+  ZK:
+    name: "zkSync"
+    tge_unlock_pct: 3.7
+    cliff_months: 12
+    vesting_months: 48
+    categories:
+      team: 16.1
+      vc: 17.2
+      public: 0.0
+      ecosystem: 49.1
+      airdrop: 17.6
+    unlock_schedule:
+      - month: 0
+        pct: 3.7
+      - month: 12
+        pct: 10.0
+      - month: 24
+        pct: 20.0
+      - month: 36
+        pct: 30.0
+      - month: 48
+        pct: 36.3
+    risk_assessment: "LOW"
+    reason: "TGE 3.7% + 12개월 cliff"
+
+  W:
+    name: "Wormhole"
+    tge_unlock_pct: 6.0
+    cliff_months: 0
+    vesting_months: 48
+    categories:
+      team: 12.0
+      vc: 23.0
+      public: 0.0
+      ecosystem: 48.0
+      airdrop: 17.0
+    unlock_schedule:
+      - month: 0
+        pct: 6.0
+      - month: 12
+        pct: 15.0
+      - month: 24
+        pct: 25.0
+      - month: 36
+        pct: 25.0
+      - month: 48
+        pct: 29.0
+    risk_assessment: "MEDIUM"
+    reason: "TGE 6% + VC 23%"
+
+  AEVO:
+    name: "Aevo"
+    tge_unlock_pct: 8.0
+    cliff_months: 0
+    vesting_months: 24
+    categories:
+      team: 18.0
+      vc: 21.0
+      public: 4.0
+      ecosystem: 45.0
+      airdrop: 12.0
+    unlock_schedule:
+      - month: 0
+        pct: 8.0
+      - month: 6
+        pct: 15.0
+      - month: 12
+        pct: 27.0
+      - month: 18
+        pct: 25.0
+      - month: 24
+        pct: 25.0
+    risk_assessment: "MEDIUM"
+    reason: "TGE 8% + 2년 베스팅"
+
+# 리스크 스코어 계산 기준
+risk_scoring:
+  tge_unlock:
+    very_high: 15.0  # 15% 이상
+    high: 10.0       # 10-15%
+    medium: 5.0      # 5-10%
+    low: 2.5         # 2.5-5%
+    very_low: 2.5    # 2.5% 미만
+
+  cliff_months:
+    none: 0     # cliff 없음 (즉시 언락) - 위험
+    short: 3    # 3개월 미만
+    medium: 6   # 6개월
+    long: 12    # 12개월 이상 - 안전
+
+  vesting_months:
+    short: 12    # 1년 미만 - 위험
+    medium: 24   # 2년
+    long: 36     # 3년 이상 - 안전
+
+# 카테고리별 덤핑 리스크
+category_risk:
+  team: 0.3        # 팀 언락 → 낮은 덤핑 확률
+  vc: 0.8          # VC 언락 → 높은 덤핑 확률
+  public: 0.5      # 퍼블릭 세일 → 중간
+  ecosystem: 0.1   # 생태계 펀드 → 매우 낮음
+  airdrop: 0.9     # 에어드랍 → 매우 높은 덤핑 확률
+
+# 사용 가이드
+usage_notes: |
+  1. TGE 언락 비율이 클수록 위험 (덤핑 물량)
+  2. Cliff가 길수록 안전 (즉시 덤핑 방지)
+  3. 베스팅이 길수록 안전 (분산 언락)
+  4. 카테고리별 리스크 고려:
+     - VC/에어드랍: 덤핑 확률 높음
+     - 팀/생태계: 덤핑 확률 낮음
+
+  5. 통합 리스크 스코어 계산식:
+     risk_score = tge_unlock_pct * avg_category_risk / (cliff_months + 1)
+
+  6. 시나리오 적용:
+     - VERY_HIGH/HIGH → WATCH_ONLY (진입 금지)
+     - MEDIUM → BUY with caution (소량 진입)
+     - LOW/VERY_LOW → BUY (정상 진입)

@@ -44,6 +44,7 @@ from collectors.market_monitor import MarketMonitor
 from analysis.premium import PremiumCalculator
 from analysis.cost_model import CostModel
 from analysis.gate import GateChecker
+from analysis.event_strategy import EventStrategyExecutor
 from alerts.telegram import TelegramAlert
 
 # 로깅 설정: 이미 설정된 핸들러가 있으면 재설정하지 않음
@@ -116,18 +117,26 @@ async def main() -> None:
     # ---- 5. 종료 이벤트 ----
     stop_event = asyncio.Event()
 
-    # ---- 6a. Phase 3 분석 컴포넌트 생성 ----
+    # ---- 6a. Phase 3 + Phase 7a 분석 컴포넌트 생성 ----
     try:
         premium_calc = PremiumCalculator(writer)
         cost_model = CostModel()
         gate_checker = GateChecker(premium_calc, cost_model, writer)
         alert = TelegramAlert(writer, read_conn)
+
+        # Phase 7a: 이벤트 전략 실행기
+        event_strategy = EventStrategyExecutor(
+            premium_calculator=premium_calc,
+            cost_model=cost_model,
+            enable_auto_trade=False,  # 자동 주문 비활성화 (추천만)
+        )
+
         logger.info(
-            "Phase 3 컴포넌트 초기화 (텔레그램: %s)",
+            "Phase 3+7a 컴포넌트 초기화 (텔레그램: %s)",
             "설정됨" if alert.is_configured else "미설정 (로그만)",
         )
     except Exception as e:
-        logger.critical("Phase 3 컴포넌트 초기화 실패 — 즉시 종료: %s", e)
+        logger.critical("Phase 3+7a 컴포넌트 초기화 실패 — 즉시 종료: %s", e)
         writer.shutdown()
         read_conn.close()
         conn.close()
@@ -145,7 +154,9 @@ async def main() -> None:
 
     monitor = MarketMonitor(
         writer, registry, upbit, bithumb,
-        gate_checker=gate_checker, alert=alert,
+        gate_checker=gate_checker,
+        alert=alert,
+        event_strategy=event_strategy,
         notice_polling=notice_polling,
         notice_interval=notice_interval,
     )

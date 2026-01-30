@@ -28,11 +28,35 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# FX 하드코딩 기본값 (최후 폴백)
-_HARDCODED_FX = 1350.0
+# FX 설정 (config에서 로드, 없으면 기본값)
+_FX_CONFIG: dict = {}
 
-# FX 캐시 유효 시간 (초)
-_FX_CACHE_TTL = 300.0  # 5분
+
+def _load_fx_config() -> dict:
+    """FX 설정 로드 (lazy, 캐시됨)."""
+    global _FX_CONFIG
+    if _FX_CONFIG:
+        return _FX_CONFIG
+    config_path = Path(__file__).parent.parent / "config" / "exchanges.yaml"
+    if config_path.exists():
+        with open(config_path, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+            _FX_CONFIG = cfg.get("fx", {})
+    return _FX_CONFIG
+
+
+def _get_fallback_fx() -> float:
+    """FX 폴백 환율 (config 또는 기본값 1350.0)."""
+    return _load_fx_config().get("fallback_rate", 1350.0)
+
+
+def _get_fx_cache_ttl() -> float:
+    """FX 캐시 TTL (config 또는 기본값 300초)."""
+    return _load_fx_config().get("cache_ttl_sec", 300.0)
+
+
+# FX 캐시 유효 시간 (초) - 호환성 유지
+_FX_CACHE_TTL = 300.0  # 런타임에 _get_fx_cache_ttl() 사용
 
 # HTTP 타임아웃
 _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=10)
@@ -117,19 +141,21 @@ class PremiumCalculator:
             if fx:
                 return fx
 
-            # 4단계: 캐시된 FX값 (5분 이내) — 원본 소스 유지
+            # 4단계: 캐시된 FX값 (TTL 이내) — 원본 소스 유지
             if self._fx_cache:
                 rate, source, ts = self._fx_cache
                 age = time.time() - ts
-                if age < _FX_CACHE_TTL:
+                cache_ttl = _get_fx_cache_ttl()
+                if age < cache_ttl:
                     logger.info("FX 캐시 사용: %.2f (%s, age=%.0fs)", rate, source, age)
                     return rate, source
 
-            # 5단계: 하드코딩 기본값
+            # 5단계: config 폴백 기본값
+            fallback_fx = _get_fallback_fx()
             logger.critical(
-                "FX 모든 폴백 실패! 하드코딩 기본값 사용: %.2f", _HARDCODED_FX,
+                "FX 모든 폴백 실패! config 기본값 사용: %.2f", fallback_fx,
             )
-            return _HARDCODED_FX, "hardcoded_fallback"
+            return fallback_fx, "hardcoded_fallback"
 
         finally:
             if own_session and session:

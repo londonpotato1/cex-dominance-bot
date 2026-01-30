@@ -1,0 +1,87 @@
+# ============================================================
+# 전략 코드명 매핑 (Phase 6)
+# ============================================================
+# 내부: 영문 enum (StrategyCode)
+# 외부: 한국어 표시 (UI/텔레그램)
+# ============================================================
+
+strategies:
+  AGGRESSIVE:
+    name_ko: "공격적 매수"
+    description_ko: "확신 있는 흥따리 예상 시 적극 진입"
+    risk_level: high
+    recommended_for:
+      - supply_constrained
+      - hedge_none
+
+  MODERATE:
+    name_ko: "보통 매수"
+    description_ko: "표준 전략, 적당한 리스크"
+    risk_level: medium
+    recommended_for:
+      - supply_neutral
+      - hedge_cex
+
+  CONSERVATIVE:
+    name_ko: "보수적 매수"
+    description_ko: "주의 필요, 소량 진입"
+    risk_level: low
+    recommended_for:
+      - supply_smooth
+      - hedge_dex_only
+
+  WATCH_ONLY:
+    name_ko: "관망"
+    description_ko: "정보 부족, 매수 금지"
+    risk_level: none
+    recommended_for:
+      - listing_unknown
+      - fx_hardcoded
+
+  NO_TRADE:
+    name_ko: "거래 금지"
+    description_ko: "NO-GO 판정, 절대 진입 금지"
+    risk_level: blocked
+    recommended_for:
+      - hard_blocker
+
+# ============================================================
+# 시나리오 결과별 전략 매핑
+# ============================================================
+scenario_to_strategy:
+  heung_big: AGGRESSIVE
+  heung: MODERATE
+  neutral: CONSERVATIVE
+  mang: WATCH_ONLY
+
+# ============================================================
+# 공급+상장유형 조합별 전략 (Phase 5a 참조)
+# ============================================================
+supply_listing_matrix:
+  # constrained (공급 제약)
+  constrained:
+    TGE: AGGRESSIVE        # 세계 최초 + 공급 제약 = 최상
+    DIRECT: MODERATE       # 해외 존재 + 공급 제약 = 양호
+    SIDE: CONSERVATIVE     # 국내 경쟁 + 공급 제약 = 주의
+    UNKNOWN: WATCH_ONLY    # 미확인 = 관망
+
+  # neutral (중립)
+  neutral:
+    TGE: MODERATE
+    DIRECT: CONSERVATIVE
+    SIDE: CONSERVATIVE
+    UNKNOWN: WATCH_ONLY
+
+  # smooth (공급 원활)
+  smooth:
+    TGE: CONSERVATIVE
+    DIRECT: WATCH_ONLY
+    SIDE: WATCH_ONLY
+    UNKNOWN: WATCH_ONLY
+
+  # unknown (공급 미확인)
+  unknown:
+    TGE: CONSERVATIVE
+    DIRECT: WATCH_ONLY
+    SIDE: WATCH_ONLY
+    UNKNOWN: WATCH_ONLY

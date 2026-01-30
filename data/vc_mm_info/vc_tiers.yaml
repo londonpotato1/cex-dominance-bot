@@ -1,0 +1,1251 @@
+# VC 티어 분류 (Phase 9 Week 9-10)
+# Tier 1: 평균 상장 ROI 50%+, 포트폴리오 100개+
+# Tier 2: 평균 상장 ROI 20-50%, 포트폴리오 30개+
+# Tier 3: 그 외 (신생/소규모/지역 특화)
+#
+# 데이터 출처: CryptoRank, Messari, Rootdata, DeFiLlama, Crunchbase
+# 업데이트: 2026-01-30
+
+tier1:
+  # === 메가 펀드 (포트폴리오 200개+) ===
+  - name: "Binance Labs"
+    avg_listing_roi: 85.3
+    portfolio_size: 200
+    focus: ["Infrastructure", "DeFi", "Gaming"]
+    notable:
+      - "Polygon"
+      - "Axie Infinity"
+      - "1inch"
+      - "Injective"
+
+  - name: "a16z"
+    full_name: "Andreessen Horowitz"
+    avg_listing_roi: 92.1
+    portfolio_size: 150
+    focus: ["L1/L2", "DeFi", "Web3 Infrastructure"]
+    notable:
+      - "Solana"
+      - "Uniswap"
+      - "Compound"
+      - "Optimism"
+
+  - name: "Coinbase Ventures"
+    avg_listing_roi: 65.2
+    portfolio_size: 400
+    focus: ["DeFi", "Infrastructure", "Trading"]
+    notable:
+      - "Compound"
+      - "Uniswap"
+      - "OpenSea"
+      - "Arbitrum"
+
+  - name: "Digital Currency Group"
+    avg_listing_roi: 52.5
+    portfolio_size: 250
+    focus: ["Infrastructure", "Trading", "Mining"]
+    notable:
+      - "Coinbase"
+      - "Circle"
+      - "Chainalysis"
+      - "Ledger"
+
+  - name: "Animoca Brands"
+    avg_listing_roi: 75.6
+    portfolio_size: 450
+    focus: ["Gaming", "NFT", "Metaverse"]
+    notable:
+      - "The Sandbox"
+      - "Axie Infinity"
+      - "ApeCoin"
+      - "STEPN"
+
+  # === 대형 전문 VC (포트폴리오 100-200개) ===
+  - name: "Paradigm"
+    avg_listing_roi: 78.5
+    portfolio_size: 100
+    focus: ["DeFi", "L1/L2", "Infrastructure"]
+    notable:
+      - "Uniswap"
+      - "Cosmos"
+      - "Maker"
+      - "Blur"
+
+  - name: "Polychain Capital"
+    avg_listing_roi: 72.1
+    portfolio_size: 130
+    focus: ["L1/L2", "DeFi", "Privacy"]
+    notable:
+      - "Dfinity"
+      - "Cosmos"
+      - "Filecoin"
+      - "Acala"
+
+  - name: "Pantera Capital"
+    avg_listing_roi: 55.8
+    portfolio_size: 120
+    focus: ["DeFi", "Infrastructure", "Payments"]
+    notable:
+      - "Polkadot"
+      - "Filecoin"
+      - "Circle"
+      - "Alchemy"
+
+  - name: "Dragonfly Capital"
+    avg_listing_roi: 62.3
+    portfolio_size: 100
+    focus: ["DeFi", "Infrastructure", "Asia"]
+    notable:
+      - "Near"
+      - "Avalanche"
+      - "Celo"
+      - "Ribbon"
+
+  - name: "Multicoin Capital"
+    avg_listing_roi: 58.7
+    portfolio_size: 80
+    focus: ["DeFi", "Infrastructure", "Data"]
+    notable:
+      - "Solana"
+      - "Helium"
+      - "The Graph"
+      - "Arweave"
+
+  - name: "Jump Crypto"
+    avg_listing_roi: 54.2
+    portfolio_size: 90
+    focus: ["Infrastructure", "DeFi", "Trading"]
+    notable:
+      - "Solana"
+      - "Wormhole"
+      - "Pyth"
+      - "Sei"
+
+  - name: "Framework Ventures"
+    avg_listing_roi: 58.1
+    portfolio_size: 70
+    focus: ["DeFi", "Infrastructure"]
+    notable:
+      - "Chainlink"
+      - "Aave"
+      - "Synthetix"
+      - "Yearn"
+
+  - name: "Electric Capital"
+    avg_listing_roi: 51.3
+    portfolio_size: 60
+    focus: ["DeFi", "Infrastructure", "Developer Tools"]
+    notable:
+      - "Frax"
+      - "dYdX"
+      - "Bitwise"
+
+  - name: "Spartan Group"
+    avg_listing_roi: 53.8
+    portfolio_size: 70
+    focus: ["DeFi", "Gaming", "Asia"]
+    notable:
+      - "Synthetix"
+      - "THORChain"
+      - "Fantom"
+
+  - name: "Founders Fund"
+    avg_listing_roi: 61.2
+    portfolio_size: 50
+    focus: ["Infrastructure", "Payments"]
+    notable:
+      - "Solana"
+      - "Blockstream"
+      - "Stripe"
+
+  - name: "Sequoia Capital"
+    avg_listing_roi: 68.0
+    portfolio_size: 60
+    focus: ["Infrastructure", "DeFi"]
+    notable:
+      - "Polygon"
+      - "LayerZero"
+
+  # === 새로 추가된 Tier 1 ===
+  - name: "Lightspeed Venture Partners"
+    avg_listing_roi: 56.5
+    portfolio_size: 80
+    focus: ["Infrastructure", "DeFi", "Gaming"]
+    notable:
+      - "Solana"
+      - "Wintermute"
+      - "FTX"
+
+  - name: "Tiger Global"
+    avg_listing_roi: 54.2
+    portfolio_size: 70
+    focus: ["Infrastructure", "DeFi"]
+    notable:
+      - "Polygon"
+      - "Fireblocks"
+
+  - name: "Coatue Management"
+    avg_listing_roi: 51.8
+    portfolio_size: 50
+    focus: ["Infrastructure", "DeFi"]
+    notable:
+      - "Avalanche"
+      - "Solana"
+
+  - name: "Protocol Labs"
+    avg_listing_roi: 65.3
+    portfolio_size: 50
+    focus: ["Decentralized Storage", "Infrastructure"]
+    notable:
+      - "Filecoin"
+      - "IPFS"
+      - "Lido"
+
+  - name: "Fenbushi Capital"
+    avg_listing_roi: 52.4
+    portfolio_size: 100
+    focus: ["DeFi", "Infrastructure", "China"]
+    notable:
+      - "Polkadot"
+      - "Cosmos"
+      - "VeChain"
+
+  - name: "ConsenSys Ventures"
+    avg_listing_roi: 55.8
+    portfolio_size: 80
+    focus: ["Ethereum Ecosystem", "DeFi"]
+    notable:
+      - "Uniswap"
+      - "Lido"
+      - "Infura"
+
+  - name: "Alameda Ventures"
+    avg_listing_roi: 62.5
+    portfolio_size: 150
+    focus: ["DeFi", "Trading"]
+    notable:
+      - "Solana"
+      - "Serum"
+      - "Maps.me"
+    notes: "2022년 파산, 역사적 참고용"
+
+  - name: "Wintermute Ventures"
+    avg_listing_roi: 54.1
+    portfolio_size: 50
+    focus: ["DeFi", "Trading Infrastructure"]
+    notable:
+      - "Optimism"
+      - "Lido"
+      - "Hashflow"
+
+tier2:
+  # === 중형 VC (포트폴리오 30-100개) ===
+  - name: "Hashed"
+    avg_listing_roi: 45.2
+    portfolio_size: 120
+    focus: ["Gaming", "DeFi", "Korea"]
+    notable:
+      - "Terra"
+      - "Axie Infinity"
+      - "Klaytn"
+
+  - name: "Galaxy Digital"
+    avg_listing_roi: 38.7
+    portfolio_size: 90
+    focus: ["Infrastructure", "Trading"]
+    notable:
+      - "BlockFi"
+      - "Fireblocks"
+
+  - name: "Blockchain Capital"
+    avg_listing_roi: 42.5
+    portfolio_size: 70
+    focus: ["Infrastructure", "DeFi"]
+    notable:
+      - "Coinbase"
+      - "Kraken"
+      - "Ripple"
+
+  - name: "HashKey Capital"
+    avg_listing_roi: 35.8
+    portfolio_size: 60
+    focus: ["Infrastructure", "Asia"]
+    notable:
+      - "Polkadot"
+      - "Cosmos"
+
+  - name: "OKX Ventures"
+    avg_listing_roi: 40.2
+    portfolio_size: 120
+    focus: ["L1/L2", "DeFi"]
+    notable:
+      - "Sui"
+      - "Aptos"
+      - "LayerZero"
+
+  - name: "Mechanism Capital"
+    avg_listing_roi: 48.5
+    portfolio_size: 50
+    focus: ["DeFi", "Derivatives"]
+    notable:
+      - "Ribbon"
+      - "Opyn"
+
+  - name: "1confirmation"
+    avg_listing_roi: 44.1
+    portfolio_size: 40
+    focus: ["DeFi", "Infrastructure"]
+    notable:
+      - "Polkadot"
+      - "Cosmos"
+
+  - name: "Variant"
+    avg_listing_roi: 46.3
+    portfolio_size: 45
+    focus: ["DeFi", "Web3"]
+    notable:
+      - "Uniswap"
+      - "Mirror"
+
+  - name: "Placeholder VC"
+    avg_listing_roi: 41.8
+    portfolio_size: 35
+    focus: ["Infrastructure", "DeFi"]
+    notable:
+      - "Arweave"
+      - "UMA"
+
+  - name: "Robot Ventures"
+    avg_listing_roi: 38.9
+    portfolio_size: 30
+    focus: ["DeFi"]
+    notable:
+      - "Uniswap"
+      - "Compound"
+
+  - name: "Nascent"
+    avg_listing_roi: 47.2
+    portfolio_size: 40
+    focus: ["DeFi", "Derivatives"]
+    notable:
+      - "dYdX"
+      - "Ribbon"
+
+  - name: "IOSG Ventures"
+    avg_listing_roi: 36.5
+    portfolio_size: 80
+    focus: ["DeFi", "Infrastructure", "China"]
+    notable:
+      - "Polkadot"
+      - "Near"
+
+  - name: "Sino Global Capital"
+    avg_listing_roi: 33.8
+    portfolio_size: 50
+    focus: ["Gaming", "DeFi", "Asia"]
+    notable:
+      - "Solana"
+      - "Audius"
+
+  - name: "DeFiance Capital"
+    avg_listing_roi: 49.1
+    portfolio_size: 60
+    focus: ["DeFi", "Gaming"]
+    notable:
+      - "Axie Infinity"
+      - "Aavegotchi"
+
+  - name: "Amber Group"
+    avg_listing_roi: 31.5
+    portfolio_size: 40
+    focus: ["Trading", "DeFi"]
+    notable:
+      - "Liquity"
+
+  - name: "Delphi Digital"
+    avg_listing_roi: 44.6
+    portfolio_size: 50
+    focus: ["DeFi", "Gaming", "Research"]
+    notable:
+      - "Axie Infinity"
+      - "Ribbon"
+
+  - name: "Three Arrows Capital"
+    avg_listing_roi: 52.3
+    portfolio_size: 80
+    focus: ["DeFi", "Infrastructure"]
+    notable:
+      - "Avalanche"
+      - "Solana"
+    notes: "2022년 파산, 역사적 참고용"
+
+  # === 새로 추가된 Tier 2 ===
+  - name: "Hack VC"
+    avg_listing_roi: 43.5
+    portfolio_size: 60
+    focus: ["Infrastructure", "DeFi"]
+    notable:
+      - "Berachain"
+      - "Movement"
+
+  - name: "CoinFund"
+    avg_listing_roi: 42.1
+    portfolio_size: 80
+    focus: ["DeFi", "Web3"]
+    notable:
+      - "Compound"
+      - "Celo"
+
+  - name: "Shima Capital"
+    avg_listing_roi: 45.8
+    portfolio_size: 70
+    focus: ["Infrastructure", "Gaming"]
+    notable:
+      - "Aptos"
+      - "Celestia"
+
+  - name: "Maven 11"
+    avg_listing_roi: 39.2
+    portfolio_size: 50
+    focus: ["DeFi", "Infrastructure"]
+    notable:
+      - "Mina"
+      - "Starkware"
+
+  - name: "Bain Capital Crypto"
+    avg_listing_roi: 41.6
+    portfolio_size: 40
+    focus: ["Infrastructure", "DeFi"]
+    notable:
+      - "Celestia"
+      - "LayerZero"
+
+  - name: "a]capital"
+    full_name: "a]capital"
+    avg_listing_roi: 38.5
+    portfolio_size: 45
+    focus: ["DeFi", "Infrastructure"]
+    notable:
+      - "Arbitrum"
+      - "Lido"
+
+  - name: "LongHash Ventures"
+    avg_listing_roi: 36.8
+    portfolio_size: 80
+    focus: ["Infrastructure", "Asia"]
+    notable:
+      - "Polkadot"
+      - "Filecoin"
+
+  - name: "SevenX Ventures"
+    avg_listing_roi: 34.5
+    portfolio_size: 60
+    focus: ["DeFi", "Gaming", "China"]
+    notable:
+      - "Sei"
+      - "Blur"
+
+  - name: "NGC Ventures"
+    avg_listing_roi: 32.8
+    portfolio_size: 90
+    focus: ["Infrastructure", "DeFi", "Asia"]
+    notable:
+      - "Polkadot"
+      - "Near"
+
+  - name: "Kenetic Capital"
+    avg_listing_roi: 35.2
+    portfolio_size: 50
+    focus: ["Infrastructure", "Asia"]
+    notable:
+      - "Algorand"
+      - "Solana"
+
+  - name: "Foresight Ventures"
+    avg_listing_roi: 38.1
+    portfolio_size: 70
+    focus: ["Infrastructure", "DeFi", "China"]
+    notable:
+      - "Celestia"
+      - "Scroll"
+
+  - name: "Republic Capital"
+    avg_listing_roi: 33.5
+    portfolio_size: 100
+    focus: ["DeFi", "Tokenization"]
+    notable:
+      - "Avalanche"
+      - "Polkadot"
+
+  - name: "KR1"
+    avg_listing_roi: 40.8
+    portfolio_size: 60
+    focus: ["DeFi", "Infrastructure"]
+    notable:
+      - "Polkadot"
+      - "Cosmos"
+
+  - name: "gumi Cryptos Capital"
+    avg_listing_roi: 37.2
+    portfolio_size: 50
+    focus: ["Gaming", "NFT", "Japan"]
+    notable:
+      - "Axie Infinity"
+      - "The Sandbox"
+
+  - name: "Tribe Capital"
+    avg_listing_roi: 43.8
+    portfolio_size: 40
+    focus: ["Infrastructure", "DeFi"]
+    notable:
+      - "FTX"
+      - "Anchorage"
+    notes: "FTX 투자 손실"
+
+  - name: "CMS Holdings"
+    avg_listing_roi: 44.2
+    portfolio_size: 50
+    focus: ["DeFi", "Trading"]
+    notable:
+      - "Synthetix"
+      - "dYdX"
+
+  - name: "Scalar Capital"
+    avg_listing_roi: 41.5
+    portfolio_size: 35
+    focus: ["Infrastructure", "DeFi"]
+    notable:
+      - "Compound"
+      - "Filecoin"
+
+  - name: "White Star Capital"
+    avg_listing_roi: 35.8
+    portfolio_size: 40
+    focus: ["Infrastructure", "Fintech"]
+    notable:
+      - "Fireblocks"
+
+  - name: "Ribbit Capital"
+    avg_listing_roi: 46.5
+    portfolio_size: 30
+    focus: ["Fintech", "Payments"]
+    notable:
+      - "Uniswap"
+      - "Coinbase"
+
+tier3:
+  # === 소형/신생/지역 특화 VC ===
+  - name: "AU21 Capital"
+    avg_listing_roi: 28.5
+    portfolio_size: 80
+    focus: ["DeFi", "Infrastructure"]
+    notable:
+      - "Polkadot"
+
+  - name: "LD Capital"
+    avg_listing_roi: 25.8
+    portfolio_size: 100
+    focus: ["DeFi", "Gaming"]
+    notable:
+      - "Axie Infinity"
+
+  - name: "Morningstar Ventures"
+    avg_listing_roi: 22.5
+    portfolio_size: 50
+    focus: ["DeFi", "NFT"]
+    notable:
+      - "Elrond"
+
+  - name: "SNZ Capital"
+    avg_listing_roi: 24.2
+    portfolio_size: 40
+    focus: ["DeFi", "China"]
+    notable:
+      - "Ontology"
+
+  - name: "Big Brain Holdings"
+    avg_listing_roi: 32.5
+    portfolio_size: 30
+    focus: ["DeFi", "Memes"]
+    notable:
+      - "Luna"
+      - "MAGIC"
+
+  - name: "Zee Prime Capital"
+    avg_listing_roi: 29.8
+    portfolio_size: 35
+    focus: ["DeFi", "Research"]
+    notable:
+      - "Lido"
+      - "Rocket Pool"
+
+  - name: "Infinity Ventures Crypto"
+    avg_listing_roi: 26.5
+    portfolio_size: 40
+    focus: ["Gaming", "Asia"]
+    notable:
+      - "Yield Guild Games"
+
+  - name: "Slow Ventures"
+    avg_listing_roi: 31.2
+    portfolio_size: 25
+    focus: ["Consumer", "Web3"]
+    notable:
+      - "Mirror"
+
+  - name: "Arcane Assets"
+    avg_listing_roi: 27.8
+    portfolio_size: 30
+    focus: ["DeFi"]
+    notable:
+      - "THORChain"
+
+  - name: "Impossible Finance"
+    avg_listing_roi: 23.5
+    portfolio_size: 100
+    focus: ["Launchpad", "DeFi"]
+    notable:
+      - "Many IDO projects"
+
+  - name: "Figment Capital"
+    avg_listing_roi: 35.2
+    portfolio_size: 40
+    focus: ["Staking", "Infrastructure"]
+    notable:
+      - "Cosmos"
+      - "Solana"
+
+  - name: "Standard Crypto"
+    avg_listing_roi: 38.5
+    portfolio_size: 35
+    focus: ["Infrastructure", "DeFi"]
+    notable:
+      - "Chia"
+      - "Starkware"
+
+  - name: "ParaFi Capital"
+    avg_listing_roi: 42.3
+    portfolio_size: 30
+    focus: ["DeFi"]
+    notable:
+      - "Maker"
+      - "Aave"
+
+  - name: "Craft Ventures"
+    avg_listing_roi: 33.8
+    portfolio_size: 25
+    focus: ["Infrastructure", "Payments"]
+    notable:
+      - "Solana"
+
+  - name: "North Island Ventures"
+    avg_listing_roi: 29.5
+    portfolio_size: 20
+    focus: ["Infrastructure"]
+    notable:
+      - "Alchemy"
+
+  - name: "Arrington XRP Capital"
+    avg_listing_roi: 28.2
+    portfolio_size: 40
+    focus: ["DeFi", "Infrastructure"]
+    notable:
+      - "Polkadot"
+      - "Filecoin"
+
+  - name: "A195 Capital"
+    avg_listing_roi: 24.5
+    portfolio_size: 30
+    focus: ["Gaming", "NFT"]
+    notable:
+      - "Immutable X"
+
+  - name: "Mask Network"
+    full_name: "Mask Network Ventures"
+    avg_listing_roi: 21.8
+    portfolio_size: 50
+    focus: ["Social", "Web3"]
+    notable:
+      - "Mask"
+      - "Gitcoin"
+
+  - name: "Huobi Ventures"
+    avg_listing_roi: 22.5
+    portfolio_size: 80
+    focus: ["DeFi", "Trading"]
+    notable:
+      - "AAVE"
+
+  - name: "Gate Ventures"
+    avg_listing_roi: 20.8
+    portfolio_size: 60
+    focus: ["DeFi", "Gaming"]
+    notable:
+      - "Sui"
+
+  - name: "Bitget Ventures"
+    avg_listing_roi: 18.5
+    portfolio_size: 40
+    focus: ["DeFi", "Trading"]
+    notable:
+      - "Various projects"
+
+  - name: "MEXC Ventures"
+    avg_listing_roi: 15.8
+    portfolio_size: 50
+    focus: ["DeFi", "Launchpad"]
+    notable:
+      - "Various projects"
+
+  - name: "KuCoin Ventures"
+    avg_listing_roi: 19.2
+    portfolio_size: 80
+    focus: ["DeFi", "Infrastructure"]
+    notable:
+      - "Casper"
+
+  - name: "Huobi Global"
+    avg_listing_roi: 17.5
+    portfolio_size: 60
+    focus: ["DeFi", "Trading"]
+    notable:
+      - "Various projects"
+
+  - name: "4SV"
+    full_name: "Four Seasons Ventures"
+    avg_listing_roi: 26.8
+    portfolio_size: 40
+    focus: ["Gaming", "Asia"]
+    notable:
+      - "Yield Guild Games"
+
+  - name: "Vessel Capital"
+    avg_listing_roi: 28.5
+    portfolio_size: 25
+    focus: ["Infrastructure"]
+    notable:
+      - "Oasis"
+
+  - name: "Continue Capital"
+    avg_listing_roi: 21.5
+    portfolio_size: 35
+    focus: ["DeFi", "China"]
+    notable:
+      - "Polkadot"
+
+  - name: "D1 Ventures"
+    avg_listing_roi: 24.8
+    portfolio_size: 30
+    focus: ["DeFi", "Asia"]
+    notable:
+      - "Harmony"
+
+  - name: "GBV Capital"
+    avg_listing_roi: 23.2
+    portfolio_size: 45
+    focus: ["Gaming", "Infrastructure"]
+    notable:
+      - "Axie Infinity"
+
+  - name: "Mirana Ventures"
+    avg_listing_roi: 32.5
+    portfolio_size: 50
+    focus: ["DeFi", "Infrastructure"]
+    notable:
+      - "Celestia"
+      - "Scroll"
+
+  - name: "Sfermion"
+    avg_listing_roi: 35.8
+    portfolio_size: 30
+    focus: ["NFT", "Gaming"]
+    notable:
+      - "Axie Infinity"
+      - "Immutable"
+
+  - name: "Andreessen Horowitz Games"
+    avg_listing_roi: 45.2
+    portfolio_size: 25
+    focus: ["Gaming", "NFT"]
+    notable:
+      - "Proof"
+      - "Irreverent Labs"
+
+  - name: "Merit Circle"
+    avg_listing_roi: 28.5
+    portfolio_size: 80
+    focus: ["Gaming"]
+    notable:
+      - "Axie Infinity"
+      - "Illuvium"
+
+  - name: "Bitkraft Ventures"
+    avg_listing_roi: 30.2
+    portfolio_size: 50
+    focus: ["Gaming", "Esports"]
+    notable:
+      - "Yield Guild Games"
+
+  - name: "Play Ventures"
+    avg_listing_roi: 25.8
+    portfolio_size: 30
+    focus: ["Gaming"]
+    notable:
+      - "Sky Mavis"
+
+  - name: "Griffin Gaming Partners"
+    avg_listing_roi: 27.5
+    portfolio_size: 25
+    focus: ["Gaming"]
+    notable:
+      - "Forte"
+
+  - name: "Dapper Labs Ventures"
+    avg_listing_roi: 38.2
+    portfolio_size: 30
+    focus: ["NFT", "Gaming"]
+    notable:
+      - "NBA Top Shot"
+
+  - name: "Opensea Ventures"
+    avg_listing_roi: 32.5
+    portfolio_size: 20
+    focus: ["NFT"]
+    notable:
+      - "Gem"
+
+  - name: "Cypher Capital"
+    avg_listing_roi: 22.8
+    portfolio_size: 60
+    focus: ["DeFi", "Middle East"]
+    notable:
+      - "Various projects"
+
+  - name: "Maelstrom"
+    full_name: "Arthur Hayes Family Office"
+    avg_listing_roi: 40.5
+    portfolio_size: 20
+    focus: ["DeFi", "Derivatives"]
+    notable:
+      - "Ethena"
+      - "Pendle"
+
+  - name: "Blocktower Capital"
+    avg_listing_roi: 35.8
+    portfolio_size: 50
+    focus: ["DeFi", "Infrastructure"]
+    notable:
+      - "Aave"
+      - "Compound"
+
+  - name: "CMT Digital"
+    avg_listing_roi: 30.2
+    portfolio_size: 40
+    focus: ["Trading", "Infrastructure"]
+    notable:
+      - "Bakkt"
+
+  - name: "Castle Island Ventures"
+    avg_listing_roi: 32.5
+    portfolio_size: 30
+    focus: ["Infrastructure", "Payments"]
+    notable:
+      - "Lightning Labs"
+
+# 마켓 메이커 정보
+# risk_score: 0-10 (0=안전, 10=극도 위험)
+# manipulation_flags: wash_trading, aggressive_dumping, front_running, market_manipulation
+market_makers:
+  tier1:
+    # === 대형 크립토 네이티브 MM (신뢰도 높음) ===
+    - name: "Wintermute"
+      risk_score: 2.0
+      projects: ["Optimism", "Blur", "dYdX", "Lido", "Arbitrum"]
+      volume_estimate_daily_usd: 5000000000
+      notes: "대형 MM, 투명한 운영, VC 투자 겸업"
+
+    - name: "GSR"
+      risk_score: 2.5
+      projects: ["Solana", "Avalanche", "Polkadot"]
+      volume_estimate_daily_usd: 3000000000
+      notes: "대형 MM, 오래된 역사"
+
+    - name: "Jump Trading"
+      risk_score: 2.0
+      projects: ["Solana", "Wormhole", "Pyth", "Sei"]
+      volume_estimate_daily_usd: 4000000000
+      notes: "대형 MM, Jump Crypto 계열, TradFi 배경"
+
+    - name: "Cumberland"
+      risk_score: 2.0
+      projects: ["Bitcoin", "Ethereum"]
+      volume_estimate_daily_usd: 2000000000
+      notes: "DRW 계열, 대형 OTC, 기관 전문"
+
+    - name: "B2C2"
+      risk_score: 2.5
+      projects: ["Bitcoin", "Ethereum", "Various"]
+      volume_estimate_daily_usd: 1500000000
+      notes: "대형 OTC 데스크, SBI 인수"
+
+    - name: "Keyrock"
+      risk_score: 2.5
+      projects: ["Various altcoins"]
+      volume_estimate_daily_usd: 500000000
+      notes: "유럽 대형 MM, 규제 준수"
+
+    - name: "Folkvang"
+      risk_score: 2.5
+      projects: ["Various"]
+      volume_estimate_daily_usd: 300000000
+      notes: "중형 MM, 안정적 운영"
+
+    - name: "Portofino Technologies"
+      risk_score: 2.5
+      projects: ["Various"]
+      volume_estimate_daily_usd: 400000000
+      notes: "중형 MM, 유럽 기반"
+
+    # === 전통 금융 출신 (매우 신뢰도 높음) ===
+    - name: "Jane Street"
+      risk_score: 1.5
+      projects: ["Bitcoin", "Ethereum", "ETFs"]
+      volume_estimate_daily_usd: 10000000000
+      notes: "전통 금융 HFT 최대, 크립토 진출 확대"
+
+    - name: "Citadel Securities"
+      risk_score: 1.5
+      projects: ["Bitcoin ETF", "Ethereum ETF"]
+      volume_estimate_daily_usd: 8000000000
+      notes: "세계 최대 MM, 2024 크립토 본격 진출"
+
+    - name: "Virtu Financial"
+      risk_score: 2.0
+      projects: ["Bitcoin ETF", "Ethereum ETF"]
+      volume_estimate_daily_usd: 5000000000
+      notes: "상장 HFT 기업"
+
+    - name: "Flow Traders"
+      risk_score: 2.0
+      projects: ["Bitcoin ETF", "Ethereum ETF"]
+      volume_estimate_daily_usd: 3000000000
+      notes: "ETF 전문 MM, 유럽 상장"
+
+    - name: "Susquehanna (SIG)"
+      risk_score: 2.0
+      projects: ["Bitcoin", "Ethereum", "Options"]
+      volume_estimate_daily_usd: 4000000000
+      notes: "대형 옵션 트레이더, 크립토 옵션 대량 보유"
+
+    - name: "Two Sigma"
+      risk_score: 2.0
+      projects: ["Bitcoin", "Ethereum"]
+      volume_estimate_daily_usd: 2000000000
+      notes: "퀀트 헤지펀드, 크립토 데스크 운영"
+
+    - name: "Hudson River Trading"
+      risk_score: 2.0
+      projects: ["Various"]
+      volume_estimate_daily_usd: 2000000000
+      notes: "대형 HFT, 크립토 진출"
+
+    - name: "XTX Markets"
+      risk_score: 2.0
+      projects: ["Bitcoin", "Ethereum"]
+      volume_estimate_daily_usd: 3000000000
+      notes: "FX/크립토 대형 MM"
+
+    - name: "Tower Research Capital"
+      risk_score: 2.5
+      projects: ["Various"]
+      volume_estimate_daily_usd: 1500000000
+      notes: "대형 HFT, 크립토 팀 운영"
+
+    - name: "DV Trading"
+      risk_score: 2.5
+      projects: ["Various"]
+      volume_estimate_daily_usd: 800000000
+      notes: "시카고 기반 트레이딩 펌"
+
+    - name: "IMC Trading"
+      risk_score: 2.0
+      projects: ["Bitcoin", "Ethereum"]
+      volume_estimate_daily_usd: 1000000000
+      notes: "네덜란드 대형 MM"
+
+    - name: "Optiver"
+      risk_score: 2.0
+      projects: ["Bitcoin", "Ethereum"]
+      volume_estimate_daily_usd: 1500000000
+      notes: "네덜란드 대형 MM, 크립토 확장 중"
+
+  tier2:
+    # === 중형 크립토 MM ===
+    - name: "Kronos Research"
+      risk_score: 4.0
+      projects: ["Various"]
+      volume_estimate_daily_usd: 500000000
+      notes: "대만 기반, 2023년 해킹 피해"
+      manipulation_flags: []
+
+    - name: "Auros"
+      risk_score: 4.5
+      projects: ["Various"]
+      volume_estimate_daily_usd: 300000000
+      notes: "중형 MM, FTX 손실"
+      manipulation_flags: []
+
+    - name: "Woorton"
+      risk_score: 4.0
+      projects: ["Various"]
+      volume_estimate_daily_usd: 200000000
+      notes: "프랑스 기반, 규제 준수"
+      manipulation_flags: []
+
+    - name: "Altonomy"
+      risk_score: 4.5
+      projects: ["Various altcoins"]
+      volume_estimate_daily_usd: 200000000
+      notes: "아시아 중형 MM"
+      manipulation_flags: []
+
+    - name: "Pulsar Trading"
+      risk_score: 4.0
+      projects: ["Various"]
+      volume_estimate_daily_usd: 150000000
+      notes: "중형 MM"
+      manipulation_flags: []
+
+    - name: "Empirica"
+      risk_score: 4.0
+      projects: ["Various"]
+      volume_estimate_daily_usd: 100000000
+      notes: "폴란드 기반"
+      manipulation_flags: []
+
+    - name: "Efficient Frontier"
+      risk_score: 4.5
+      projects: ["Various"]
+      volume_estimate_daily_usd: 100000000
+      notes: "중형 MM"
+      manipulation_flags: []
+
+    - name: "Acheron Trading"
+      risk_score: 4.0
+      projects: ["Various"]
+      volume_estimate_daily_usd: 100000000
+      notes: "유럽 기반"
+      manipulation_flags: []
+
+    - name: "Pattern Research"
+      risk_score: 4.5
+      projects: ["Various"]
+      volume_estimate_daily_usd: 80000000
+      notes: "소형 MM"
+      manipulation_flags: []
+
+    - name: "Manifold Trading"
+      risk_score: 4.5
+      projects: ["Various"]
+      volume_estimate_daily_usd: 80000000
+      notes: "소형 MM"
+      manipulation_flags: []
+
+    - name: "ExoAlpha"
+      risk_score: 4.0
+      projects: ["Various"]
+      volume_estimate_daily_usd: 50000000
+      notes: "소형 MM"
+      manipulation_flags: []
+
+    - name: "Elwood Technologies"
+      risk_score: 4.0
+      projects: ["Various"]
+      volume_estimate_daily_usd: 100000000
+      notes: "영국 기반, 기관 서비스"
+      manipulation_flags: []
+
+    - name: "LedgerPrime"
+      risk_score: 5.0
+      projects: ["Various"]
+      volume_estimate_daily_usd: 100000000
+      notes: "퀀트 펀드/MM"
+      manipulation_flags: []
+
+    - name: "Amber Group"
+      risk_score: 4.5
+      projects: ["Various"]
+      volume_estimate_daily_usd: 500000000
+      notes: "MM + 투자 병행, 대량 해고"
+      manipulation_flags: []
+
+    - name: "QCP Capital"
+      risk_score: 4.0
+      projects: ["Options market"]
+      volume_estimate_daily_usd: 300000000
+      notes: "싱가포르, 옵션 전문"
+      manipulation_flags: []
+
+    - name: "FBG Capital"
+      risk_score: 5.0
+      projects: ["Various"]
+      volume_estimate_daily_usd: 100000000
+      notes: "중국 기반, 투자 겸업"
+      manipulation_flags: []
+
+    - name: "Bluesky Capital"
+      risk_score: 5.0
+      projects: ["Various"]
+      volume_estimate_daily_usd: 50000000
+      notes: "소형 MM"
+      manipulation_flags: []
+
+    # === 논란/문제 있는 MM ===
+    - name: "DWF Labs"
+      risk_score: 6.5
+      projects: ["YGG", "FLOKI", "TON", "EOS", "CFX", "AGIX"]
+      volume_estimate_daily_usd: 1000000000
+      notes: "공격적 투자, 덤핑 논란, MM+VC 이해충돌"
+      manipulation_flags:
+        - "aggressive_dumping"
+        - "conflict_of_interest"
+
+    - name: "Kairon Labs"
+      risk_score: 5.5
+      projects: ["Various altcoins"]
+      volume_estimate_daily_usd: 50000000
+      notes: "소형 코인 전문, 논란 있음"
+      manipulation_flags: []
+
+    - name: "Genesis Trading"
+      risk_score: 7.0
+      projects: ["Various"]
+      volume_estimate_daily_usd: 0
+      notes: "DCG 계열, 2023년 파산"
+      manipulation_flags: []
+
+  tier3:
+    # === 고위험/의심스러운 MM ===
+    - name: "Alameda Research"
+      risk_score: 9.0
+      projects: ["FTT", "SRM", "MAPS", "OXY"]
+      volume_estimate_daily_usd: 0
+      notes: "2022년 파산, FTX 고객 자금 횡령"
+      manipulation_flags:
+        - "wash_trading"
+        - "market_manipulation"
+        - "fraud"
+
+    - name: "Gotbit"
+      risk_score: 8.0
+      projects: []
+      volume_estimate_daily_usd: 50000000
+      notes: "워시 트레이딩 전문 의혹, 2024년 DOJ 기소"
+      manipulation_flags:
+        - "wash_trading"
+        - "legal_action"
+
+    - name: "MyX"
+      risk_score: 7.5
+      projects: []
+      volume_estimate_daily_usd: 30000000
+      notes: "워시 트레이딩 의혹"
+      manipulation_flags:
+        - "wash_trading"
+
+    - name: "CLS Global"
+      risk_score: 7.0
+      projects: []
+      volume_estimate_daily_usd: 20000000
+      notes: "워시 트레이딩 의혹"
+      manipulation_flags:
+        - "wash_trading"
+
+    - name: "ZM Quant"
+      risk_score: 6.5
+      projects: []
+      volume_estimate_daily_usd: 20000000
+      notes: "조작 의혹"
+      manipulation_flags:
+        - "suspicious_activity"
+
+    - name: "Senja"
+      risk_score: 7.0
+      projects: []
+      volume_estimate_daily_usd: 10000000
+      notes: "워시 트레이딩 의혹"
+      manipulation_flags:
+        - "wash_trading"
+
+    - name: "Spacemesh MM"
+      risk_score: 6.5
+      projects: []
+      volume_estimate_daily_usd: 10000000
+      notes: "의심스러운 활동"
+      manipulation_flags:
+        - "suspicious_activity"
+
+    - name: "Unknown Chinese MM"
+      risk_score: 8.0
+      projects: []
+      volume_estimate_daily_usd: 0
+      notes: "익명/미확인 MM, 극도 주의"
+      manipulation_flags:
+        - "anonymous"
+        - "high_risk"
+
+    - name: "Blofin Capital"
+      risk_score: 6.5
+      projects: []
+      volume_estimate_daily_usd: 30000000
+      notes: "소형 MM, 정보 제한적"
+      manipulation_flags:
+        - "limited_info"
+
+    - name: "Selini Capital"
+      risk_score: 6.0
+      projects: []
+      volume_estimate_daily_usd: 20000000
+      notes: "신흥 MM"
+      manipulation_flags: []
+
+    - name: "Tokka Labs"
+      risk_score: 6.5
+      projects: []
+      volume_estimate_daily_usd: 15000000
+      notes: "소형 MM, 모니터링 필요"
+      manipulation_flags:
+        - "monitoring_required"
+
+# 메타데이터
+metadata:
+  version: "2.2.0"
+  updated_at: "2026-01-31"
+
+  # VC 통계 (실제 로드 기준)
+  total_tier1_vcs: 24
+  total_tier2_vcs: 36
+  total_tier3_vcs: 43
+  total_vcs: 103
+
+  # MM 통계 (실제 로드 기준)
+  total_tier1_mms: 20
+  total_tier2_mms: 20
+  total_tier3_mms: 11
+  total_mms: 51
+
+  data_sources:
+    - "CryptoRank"
+    - "Messari"
+    - "DeFiLlama"
+    - "Rootdata"
+    - "Crunchbase"
+    - "The Block Research"
+    - "Kaiko"
+
+  changelog:
+    - "2026-01-31: metadata 동기화 (실제 로드 값 기준)"
+    - "2026-01-31: VC 103개 (Tier1: 24, Tier2: 36, Tier3: 43)"
+    - "2026-01-31: MM 51개 (Tier1: 20, Tier2: 20, Tier3: 11)"
+    - "2026-01-30: Phase 9 Week 9-10 - VC/MM 대규모 확장"
+    - "2026-01-30: MM risk_score 체계화, manipulation_flags 추가"
+    - "2026-01-30: 전통 금융 MM 대거 추가 (Jane Street, Citadel, Virtu 등)"

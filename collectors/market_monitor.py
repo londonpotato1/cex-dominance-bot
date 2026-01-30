@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from collectors.bithumb_ws import BithumbCollector
     from analysis.gate import GateChecker, GateResult
     from alerts.telegram import TelegramAlert
+    from analysis.event_strategy import EventStrategyExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ class MarketMonitor:
         *,
         gate_checker: Optional[GateChecker] = None,
         alert: Optional[TelegramAlert] = None,
+        event_strategy: Optional[EventStrategyExecutor] = None,
         upbit_interval: float = 30.0,
         bithumb_interval: float = 60.0,
         notice_polling: bool = True,
@@ -62,6 +64,7 @@ class MarketMonitor:
         self._bithumb_collector = bithumb_collector
         self._gate_checker = gate_checker
         self._alert = alert
+        self._event_strategy = event_strategy
         self._upbit_interval = upbit_interval
         self._bithumb_interval = bithumb_interval
         self._session: Optional[aiohttp.ClientSession] = None
@@ -335,6 +338,20 @@ class MarketMonitor:
                         symbol, exchange, e,
                     )
 
+                # Listing History 기록 (Phase 5a)
+                try:
+                    from metrics.observability import record_listing_history
+                    await record_listing_history(
+                        self._writer,
+                        result,
+                        listing_time=listing_time,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "[MarketMonitor] Listing history 기록 실패 (%s@%s): %s",
+                        symbol, exchange, e,
+                    )
+
                 # 4. 텔레그램 알림
                 if self._alert:
                     alert_msg = self._format_alert(symbol, exchange, result)
@@ -421,10 +438,16 @@ class MarketMonitor:
     # ------------------------------------------------------------------
 
     async def _on_notice_listing(self, result: NoticeParseResult) -> None:
-        """공지에서 상장 감지 시 콜백.
+        """공지에서 상장 감지 시 콜백 (Phase 7 확장).
 
         마켓 오픈 전에 공지를 통해 먼저 감지된 경우.
+        Phase 7: WARNING/HALT/MIGRATION/DEPEG 이벤트도 처리.
         """
+        # Phase 7: 비상장 이벤트 처리 (WARNING/HALT/MIGRATION/DEPEG)
+        if result.notice_type != "listing" and self._event_strategy:
+            await self._handle_non_listing_event(result)
+            return
+
         exchange = result.exchange
         symbols = result.symbols
 
@@ -461,6 +484,20 @@ class MarketMonitor:
                     except Exception as e:
                         logger.warning(
                             "[MarketMonitor] Gate 로그 기록 실패 (%s@%s): %s",
+                            symbol, exchange, e,
+                        )
+
+                    # Listing History 기록 (Phase 5a)
+                    try:
+                        from metrics.observability import record_listing_history
+                        await record_listing_history(
+                            self._writer,
+                            gate_result,
+                            listing_time=result.listing_time,
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "[MarketMonitor] Listing history 기록 실패 (%s@%s): %s",
                             symbol, exchange, e,
                         )
 
@@ -520,3 +557,75 @@ class MarketMonitor:
             lines.append(f"\n공지: {notice.notice_url}")
 
         return "\n".join(lines)
+
+    async def _handle_non_listing_event(self, result: NoticeParseResult) -> None:
+        """Phase 7: 비상장 이벤트 처리 (WARNING/HALT/MIGRATION/DEPEG).
+
+        Args:
+            result: NoticeParseResult (notice_type != "listing")
+        """
+        logger.critical(
+            "[MarketMonitor] 🚨 이벤트 감지: %s @ %s (%s)",
+            result.symbols or ["N/A"],
+            result.exchange,
+            result.notice_type.upper(),
+        )
+
+        if not self._event_strategy:
+            logger.warning("[MarketMonitor] EventStrategy 미설정")
+            return
+
+        try:
+            # 이벤트 전략 생성
+            strategy = await self._event_strategy.process_event(result)
+
+            if strategy is None:
+                logger.debug(
+                    "[MarketMonitor] 조치 불필요 이벤트: %s", result.notice_type
+                )
+                return
+
+            logger.info(
+                "[MarketMonitor] 전략 생성: %s (%s) → %s",
+                strategy.symbol,
+                strategy.event_type,
+                strategy.recommended_action,
+            )
+
+            # 텔레그램 알림 발송
+            if self._alert:
+                from analysis.event_strategy import format_strategy_alert
+
+                alert_msg = format_strategy_alert(strategy)
+
+                # 심각도에 따라 알림 레벨 결정
+                from analysis.gate import AlertLevel
+
+                severity_to_level = {
+                    "low": AlertLevel.LOW,
+                    "medium": AlertLevel.MEDIUM,
+                    "high": AlertLevel.HIGH,
+                    "critical": AlertLevel.CRITICAL,
+                }
+                alert_level = severity_to_level.get(
+                    strategy.severity.value, AlertLevel.MEDIUM
+                )
+
+                await self._alert.send(
+                    alert_level,
+                    alert_msg,
+                    key=f"event:{strategy.event_type}:{strategy.symbol}",
+                )
+
+                logger.info(
+                    "[MarketMonitor] 이벤트 알림 발송 완료: %s (%s)",
+                    strategy.symbol,
+                    strategy.event_type,
+                )
+
+        except Exception as e:
+            logger.error(
+                "[MarketMonitor] 이벤트 전략 처리 실패: %s",
+                e,
+                exc_info=True,
+            )

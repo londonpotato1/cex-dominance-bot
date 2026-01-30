@@ -116,6 +116,7 @@ class SupplyInput:
     # Turnover Ratio (volume / deposit)
     deposit_krw: Optional[float] = None
     volume_5m_krw: Optional[float] = None
+    turnover_ratio: Optional[float] = None  # v10: 직접 제공 가능 (백테스트)
 
     # 시장 상황 (Phase 6)
     market_condition: str = "neutral"  # bull/bear/neutral
@@ -211,6 +212,11 @@ class SupplyClassifier:
         network_factor = self._score_network(data, weights)
         if network_factor:
             factors.append(network_factor)
+
+        # Factor 6: Turnover Ratio (백테스트 개선 - v10)
+        turnover_factor = self._score_turnover(data, weights)
+        if turnover_factor:
+            factors.append(turnover_factor)
 
         # 모든 팩터 None → UNKNOWN (v9)
         if not factors:
@@ -452,16 +458,59 @@ class SupplyClassifier:
             reason=reason,
         )
 
+    def _score_turnover(
+        self, data: SupplyInput, weights: dict,
+    ) -> Optional[SupplyFactor]:
+        """Turnover Ratio 스코어 (v10 백테스트 개선).
+
+        turnover = volume_5m / deposit
+        높은 Turnover → 공급 제약 (constrained, -)
+        낮은 Turnover → 공급 원활 (smooth, +)
+        """
+        turnover = self._calculate_turnover(data)
+        if turnover is None:
+            return None
+
+        # Turnover adjustment를 score로 사용
+        score = self._turnover_adjustment(turnover)
+
+        # 설명 생성
+        if turnover >= 10.0:
+            reason = f"회전율 {turnover:.1f} (극단적 높음 - 공급 부족)"
+        elif turnover >= 5.0:
+            reason = f"회전율 {turnover:.1f} (높음 - 공급 제약)"
+        elif turnover >= 2.1:
+            reason = f"회전율 {turnover:.1f} (보통 - 약간 제약)"
+        elif turnover >= 1.0:
+            reason = f"회전율 {turnover:.1f} (낮음 - 공급 원활)"
+        else:
+            reason = f"회전율 {turnover:.1f} (매우 낮음 - 공급 풍부)"
+
+        return SupplyFactor(
+            name="turnover",
+            raw_value=turnover,
+            score=score,
+            weight=weights.get("turnover", 0.40),  # 높은 가중치 (데이터 가용성 높음)
+            confidence=1.0,  # 계산값이므로 신뢰도 높음
+            reason=reason,
+        )
+
     # ------------------------------------------------------------------
     # Turnover Ratio
     # ------------------------------------------------------------------
 
     def _calculate_turnover(self, data: SupplyInput) -> Optional[float]:
-        """Turnover Ratio 계산.
+        """Turnover Ratio 계산 (v10 개선).
 
-        turnover = volume_5m / deposit
+        1순위: 직접 제공된 turnover_ratio 필드
+        2순위: volume_5m / deposit 계산
         높을수록 흥따리 (거래량 대비 입금 적음)
         """
+        # 1순위: CSV에 직접 있는 turnover_ratio 사용
+        if data.turnover_ratio is not None:
+            return data.turnover_ratio
+
+        # 2순위: 계산
         if data.deposit_krw is None or data.volume_5m_krw is None:
             return None
         if data.deposit_krw <= 0:

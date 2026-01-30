@@ -1,11 +1,12 @@
-"""Go/No-Go Gate 판정 (Phase 3 + Phase 5a 확장).
+"""Go/No-Go Gate 판정 (Phase 3 + Phase 5a + Phase 7 확장).
 
-5단계 파이프라인 (v9):
+6단계 파이프라인 (v10):
   1단계: Hard Gate (v5) → 입출금/수익성/전송시간/VASP Blocker 체크
   2단계: Supply Classification (v6) → 원활/미원활 판정
   3단계: Listing Type (v6) → TGE/직상장/옆상장 분류
   4단계: Strategy Determination (v6) → 공급+유형 조합별 전략 결정
   5단계: Scenario Generation (v6) → 흥/망따리 카드 생성
+  6단계: VC/MM Check (v10) → 투자자/MM 리스크 평가
 
 Hard Gate 4 Blockers:
   1. 입출금 차단 (deposit/withdrawal closed)
@@ -33,16 +34,228 @@ AlertLevel (v10 정밀화):
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import random
+import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import wraps
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Callable, Optional, TYPE_CHECKING, TypeVar
 
 import aiohttp
 import yaml
 
-from analysis.premium import PremiumCalculator, _fetch_upbit_price
+# 타입 변수 (제네릭 데코레이터용)
+T = TypeVar("T")
+
+
+# ============================================================
+# A3: LRU 캐시 (메모리 누수 방지)
+# ============================================================
+
+class LRUCache:
+    """TTL + LRU 캐시 (메모리 누수 방지).
+
+    - maxsize: 최대 항목 수 (초과 시 가장 오래된 항목 제거)
+    - ttl: 항목 만료 시간 (초)
+    - 조회 시 LRU 순서 갱신 (최근 사용 항목 유지)
+    """
+
+    def __init__(self, maxsize: int = 1000, ttl: float = 300.0) -> None:
+        self._cache: OrderedDict[str, tuple[float, Any]] = OrderedDict()
+        self._maxsize = maxsize
+        self._ttl = ttl
+
+    def get(self, key: str) -> tuple[bool, Any]:
+        """캐시 조회.
+
+        Returns:
+            (hit, value): hit=True면 캐시 히트, value는 저장된 값.
+        """
+        if key not in self._cache:
+            return False, None
+
+        timestamp, value = self._cache[key]
+        if time.time() - timestamp > self._ttl:
+            # 만료됨 → 삭제
+            del self._cache[key]
+            return False, None
+
+        # LRU: 최근 사용 항목을 끝으로 이동
+        self._cache.move_to_end(key)
+        return True, value
+
+    def set(self, key: str, value: Any) -> None:
+        """캐시 저장."""
+        # 기존 키가 있으면 삭제 후 재삽입 (순서 갱신)
+        if key in self._cache:
+            del self._cache[key]
+
+        # maxsize 초과 시 가장 오래된 항목 제거
+        while len(self._cache) >= self._maxsize:
+            self._cache.popitem(last=False)
+
+        self._cache[key] = (time.time(), value)
+
+    def cleanup(self) -> int:
+        """만료된 항목 정리.
+
+        Returns:
+            제거된 항목 수.
+        """
+        now = time.time()
+        expired = [k for k, (ts, _) in self._cache.items() if now - ts > self._ttl]
+        for k in expired:
+            del self._cache[k]
+        return len(expired)
+
+    def __len__(self) -> int:
+        return len(self._cache)
+
+    def __contains__(self, key: str) -> bool:
+        hit, _ = self.get(key)
+        return hit
+
+
+# ============================================================
+# B1: 재시도 데코레이터 (지수 백오프 + 지터)
+# ============================================================
+
+def async_retry(
+    max_retries: int = 3,
+    base_delay: float = 0.5,
+    max_delay: float = 10.0,
+    exponential: bool = True,
+    jitter: bool = True,
+    exceptions: tuple = (aiohttp.ClientError, asyncio.TimeoutError),
+) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    """비동기 함수 재시도 데코레이터.
+
+    Args:
+        max_retries: 최대 재시도 횟수 (기본 3)
+        base_delay: 기본 대기 시간 (초)
+        max_delay: 최대 대기 시간 (초)
+        exponential: 지수 백오프 사용 여부
+        jitter: 랜덤 지터 추가 여부 (thundering herd 방지)
+        exceptions: 재시도할 예외 타입들
+
+    Example:
+        @async_retry(max_retries=3, base_delay=0.5)
+        async def fetch_data(url):
+            async with session.get(url) as resp:
+                return await resp.json()
+    """
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        @wraps(func)
+        async def wrapper(*args, **kwargs) -> T:
+            last_exception: Exception | None = None
+
+            for attempt in range(max_retries):
+                try:
+                    return await func(*args, **kwargs)
+                except exceptions as e:
+                    last_exception = e
+
+                    if attempt < max_retries - 1:
+                        # 대기 시간 계산
+                        if exponential:
+                            delay = base_delay * (2 ** attempt)
+                        else:
+                            delay = base_delay
+
+                        # 최대 대기 시간 제한
+                        delay = min(delay, max_delay)
+
+                        # 지터 추가 (0.5~1.5배)
+                        if jitter:
+                            delay *= (0.5 + random.random())
+
+                        logger.warning(
+                            "[Retry] %s 실패 (시도 %d/%d), %.2fs 후 재시도: %s",
+                            func.__name__, attempt + 1, max_retries, delay, e,
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(
+                            "[Retry] %s 최종 실패 (%d회 시도): %s",
+                            func.__name__, max_retries, e,
+                        )
+
+            # 모든 재시도 실패
+            if last_exception:
+                raise last_exception
+            raise RuntimeError(f"{func.__name__} failed after {max_retries} retries")
+
+        return wrapper
+    return decorator
+
+
+# ============================================================
+# B2: API 메트릭 수집
+# ============================================================
+
+@dataclass
+class APIMetrics:
+    """API 호출 메트릭.
+
+    성공률, 평균 지연 시간, 에러 유형별 카운트 추적.
+    """
+    total_calls: int = 0
+    success_calls: int = 0
+    failed_calls: int = 0
+    total_latency_ms: float = 0.0
+    errors: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def success_rate(self) -> float:
+        """성공률 (0.0 ~ 1.0)."""
+        if self.total_calls == 0:
+            return 0.0
+        return self.success_calls / self.total_calls
+
+    @property
+    def avg_latency_ms(self) -> float:
+        """평균 지연 시간 (ms)."""
+        if self.success_calls == 0:
+            return 0.0
+        return self.total_latency_ms / self.success_calls
+
+    def record_success(self, latency_ms: float) -> None:
+        """성공 기록."""
+        self.total_calls += 1
+        self.success_calls += 1
+        self.total_latency_ms += latency_ms
+
+    def record_failure(self, error_type: str) -> None:
+        """실패 기록."""
+        self.total_calls += 1
+        self.failed_calls += 1
+        self.errors[error_type] = self.errors.get(error_type, 0) + 1
+
+    def to_dict(self) -> dict:
+        """딕셔너리 변환 (JSON 직렬화용)."""
+        return {
+            "total_calls": self.total_calls,
+            "success_calls": self.success_calls,
+            "failed_calls": self.failed_calls,
+            "success_rate": f"{self.success_rate:.1%}",
+            "avg_latency_ms": round(self.avg_latency_ms, 1),
+            "errors": dict(self.errors) if self.errors else {},
+        }
+
+    def reset(self) -> None:
+        """메트릭 초기화."""
+        self.total_calls = 0
+        self.success_calls = 0
+        self.failed_calls = 0
+        self.total_latency_ms = 0.0
+        self.errors.clear()
+
+
+from analysis.premium import PremiumCalculator, _fetch_upbit_price, _get_fallback_fx
 from analysis.cost_model import CostModel, CostResult
 from analysis.listing_type import (
     ListingType,
@@ -55,6 +268,16 @@ from analysis.supply_classifier import (
     SupplyClassifier,
     SupplyInput,
     SupplyResult,
+)
+from analysis.scenario import (
+    ScenarioCard,
+    ScenarioPlanner,
+    ScenarioOutcome,
+    format_scenario_card_text,
+)
+from collectors.vc_mm_collector import (
+    VCMMCollector,
+    ProjectVCInfo,
 )
 
 # Phase 5b: External Data Collectors (Lazy Import)
@@ -124,6 +347,12 @@ class GateResult:
     listing_type_result: Optional[ListingTypeResult] = None
     recommended_strategy: StrategyCode = StrategyCode.WATCH_ONLY
 
+    # Phase 6 확장 필드
+    scenario_card: Optional[ScenarioCard] = None
+
+    # Phase 7 확장 필드 (v10): VC/MM 정보
+    vc_mm_info: Optional[ProjectVCInfo] = None
+
 
 class GateChecker:
     """Go/No-Go Gate 판정기.
@@ -167,9 +396,91 @@ class GateChecker:
         self._hot_wallet_tracker = None
         self._withdrawal_tracker = None
 
-        # 중복 분석 방지 캐시: "symbol@exchange" -> (timestamp, GateResult)
-        self._analysis_cache: dict[str, tuple[float, GateResult]] = {}
-        self._cache_ttl = 300.0  # 5분
+        # Phase 6: Scenario Planner (lazy init)
+        self._scenario_planner: Optional[ScenarioPlanner] = None
+
+        # Phase 7: VC/MM Collector (lazy init)
+        self._vc_mm_collector: Optional[VCMMCollector] = None
+
+        # A3: 중복 분석 방지 캐시 (LRU + TTL)
+        # maxsize=1000: 최대 1000개 분석 결과 보관
+        # ttl=300: 5분 후 만료
+        self._analysis_cache = LRUCache(maxsize=1000, ttl=300.0)
+
+        # A2: 선물 마켓 목록 캐시 (1시간 TTL)
+        # B3: Hyperliquid DEX 추가
+        self._futures_cache: dict[str, set[str]] = {
+            "binance": set(),
+            "bybit": set(),
+            "hyperliquid": set(),  # B3: DEX 선물
+        }
+        self._futures_cache_time: dict[str, float] = {
+            "binance": 0.0,
+            "bybit": 0.0,
+            "hyperliquid": 0.0,
+        }
+        self._futures_cache_ttl = 3600.0  # 1시간
+
+        # B2: API 메트릭 수집
+        self._metrics: dict[str, APIMetrics] = {
+            "binance_futures": APIMetrics(),
+            "bybit_futures": APIMetrics(),
+            "hyperliquid": APIMetrics(),  # B3: DEX 선물
+            "coingecko": APIMetrics(),
+            "upbit": APIMetrics(),
+            "bithumb": APIMetrics(),
+            "domestic_price": APIMetrics(),
+            "global_vwap": APIMetrics(),
+            "implied_fx": APIMetrics(),
+            "etherscan_gas": APIMetrics(),  # C1: 네트워크 혼잡도
+            "solana_rpc": APIMetrics(),
+        }
+
+        # C1: 네트워크 혼잡도 캐시 (5분 TTL)
+        self._congestion_cache: dict[str, float] = {}  # network → congestion (0.0~1.0)
+        self._congestion_cache_time: dict[str, float] = {}
+        self._congestion_cache_ttl = 300.0  # 5분
+
+        # C2: 공유 ClientSession (연결 풀 재사용)
+        self._session: Optional[aiohttp.ClientSession] = None
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """공유 aiohttp 세션 반환 (lazy init).
+
+        연결 풀을 재사용하여 TCP 핸드셰이크 오버헤드 감소.
+        - limit=100: 총 동시 연결 수
+        - limit_per_host=30: 호스트당 동시 연결 수
+        """
+        if self._session is None or self._session.closed:
+            connector = aiohttp.TCPConnector(
+                limit=100,
+                limit_per_host=30,
+                ttl_dns_cache=300,  # DNS 캐시 5분
+                enable_cleanup_closed=True,
+            )
+            timeout = aiohttp.ClientTimeout(total=15, connect=5)
+            self._session = aiohttp.ClientSession(
+                connector=connector,
+                timeout=timeout,
+            )
+            logger.debug("[Gate] 공유 ClientSession 생성")
+        return self._session
+
+    async def close(self) -> None:
+        """리소스 정리 (세션 종료).
+
+        애플리케이션 종료 시 호출 권장.
+        """
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+            logger.debug("[Gate] 공유 ClientSession 종료")
+        self._session = None
+
+        # Phase 7: VCMMCollector 정리
+        if self._vc_mm_collector is not None:
+            await self._vc_mm_collector.close()
+            logger.debug("[Gate] VCMMCollector 종료")
+        self._vc_mm_collector = None
 
     async def analyze_listing(
         self, symbol: str, exchange: str,
@@ -187,119 +498,166 @@ class GateChecker:
         Returns:
             GateResult. 캐시 히트 시 캐시된 결과 반환.
         """
-        import time
+        import asyncio
         cache_key = f"{symbol}@{exchange}"
-        now = time.time()
 
-        # 중복 분석 방지: 5분 이내 동일 요청 시 캐시 반환
-        if not force and cache_key in self._analysis_cache:
-            cached_time, cached_result = self._analysis_cache[cache_key]
-            age = now - cached_time
-            if age < self._cache_ttl:
-                logger.info(
-                    "[Gate] 캐시 히트: %s (%.0f초 전 분석, TTL %.0f초)",
-                    cache_key, age, self._cache_ttl - age,
-                )
+        # A3: LRU 캐시 조회 (5분 TTL, maxsize 1000)
+        if not force:
+            hit, cached_result = self._analysis_cache.get(cache_key)
+            if hit:
+                logger.info("[Gate] 캐시 히트: %s", cache_key)
                 return cached_result
 
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=15)
-        ) as session:
-            # 1. FX 환율 조회
-            fx_rate, fx_source = await self._premium.get_implied_fx(session)
+        # 주기적 캐시 정리 (10% 확률로 실행)
+        import random
+        if random.random() < 0.1:
+            cleaned = self._analysis_cache.cleanup()
+            if cleaned > 0:
+                logger.debug("[Gate] 캐시 정리: %d개 만료 항목 제거", cleaned)
 
-            # 2. 국내 가격 조회
-            krw_market = self._make_domestic_market(symbol, exchange)
-            krw_price = await _fetch_upbit_price(krw_market, session) if exchange == "upbit" else None
-            if krw_price is None:
-                # Upbit 외 거래소이거나 조회 실패 시
-                krw_price = await self._fetch_domestic_price(symbol, exchange, session)
+        # C2: 공유 세션 사용 (연결 풀 재사용)
+        session = await self._get_session()
 
-            # 3. 글로벌 VWAP 조회
-            vwap_result = await self._premium.get_global_vwap(symbol, session)
+        # ============================================================
+        # Phase A1: 독립 API 호출 병렬 실행 (asyncio.gather)
+        # 순차 실행 시 ~3초 → 병렬 실행 시 ~1초
+        # ============================================================
 
-            if krw_price is None or krw_price <= 0:
-                logger.warning(
-                    "[Gate] 국내 가격 조회 실패: %s@%s", symbol, exchange,
-                )
-                result = GateResult(
-                    can_proceed=False,
-                    blockers=[f"국내 가격 조회 실패: {symbol}@{exchange}"],
-                    alert_level=AlertLevel.LOW,
-                    symbol=symbol,
-                    exchange=exchange,
-                )
-                self._analysis_cache[cache_key] = (now, result)
-                return result
+        # 병렬 실행할 태스크 정의
+        fx_task = self._premium.get_implied_fx(session)
+        krw_task = self._fetch_domestic_price_safe(symbol, exchange, session)
+        vwap_task = self._premium.get_global_vwap(symbol, session)
+        hedge_task = self._check_futures_market(symbol, session)
 
-            if vwap_result is None or vwap_result.price_usd <= 0:
-                logger.warning(
-                    "[Gate] 글로벌 가격 조회 실패: %s", symbol,
-                )
-                # 글로벌 가격 없으면 프리미엄 계산 불가 → blocker는 아님, 경고 수준
-                result = GateResult(
-                    can_proceed=False,
-                    blockers=["글로벌 가격 조회 실패 (VWAP 없음)"],
-                    alert_level=AlertLevel.MEDIUM,
-                    symbol=symbol,
-                    exchange=exchange,
-                )
-                self._analysis_cache[cache_key] = (now, result)
-                return result
+        # 병렬 실행 (예외 발생해도 다른 태스크 계속 실행)
+        results = await asyncio.gather(
+            fx_task, krw_task, vwap_task, hedge_task,
+            return_exceptions=True,
+        )
 
-            # 4. 프리미엄 계산
-            premium_result = await self._premium.calculate_premium(
-                krw_price=krw_price,
-                global_usd_price=vwap_result.price_usd,
-                fx_rate=fx_rate,
-                fx_source=fx_source,
+        fx_result, krw_price, vwap_result, hedge_type = results
+
+        # FX 결과 처리 (실패 시 fallback) + 메트릭 기록
+        if isinstance(fx_result, Exception):
+            logger.warning("[Gate] FX 조회 실패: %s → fallback 사용", fx_result)
+            self._record_api_failure("implied_fx", type(fx_result).__name__)
+            fx_rate, fx_source = _get_fallback_fx(), "hardcoded_fallback"
+        else:
+            # FX 성공 (PremiumCalculator 내부 타이밍 미측정, 0으로 기록)
+            self._record_api_success("implied_fx", 0)
+            fx_rate, fx_source = fx_result
+
+        # KRW 가격 처리 (실패 시 None) - 메트릭은 _fetch_domestic_price_safe에서 기록
+        if isinstance(krw_price, Exception):
+            logger.warning("[Gate] 국내 가격 조회 예외: %s", krw_price)
+            krw_price = None
+
+        # VWAP 결과 처리 (실패 시 None) + 메트릭 기록
+        if isinstance(vwap_result, Exception):
+            logger.warning("[Gate] VWAP 조회 예외: %s", vwap_result)
+            self._record_api_failure("global_vwap", type(vwap_result).__name__)
+            vwap_result = None
+        else:
+            # VWAP 성공 (PremiumCalculator 내부 타이밍 미측정, 0으로 기록)
+            self._record_api_success("global_vwap", 0)
+
+        # hedge_type 처리 (실패 시 "none") - 메트릭은 _refresh_futures_cache에서 기록
+        if isinstance(hedge_type, Exception):
+            logger.warning("[Gate] 선물 마켓 조회 예외: %s", hedge_type)
+            hedge_type = "none"
+
+        if krw_price is None or krw_price <= 0:
+            logger.warning(
+                "[Gate] 국내 가격 조회 실패: %s@%s", symbol, exchange,
             )
-
-            # 5. 비용 계산
-            network = "ethereum"  # TODO: Phase 5+ 네트워크 동적 결정
-            # 선물 마켓 탐색: Binance/Bybit에서 USDT-M 선물 존재 여부 확인
-            hedge_type = await self._check_futures_market(symbol, session)
-
-            cost_result = self._cost_model.calculate_total_cost(
-                premium_pct=premium_result.premium_pct,
-                network=network,
-                amount_krw=_DEFAULT_AMOUNT_KRW,
-                hedge_type=hedge_type,
-                fx_rate=fx_rate,
-                domestic_exchange=exchange,
-            )
-
-            # 6. Gate 입력 조립
-            # Phase 3: 입출금 상태는 알 수 없음 → 기본 open 가정
-            networks_config = self._networks.get("networks", {})
-            net_config = networks_config.get(network, {})
-            transfer_time = net_config.get("avg_transfer_min", 5.0)
-
-            gate_input = GateInput(
+            result = GateResult(
+                can_proceed=False,
+                blockers=[f"국내 가격 조회 실패: {symbol}@{exchange}"],
+                alert_level=AlertLevel.LOW,
                 symbol=symbol,
                 exchange=exchange,
-                premium_pct=premium_result.premium_pct,
-                cost_result=cost_result,
-                deposit_open=True,       # Phase 5+: 실제 API 조회
-                withdrawal_open=True,    # Phase 5+: 실제 API 조회
-                transfer_time_min=transfer_time,
-                global_volume_usd=vwap_result.total_volume_usd,
-                fx_source=fx_source,
-                hedge_type=hedge_type,
-                network=network,
-                top_exchange=vwap_result.sources[0] if vwap_result.sources else "",
+            )
+            self._analysis_cache.set(cache_key, result)
+            return result
+
+        if vwap_result is None or vwap_result.price_usd <= 0:
+            logger.warning(
+                "[Gate] 글로벌 가격 조회 실패: %s", symbol,
+            )
+            # 글로벌 가격 없으면 프리미엄 계산 불가 → blocker는 아님, 경고 수준
+            result = GateResult(
+                can_proceed=False,
+                blockers=["글로벌 가격 조회 실패 (VWAP 없음)"],
+                alert_level=AlertLevel.MEDIUM,
+                symbol=symbol,
+                exchange=exchange,
+            )
+            self._analysis_cache.set(cache_key, result)
+            return result
+
+        # 4. 프리미엄 계산
+        premium_result = await self._premium.calculate_premium(
+            krw_price=krw_price,
+            global_usd_price=vwap_result.price_usd,
+            fx_rate=fx_rate,
+            fx_source=fx_source,
+        )
+
+        # 5. 네트워크 결정 (TokenRegistry 기반)
+        network = self._determine_optimal_network(symbol)
+        # hedge_type은 이미 병렬 실행에서 조회됨
+
+        cost_result = self._cost_model.calculate_total_cost(
+            premium_pct=premium_result.premium_pct,
+            network=network,
+            amount_krw=_DEFAULT_AMOUNT_KRW,
+            hedge_type=hedge_type,
+            fx_rate=fx_rate,
+            domestic_exchange=exchange,
+        )
+
+        # 6. Gate 입력 조립
+        # Phase 3: 입출금 상태는 알 수 없음 → 기본 open 가정
+        networks_config = self._networks.get("networks", {})
+        net_config = networks_config.get(network, {})
+        base_transfer_time = net_config.get("avg_transfer_min", 5.0)
+
+        # C1: 네트워크 혼잡도 반영
+        congestion = await self._get_network_congestion(network, session)
+        transfer_time = self._apply_congestion_to_transfer_time(
+            base_transfer_time, congestion
+        )
+        if congestion > 0.5:
+            logger.info(
+                "[Gate] 네트워크 혼잡: %s (%.0f%%) → 전송시간 %.1f→%.1f분",
+                network, congestion * 100, base_transfer_time, transfer_time,
             )
 
-            # 7. Hard Gate 판정 (1단계)
-            result = self.check_hard_blockers(gate_input)
+        gate_input = GateInput(
+            symbol=symbol,
+            exchange=exchange,
+            premium_pct=premium_result.premium_pct,
+            cost_result=cost_result,
+            deposit_open=True,       # Phase 5+: 실제 API 조회
+            withdrawal_open=True,    # Phase 5+: 실제 API 조회
+            transfer_time_min=transfer_time,
+            global_volume_usd=vwap_result.total_volume_usd,
+            fx_source=fx_source,
+            hedge_type=hedge_type,
+            network=network,
+            top_exchange=vwap_result.sources[0] if vwap_result.sources else "",
+        )
 
-            # 8. Phase 5a 확장: Feature flag에 따라 2~4단계 실행
-            if result.can_proceed:
-                await self._run_phase5a_pipeline(result, gate_input, session)
+        # 7. Hard Gate 판정 (1단계)
+        result = self.check_hard_blockers(gate_input)
 
-            # 캐시 저장
-            self._analysis_cache[cache_key] = (now, result)
-            return result
+        # 8. Phase 5a 확장: Feature flag에 따라 2~4단계 실행
+        if result.can_proceed:
+            await self._run_phase5a_pipeline(result, gate_input, session)
+
+        # A3: LRU 캐시 저장
+        self._analysis_cache.set(cache_key, result)
+        return result
 
     def check_hard_blockers(self, gate_input: GateInput) -> GateResult:
         """Hard Gate 4 Blockers + 3 Warnings 체크.
@@ -472,6 +830,59 @@ class GateChecker:
         return fx_source == "hardcoded_fallback"
 
     # ------------------------------------------------------------------
+    # B2: API 메트릭 관리
+    # ------------------------------------------------------------------
+
+    def _record_api_success(self, api_name: str, latency_ms: float) -> None:
+        """API 호출 성공 기록.
+
+        Args:
+            api_name: API 식별자 (e.g., "binance_futures", "coingecko")
+            latency_ms: 응답 시간 (밀리초)
+        """
+        if api_name in self._metrics:
+            self._metrics[api_name].record_success(latency_ms)
+
+    def _record_api_failure(self, api_name: str, error_type: str) -> None:
+        """API 호출 실패 기록.
+
+        Args:
+            api_name: API 식별자
+            error_type: 에러 유형 (e.g., "timeout", "rate_limit", "http_500")
+        """
+        if api_name in self._metrics:
+            self._metrics[api_name].record_failure(error_type)
+
+    def get_metrics(self) -> dict[str, dict]:
+        """전체 API 메트릭 반환 (health.json 연동용).
+
+        Returns:
+            각 API별 메트릭 딕셔너리
+        """
+        return {name: m.to_dict() for name, m in self._metrics.items()}
+
+    def get_metrics_summary(self) -> str:
+        """메트릭 요약 문자열 반환 (로깅/디버깅용)."""
+        lines = ["[API Metrics Summary]"]
+        for name, m in self._metrics.items():
+            if m.total_calls > 0:
+                lines.append(
+                    f"  {name}: {m.success_rate:.1%} success, "
+                    f"{m.avg_latency_ms:.0f}ms avg, "
+                    f"{m.total_calls} calls"
+                )
+        return "\n".join(lines) if len(lines) > 1 else "[API Metrics] No calls yet"
+
+    def reset_metrics(self) -> None:
+        """모든 메트릭 초기화 (테스트용)."""
+        for m in self._metrics.values():
+            m.total_calls = 0
+            m.success_calls = 0
+            m.failed_calls = 0
+            m.total_latency_ms = 0.0
+            m.errors.clear()
+
+    # ------------------------------------------------------------------
     # Config 로드
     # ------------------------------------------------------------------
 
@@ -533,55 +944,486 @@ class GateChecker:
             return f"{symbol}_KRW"
         return symbol
 
+    async def _fetch_domestic_price_safe(
+        self, symbol: str, exchange: str, session: aiohttp.ClientSession,
+    ) -> float | None:
+        """국내 가격 조회 (업비트/빗썸 통합, 병렬 실행용).
+
+        asyncio.gather에서 사용하기 위한 안전한 래퍼.
+        예외 발생 시 None 반환 (gather의 return_exceptions와 별도 처리).
+        """
+        start_time = time.time()
+        api_name = exchange  # "upbit" or "bithumb"
+        try:
+            price: float | None = None
+            if exchange == "upbit":
+                krw_market = self._make_domestic_market(symbol, exchange)
+                price = await _fetch_upbit_price(krw_market, session)
+                if price is not None and price > 0:
+                    latency_ms = (time.time() - start_time) * 1000
+                    self._record_api_success(api_name, latency_ms)
+                    return price
+                # upbit 실패 시 fallback 없음 (upbit 전용)
+                self._record_api_failure(api_name, "no_price")
+                return None
+            elif exchange == "bithumb":
+                price = await self._fetch_domestic_price(symbol, exchange, session)
+                latency_ms = (time.time() - start_time) * 1000
+                if price is not None:
+                    self._record_api_success(api_name, latency_ms)
+                else:
+                    self._record_api_failure(api_name, "no_price")
+                return price
+            else:
+                # 알 수 없는 거래소
+                logger.warning("[Gate] 지원하지 않는 거래소: %s", exchange)
+                return None
+        except Exception as e:
+            self._record_api_failure(api_name, type(e).__name__)
+            logger.debug("[Gate] 국내 가격 조회 예외 (%s@%s): %s", symbol, exchange, e)
+            return None
+
     # ------------------------------------------------------------------
     # 선물 마켓 탐색 (hedge_type 결정)
     # ------------------------------------------------------------------
 
+    @async_retry(max_retries=3, base_delay=0.5, exceptions=(aiohttp.ClientError, asyncio.TimeoutError))
+    async def _fetch_binance_futures_list(
+        self, session: aiohttp.ClientSession,
+    ) -> set[str]:
+        """Binance 선물 마켓 목록 조회 (재시도 적용)."""
+        url = "https://fapi.binance.com/fapi/v1/exchangeInfo"
+        async with session.get(
+            url, timeout=aiohttp.ClientTimeout(total=10)
+        ) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+            return {s["symbol"] for s in data.get("symbols", [])}
+
+    @async_retry(max_retries=3, base_delay=0.5, exceptions=(aiohttp.ClientError, asyncio.TimeoutError))
+    async def _fetch_bybit_futures_list(
+        self, session: aiohttp.ClientSession,
+    ) -> set[str]:
+        """Bybit 선물 마켓 목록 조회 (재시도 적용)."""
+        url = "https://api.bybit.com/v5/market/instruments-info?category=linear&limit=1000"
+        async with session.get(
+            url, timeout=aiohttp.ClientTimeout(total=10)
+        ) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+            if data.get("retCode") != 0:
+                raise ValueError(f"Bybit API error: {data.get('retMsg')}")
+            return {s["symbol"] for s in data.get("result", {}).get("list", [])}
+
+    @async_retry(max_retries=3, base_delay=0.5, exceptions=(aiohttp.ClientError, asyncio.TimeoutError))
+    async def _fetch_hyperliquid_futures_list(
+        self, session: aiohttp.ClientSession,
+    ) -> set[str]:
+        """Hyperliquid DEX 무기한 선물 마켓 목록 조회 (재시도 적용).
+
+        Hyperliquid는 탈중앙화 거래소로, CEX에 선물이 없는 토큰의
+        헤지 수단으로 활용 가능 (hedge_type="dex_only").
+
+        API 문서: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
+        """
+        url = "https://api.hyperliquid.xyz/info"
+        payload = {"type": "meta"}
+        async with session.post(
+            url,
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+            # Hyperliquid meta API 응답: {"universe": [{"name": "BTC", ...}, ...]}
+            universe = data.get("universe", [])
+            # Hyperliquid는 심볼 형식이 "BTC", "ETH" (USDT 접미사 없음)
+            # CEX와 비교를 위해 "BTCUSDT" 형식으로 변환
+            return {f"{asset['name']}USDT" for asset in universe if asset.get("name")}
+
+    async def _refresh_futures_cache(
+        self, exchange: str, session: aiohttp.ClientSession,
+    ) -> None:
+        """선물 마켓 목록 캐시 갱신 (1시간 TTL).
+
+        Args:
+            exchange: "binance", "bybit", 또는 "hyperliquid"
+            session: aiohttp 세션
+        """
+        now = time.time()
+
+        # TTL 내면 갱신 불필요
+        if now - self._futures_cache_time.get(exchange, 0) < self._futures_cache_ttl:
+            return
+
+        symbols: set[str] = set()
+        # Hyperliquid는 _futures가 아닌 그냥 hyperliquid로 메트릭 기록
+        api_name = "hyperliquid" if exchange == "hyperliquid" else f"{exchange}_futures"
+        start_time = time.time()
+
+        if exchange == "binance":
+            try:
+                symbols = await self._fetch_binance_futures_list(session)
+                latency_ms = (time.time() - start_time) * 1000
+                self._record_api_success(api_name, latency_ms)
+                logger.info("[Gate] Binance 선물 캐시 갱신: %d 심볼 (%.0fms)", len(symbols), latency_ms)
+            except Exception as e:
+                self._record_api_failure(api_name, type(e).__name__)
+                logger.warning("[Gate] Binance 선물 목록 조회 실패 (3회 재시도 후): %s", e)
+                return  # 실패 시 기존 캐시 유지
+
+        elif exchange == "bybit":
+            try:
+                symbols = await self._fetch_bybit_futures_list(session)
+                latency_ms = (time.time() - start_time) * 1000
+                self._record_api_success(api_name, latency_ms)
+                logger.info("[Gate] Bybit 선물 캐시 갱신: %d 심볼 (%.0fms)", len(symbols), latency_ms)
+            except Exception as e:
+                self._record_api_failure(api_name, type(e).__name__)
+                logger.warning("[Gate] Bybit 선물 목록 조회 실패 (3회 재시도 후): %s", e)
+                return  # 실패 시 기존 캐시 유지
+
+        elif exchange == "hyperliquid":
+            try:
+                symbols = await self._fetch_hyperliquid_futures_list(session)
+                latency_ms = (time.time() - start_time) * 1000
+                self._record_api_success(api_name, latency_ms)
+                logger.info("[Gate] Hyperliquid DEX 캐시 갱신: %d 심볼 (%.0fms)", len(symbols), latency_ms)
+            except Exception as e:
+                self._record_api_failure(api_name, type(e).__name__)
+                logger.warning("[Gate] Hyperliquid 마켓 목록 조회 실패 (3회 재시도 후): %s", e)
+                return  # 실패 시 기존 캐시 유지
+
+        if symbols:
+            self._futures_cache[exchange] = symbols
+            self._futures_cache_time[exchange] = now
+
     async def _check_futures_market(
         self, symbol: str, session: aiohttp.ClientSession,
     ) -> str:
-        """글로벌 거래소에서 USDT-M 선물 마켓 존재 여부 확인.
+        """선물 마켓 존재 여부 확인 (캐시 기반, O(1) 조회).
 
-        Bybit → Binance 순으로 조회 (첫 번째 성공 시 반환).
+        확인 순서: Bybit → Binance → Hyperliquid (DEX)
+        캐시 미스 시 자동 갱신 (1시간 TTL).
 
         Returns:
-            "cex" if futures market exists, "none" otherwise.
+            "cex": CEX 선물 마켓 존재 (Bybit 또는 Binance)
+            "dex_only": DEX에만 선물 존재 (Hyperliquid)
+            "none": 선물 마켓 없음
         """
         futures_symbol = f"{symbol}USDT"
 
-        # 1. Bybit 선물 마켓 확인
-        try:
-            url = f"https://api.bybit.com/v5/market/instruments-info?category=linear&symbol={futures_symbol}"
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    if data.get("retCode") == 0:
-                        instruments = data.get("result", {}).get("list", [])
-                        if instruments:
-                            logger.debug(
-                                "[Gate] 선물 마켓 발견: %s@Bybit", futures_symbol,
-                            )
-                            return "cex"
-        except Exception as e:
-            logger.debug("[Gate] Bybit 선물 조회 실패 (%s): %s", symbol, e)
+        # 캐시 갱신 (필요 시) - CEX 먼저
+        await self._refresh_futures_cache("bybit", session)
+        await self._refresh_futures_cache("binance", session)
 
-        # 2. Binance 선물 마켓 확인
-        try:
-            url = f"https://fapi.binance.com/fapi/v1/exchangeInfo"
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    symbols = [s["symbol"] for s in data.get("symbols", [])]
-                    if futures_symbol in symbols:
-                        logger.debug(
-                            "[Gate] 선물 마켓 발견: %s@Binance", futures_symbol,
-                        )
-                        return "cex"
-        except Exception as e:
-            logger.debug("[Gate] Binance 선물 조회 실패 (%s): %s", symbol, e)
+        # Bybit 캐시에서 확인 (CEX 우선)
+        if futures_symbol in self._futures_cache["bybit"]:
+            logger.debug("[Gate] 선물 발견: %s@Bybit (CEX)", futures_symbol)
+            return "cex"
+
+        # Binance 캐시에서 확인
+        if futures_symbol in self._futures_cache["binance"]:
+            logger.debug("[Gate] 선물 발견: %s@Binance (CEX)", futures_symbol)
+            return "cex"
+
+        # B3: Hyperliquid DEX 확인 (CEX 없을 때만)
+        await self._refresh_futures_cache("hyperliquid", session)
+        if futures_symbol in self._futures_cache["hyperliquid"]:
+            logger.debug("[Gate] 선물 발견: %s@Hyperliquid (DEX)", futures_symbol)
+            return "dex_only"
 
         logger.debug("[Gate] 선물 마켓 없음: %s", futures_symbol)
         return "none"
+
+    # ------------------------------------------------------------------
+    # 네트워크 동적 결정 (TokenRegistry 기반)
+    # ------------------------------------------------------------------
+
+    # CoinGecko chain name → networks.yaml key 매핑
+    _CHAIN_NAME_MAP = {
+        "ethereum": "ethereum",
+        "solana": "solana",
+        "binance-smart-chain": "bsc",
+        "bsc": "bsc",
+        "arbitrum-one": "arbitrum",
+        "arbitrum": "arbitrum",
+        "polygon-pos": "polygon",
+        "polygon": "polygon",
+        "avalanche": "avalanche",
+        "tron": "tron",
+        "base": "base",
+    }
+
+    def _determine_optimal_network(self, symbol: str) -> str:
+        """토큰의 최적 전송 네트워크 결정.
+
+        TokenRegistry에서 토큰의 지원 체인 목록을 조회하고,
+        networks.yaml 기준 가장 빠른 (avg_transfer_min 최소) 네트워크 선택.
+
+        Args:
+            symbol: 토큰 심볼 (e.g., "XYZ").
+
+        Returns:
+            네트워크 ID (e.g., "solana", "bsc", "ethereum").
+            체인 정보 없으면 "ethereum" 반환.
+        """
+        # TokenRegistry 미설정 시 기본값
+        if self._registry is None:
+            logger.debug("[Gate] TokenRegistry 없음 → 기본 네트워크: ethereum")
+            return "ethereum"
+
+        # 토큰 정보 조회
+        token = self._registry.get_by_symbol(symbol)
+        if token is None or not token.chains:
+            logger.debug("[Gate] 토큰 체인 정보 없음 (%s) → 기본 네트워크: ethereum", symbol)
+            return "ethereum"
+
+        # networks.yaml 설정
+        networks_config = self._networks.get("networks", {})
+        if not networks_config:
+            logger.debug("[Gate] networks.yaml 없음 → 기본 네트워크: ethereum")
+            return "ethereum"
+
+        # 지원 체인 중 가장 빠른 네트워크 선택
+        best_network = "ethereum"
+        best_time = float("inf")
+
+        for chain_info in token.chains:
+            chain_name = chain_info.chain.lower()
+
+            # CoinGecko chain name → networks.yaml key 변환
+            network_key = self._CHAIN_NAME_MAP.get(chain_name)
+            if network_key is None:
+                logger.debug(
+                    "[Gate] 알 수 없는 체인: %s (토큰: %s)", chain_name, symbol,
+                )
+                continue
+
+            # networks.yaml에서 전송 시간 조회
+            net_config = networks_config.get(network_key)
+            if net_config is None:
+                continue
+
+            transfer_time = net_config.get("avg_transfer_min", float("inf"))
+            if transfer_time < best_time:
+                best_time = transfer_time
+                best_network = network_key
+
+        logger.info(
+            "[Gate] 네트워크 결정: %s → %s (avg %.1f분, %d 체인 검토)",
+            symbol, best_network, best_time if best_time < float("inf") else 5.0,
+            len(token.chains),
+        )
+        return best_network
+
+    # ------------------------------------------------------------------
+    # C1: 네트워크 혼잡도 실시간 반영
+    # ------------------------------------------------------------------
+
+    async def _get_network_congestion(
+        self, network: str, session: aiohttp.ClientSession,
+    ) -> float:
+        """네트워크 혼잡도 조회 (0.0~1.0, 캐시 5분 TTL).
+
+        혼잡도는 전송 시간에 곱해지는 계수로 사용:
+        - 0.0: 한산 (전송 시간 그대로)
+        - 0.5: 보통
+        - 1.0: 혼잡 (전송 시간 2배)
+
+        Args:
+            network: 네트워크 ID (e.g., "ethereum", "solana", "bsc")
+            session: aiohttp 세션
+
+        Returns:
+            혼잡도 (0.0~1.0). 조회 실패 시 0.3 (보수적 기본값).
+        """
+        now = time.time()
+
+        # 캐시 히트
+        if network in self._congestion_cache:
+            if now - self._congestion_cache_time.get(network, 0) < self._congestion_cache_ttl:
+                return self._congestion_cache[network]
+
+        # 네트워크별 혼잡도 조회
+        congestion = 0.3  # 기본값 (보수적)
+
+        if network == "ethereum":
+            congestion = await self._fetch_ethereum_congestion(session)
+        elif network == "solana":
+            congestion = await self._fetch_solana_congestion(session)
+        elif network in ("bsc", "polygon", "arbitrum", "base", "avalanche"):
+            # EVM 호환 체인: 가스 가격 기반 추정 (간소화)
+            congestion = await self._fetch_evm_congestion(network, session)
+        elif network == "tron":
+            congestion = 0.2  # TRON은 대체로 빠름
+        else:
+            congestion = 0.3  # 알 수 없는 네트워크
+
+        # 캐시 저장
+        self._congestion_cache[network] = congestion
+        self._congestion_cache_time[network] = now
+
+        return congestion
+
+    async def _fetch_ethereum_congestion(
+        self, session: aiohttp.ClientSession,
+    ) -> float:
+        """Ethereum 가스 가격 기반 혼잡도 조회.
+
+        Etherscan Gas Tracker 또는 공개 RPC 사용.
+        반환: 0.0 (< 20 gwei) ~ 1.0 (> 100 gwei)
+        """
+        start_time = time.time()
+        try:
+            # 공개 가스 API 사용 (API 키 불필요)
+            url = "https://api.etherscan.io/api?module=gastracker&action=gasoracle"
+            async with session.get(
+                url, timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status != 200:
+                    return 0.3
+                data = await resp.json()
+                if data.get("status") != "1":
+                    # Etherscan API 무료 한도 초과 시 대체 API 사용
+                    return await self._fetch_ethereum_congestion_fallback(session)
+
+                # ProposeGasPrice (gwei) 기준
+                gas_gwei = float(data.get("result", {}).get("ProposeGasPrice", 30))
+                latency_ms = (time.time() - start_time) * 1000
+                self._record_api_success("etherscan_gas", latency_ms)
+
+                # 가스 가격 → 혼잡도 변환
+                # < 20 gwei: 0.0, 20-50 gwei: 0.0-0.5, 50-100 gwei: 0.5-1.0, > 100 gwei: 1.0
+                if gas_gwei < 20:
+                    return 0.0
+                elif gas_gwei < 50:
+                    return (gas_gwei - 20) / 60  # 0.0 ~ 0.5
+                elif gas_gwei < 100:
+                    return 0.5 + (gas_gwei - 50) / 100  # 0.5 ~ 1.0
+                else:
+                    return 1.0
+
+        except Exception as e:
+            self._record_api_failure("etherscan_gas", type(e).__name__)
+            logger.debug("[Gate] Ethereum 가스 조회 실패: %s", e)
+            return 0.3
+
+    async def _fetch_ethereum_congestion_fallback(
+        self, session: aiohttp.ClientSession,
+    ) -> float:
+        """Ethereum 혼잡도 fallback (공개 RPC)."""
+        try:
+            # Cloudflare Ethereum RPC (무료)
+            url = "https://cloudflare-eth.com"
+            payload = {
+                "jsonrpc": "2.0",
+                "method": "eth_gasPrice",
+                "params": [],
+                "id": 1,
+            }
+            async with session.post(
+                url, json=payload, timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status != 200:
+                    return 0.3
+                data = await resp.json()
+                gas_wei = int(data.get("result", "0x0"), 16)
+                gas_gwei = gas_wei / 1e9
+
+                if gas_gwei < 20:
+                    return 0.0
+                elif gas_gwei < 50:
+                    return (gas_gwei - 20) / 60
+                elif gas_gwei < 100:
+                    return 0.5 + (gas_gwei - 50) / 100
+                else:
+                    return 1.0
+        except Exception:
+            return 0.3
+
+    async def _fetch_solana_congestion(
+        self, session: aiohttp.ClientSession,
+    ) -> float:
+        """Solana TPS 기반 혼잡도 조회.
+
+        반환: 0.0 (TPS > 3000) ~ 1.0 (TPS < 1000)
+        """
+        start_time = time.time()
+        try:
+            # Solana 공개 RPC
+            url = "https://api.mainnet-beta.solana.com"
+            payload = {
+                "jsonrpc": "2.0",
+                "method": "getRecentPerformanceSamples",
+                "params": [1],
+                "id": 1,
+            }
+            async with session.post(
+                url, json=payload, timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status != 200:
+                    return 0.2  # Solana 기본값 (빠름)
+                data = await resp.json()
+                samples = data.get("result", [])
+                if not samples:
+                    return 0.2
+
+                # TPS 계산: numTransactions / samplePeriodSecs
+                sample = samples[0]
+                tps = sample.get("numTransactions", 0) / max(sample.get("samplePeriodSecs", 60), 1)
+
+                latency_ms = (time.time() - start_time) * 1000
+                self._record_api_success("solana_rpc", latency_ms)
+
+                # TPS → 혼잡도 변환
+                # > 3000 TPS: 0.0, 2000-3000: 0.0-0.3, 1000-2000: 0.3-0.7, < 1000: 0.7-1.0
+                if tps > 3000:
+                    return 0.0
+                elif tps > 2000:
+                    return 0.3 * (3000 - tps) / 1000
+                elif tps > 1000:
+                    return 0.3 + 0.4 * (2000 - tps) / 1000
+                else:
+                    return 0.7 + 0.3 * max(0, 1000 - tps) / 1000
+
+        except Exception as e:
+            self._record_api_failure("solana_rpc", type(e).__name__)
+            logger.debug("[Gate] Solana TPS 조회 실패: %s", e)
+            return 0.2
+
+    async def _fetch_evm_congestion(
+        self, network: str, session: aiohttp.ClientSession,
+    ) -> float:
+        """EVM 호환 체인 혼잡도 (간소화된 추정).
+
+        대부분의 L2/사이드체인은 혼잡도가 낮음.
+        """
+        # 네트워크별 기본 혼잡도 (경험적 값)
+        defaults = {
+            "bsc": 0.15,       # BSC는 빠름
+            "polygon": 0.2,   # Polygon 보통
+            "arbitrum": 0.1,  # Arbitrum 빠름
+            "base": 0.1,      # Base 빠름
+            "avalanche": 0.15,  # Avalanche 빠름
+        }
+        return defaults.get(network, 0.3)
+
+    def _apply_congestion_to_transfer_time(
+        self, base_time: float, congestion: float,
+    ) -> float:
+        """혼잡도를 전송 시간에 적용.
+
+        Args:
+            base_time: 기본 전송 시간 (분)
+            congestion: 혼잡도 (0.0~1.0)
+
+        Returns:
+            조정된 전송 시간 (분). 최대 2배까지 증가.
+        """
+        # 혼잡도 0.0 → 1.0배, 혼잡도 1.0 → 2.0배
+        multiplier = 1.0 + congestion
+        return base_time * multiplier
 
     # ------------------------------------------------------------------
     # Phase 5b: External Data Collectors
@@ -797,6 +1639,53 @@ class GateChecker:
                 result.recommended_strategy.value,
             )
 
+        # 5단계: Scenario Generation (Phase 6 feature flag)
+        if self._features.get("scenario_planner"):
+            try:
+                if self._scenario_planner is None:
+                    self._scenario_planner = ScenarioPlanner(
+                        config_dir=self._config_dir,
+                        use_upbit_base=(gate_input.exchange.lower() == "upbit"),
+                    )
+
+                # 시장 상황 결정 (간단한 휴리스틱)
+                market_condition = self._determine_market_condition()
+
+                result.scenario_card = self._scenario_planner.generate_card(
+                    symbol=gate_input.symbol,
+                    exchange=gate_input.exchange,
+                    supply_result=result.supply_result,
+                    listing_type_result=result.listing_type_result,
+                    hedge_type=gate_input.hedge_type,
+                    market_condition=market_condition,
+                )
+
+                logger.info(
+                    "[Gate] Scenario: %s@%s → %s (prob=%.1f%%)",
+                    gate_input.symbol, gate_input.exchange,
+                    result.scenario_card.predicted_outcome.value,
+                    result.scenario_card.heung_probability * 100,
+                )
+            except Exception as e:
+                logger.warning("[Gate] Scenario 생성 실패: %s", e)
+                result.warnings.append(f"시나리오 생성 실패: {e}")
+
+        # 6단계: VC/MM Check (Phase 7 feature flag)
+        if self._features.get("vc_mm_check"):
+            await self._run_vc_mm_check(result, gate_input)
+
+    def _determine_market_condition(self) -> str:
+        """시장 상황 결정 (간단한 휴리스틱).
+
+        TODO: Phase 6에서 BTC/ETH 가격 추세 기반으로 개선.
+        현재는 neutral 기본값.
+        """
+        # 향후 구현: BTC 24h 변화율 기반
+        # - > 5%: bull
+        # - < -5%: bear
+        # - 그 외: neutral
+        return "neutral"
+
     def _determine_strategy(
         self,
         supply: SupplyResult,
@@ -839,3 +1728,83 @@ class GateChecker:
 
         # NEUTRAL / UNKNOWN → 보수적
         return StrategyCode.CONSERVATIVE
+
+    # ------------------------------------------------------------------
+    # Phase 7: VC/MM Check (6단계)
+    # ------------------------------------------------------------------
+
+    async def _run_vc_mm_check(
+        self,
+        result: GateResult,
+        gate_input: GateInput,
+    ) -> None:
+        """VC/MM 체크 (6단계).
+
+        VC 투자자 및 MM 리스크 정보 수집 후 경고 추가.
+        열화 규칙: 실패해도 GO 유지, warning만 추가.
+        """
+        try:
+            # VCMMCollector lazy init
+            if self._vc_mm_collector is None:
+                self._vc_mm_collector = VCMMCollector(
+                    config_dir=self._config_dir.parent / "data" / "vc_mm_info",
+                )
+
+            # VC/MM 정보 수집
+            vc_info = await self._vc_mm_collector.collect(gate_input.symbol)
+            result.vc_mm_info = vc_info
+
+            # VC/MM 기반 경고 추가
+            self._add_vc_mm_warnings(result, vc_info)
+
+            logger.info(
+                "[Gate] VC/MM: %s → Tier1=%d, Tier2=%d, risk=%s (conf=%.0f%%)",
+                gate_input.symbol,
+                len(vc_info.tier1_investors),
+                len(vc_info.tier2_investors),
+                vc_info.vc_risk_level,
+                vc_info.confidence * 100,
+            )
+        except Exception as e:
+            logger.warning("[Gate] VC/MM 체크 실패: %s", e)
+            result.warnings.append(f"VC/MM 정보 조회 실패: {e}")
+
+    def _add_vc_mm_warnings(
+        self,
+        result: GateResult,
+        vc_info: ProjectVCInfo,
+    ) -> None:
+        """VC/MM 기반 경고 추가.
+
+        Tier 1 VC 없음 → 정보성 경고
+        MM 리스크 높음 (>=7) → 경고
+        알 수 없는 VC → 정보성 경고
+        """
+        # VC 정보 없음
+        if vc_info.data_source == "unknown":
+            result.warnings.append("VC/MM 정보 없음 — 신규 프로젝트 가능성")
+            return
+
+        # MM 리스크 높음
+        if vc_info.mm_confirmed and vc_info.mm_risk_score >= 7:
+            result.warnings.append(
+                f"⚠️ MM 리스크 높음: {vc_info.mm_name} "
+                f"(리스크 점수 {vc_info.mm_risk_score:.1f}/10)"
+            )
+
+        # Tier 1 VC 없고 펀딩 정보 있음
+        if not vc_info.tier1_investors and vc_info.total_funding_usd > 0:
+            result.warnings.append(
+                f"Tier 1 VC 없음 (펀딩 ${vc_info.total_funding_usd:,.0f})"
+            )
+
+        # 리스크 레벨 높음
+        if vc_info.vc_risk_level == "high":
+            result.warnings.append("⚠️ VC/MM 종합 리스크 높음")
+
+        # Tier 1 VC 있으면 긍정적 로깅 (경고 아님)
+        if vc_info.tier1_investors:
+            logger.info(
+                "[Gate] ✅ Tier 1 VC 확인: %s",
+                ", ".join(vc_info.tier1_investors[:3]),
+            )

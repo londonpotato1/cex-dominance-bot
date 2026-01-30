@@ -11,7 +11,10 @@ supply_classifier: true      # SupplyClassifier 5-factor 분류
 listing_type: true           # TGE/직상장/옆상장 자동 분류
 
 # Phase 6: Strategy + Scenario + UI
-scenario_planner: false      # 흥/망따리 시나리오 카드 생성
+scenario_planner: true       # 흥/망따리 시나리오 카드 생성 (v15 활성화)
+
+# Phase 7: VC/MM Intelligence
+vc_mm_check: true            # VC 투자자/MM 리스크 체크 (6단계)
 
 # Phase 4: 텔레그램 봇 상호작용
 telegram_interactive: true    # 텔레그램 인라인 키보드/콜백

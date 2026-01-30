@@ -1,0 +1,147 @@
+# 거래소 핫월렛 주소 목록
+#
+# 사용처:
+#   - collectors/hot_wallet_tracker.py: 잔액 추적
+#   - analysis/gate.py: 입금 규모 추정
+#
+# 데이터 소스:
+#   - Arkham Intelligence (https://platform.arkhamintelligence.com/)
+#   - Etherscan Labels (https://etherscan.io/labelcloud)
+#   - Dune Analytics
+#
+# 주의:
+#   - 핫월렛 주소는 변경될 수 있음 (정기 검증 필요)
+#   - 여러 핫월렛 운영하는 거래소도 있음
+#
+# 업데이트: 2026-01-31
+
+# ============================================================
+# Ethereum (ERC-20)
+# ============================================================
+ethereum:
+  upbit:
+    # Arkham/Etherscan 라벨 기반
+    - address: "0x390de26d772d2e2005c6d1d24afc902bae37a4bb"
+      label: "Upbit Hot Wallet 1"
+      verified: true
+      source: "Arkham"
+    - address: "0xba826fec90cefdf6706858e5fbafcb27a290fbe0"
+      label: "Upbit Hot Wallet 2"
+      verified: true
+      source: "Etherscan Labels"
+    - address: "0x5e032243d507c743b061ef021e2ec7fcc6d3ab89"
+      label: "Upbit Cold → Hot"
+      verified: true
+      source: "Arkham"
+
+  bithumb:
+    - address: "0x88d34944cf554e9cccf4a24292d891f620e9c94f"
+      label: "Bithumb Hot Wallet 1"
+      verified: true
+      source: "Arkham"
+    - address: "0x3052cd6bf951449a984fe4b5a38b46aef9455c8e"
+      label: "Bithumb Hot Wallet 2"
+      verified: true
+      source: "Etherscan Labels"
+    - address: "0x186549a4ae594fc1f70ba4cffdac714b405be3f9"
+      label: "Bithumb Hot Wallet 3"
+      verified: true
+      source: "Arkham"
+
+  coinone:
+    - address: "0x167a9333bf582556f35bd4d16a7e80e191aa6476"
+      label: "Coinone Hot Wallet"
+      verified: false
+      source: "Community"
+
+  korbit:
+    # TODO: 실제 주소 확인 필요 (Arkham/Etherscan에서 미확인)
+    # - address: "0x..."
+    #   label: "Korbit Hot Wallet"
+    #   verified: false
+    #   source: "TBD"
+    []  # 빈 배열 (주소 미확인)
+
+# ============================================================
+# Arbitrum
+# ============================================================
+arbitrum:
+  upbit:
+    - address: "0x390de26d772d2e2005c6d1d24afc902bae37a4bb"
+      label: "Upbit Arbitrum Hot"
+      verified: false
+      source: "Same as ETH mainnet"
+
+  bithumb:
+    - address: "0x88d34944cf554e9cccf4a24292d891f620e9c94f"
+      label: "Bithumb Arbitrum Hot"
+      verified: false
+      source: "Same as ETH mainnet"
+
+# ============================================================
+# Polygon
+# ============================================================
+polygon:
+  upbit:
+    - address: "0x390de26d772d2e2005c6d1d24afc902bae37a4bb"
+      label: "Upbit Polygon Hot"
+      verified: false
+      source: "Same as ETH mainnet"
+
+  bithumb:
+    - address: "0x88d34944cf554e9cccf4a24292d891f620e9c94f"
+      label: "Bithumb Polygon Hot"
+      verified: false
+      source: "Same as ETH mainnet"
+
+# ============================================================
+# Base
+# ============================================================
+base:
+  upbit:
+    - address: "0x390de26d772d2e2005c6d1d24afc902bae37a4bb"
+      label: "Upbit Base Hot"
+      verified: false
+      source: "Same as ETH mainnet"
+
+# ============================================================
+# Solana (향후 확장)
+# ============================================================
+# solana:
+#   upbit:
+#     - address: "..."
+#       label: "Upbit Solana Hot"
+
+# ============================================================
+# 메타데이터
+# ============================================================
+metadata:
+  version: "1.0.0"
+  updated_at: "2026-01-31"
+  total_wallets: 12
+  chains_supported:
+    - ethereum
+    - arbitrum
+    - polygon
+    - base
+  exchanges_tracked:
+    - upbit
+    - bithumb
+    - coinone
+    - korbit
+  
+  verification_notes: |
+    - verified: true → Arkham/Etherscan 공식 라벨 확인
+    - verified: false → 커뮤니티 정보 또는 추정
+    - 정기적으로 Arkham에서 최신 주소 확인 필요
+    
+  data_sources:
+    - name: "Arkham Intelligence"
+      url: "https://platform.arkhamintelligence.com/"
+      reliability: "high"
+    - name: "Etherscan Labels"
+      url: "https://etherscan.io/labelcloud"
+      reliability: "high"
+    - name: "Dune Analytics"
+      url: "https://dune.com/"
+      reliability: "medium"

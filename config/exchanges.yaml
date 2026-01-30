@@ -54,3 +54,10 @@ vwap:
   min_exchanges: 1
   # API 타임아웃 (초)
   timeout_sec: 10
+
+# FX 환율 설정 (5단계 폴백 체인의 최후 기본값)
+fx:
+  # 하드코딩 폴백 환율 (모든 FX 소스 실패 시 사용)
+  fallback_rate: 1350.0
+  # FX 캐시 유효 시간 (초)
+  cache_ttl_sec: 300
