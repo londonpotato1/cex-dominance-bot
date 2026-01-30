@@ -24,8 +24,9 @@ INSERT INTO gate_analysis_log (
     fx_rate, fx_source, blockers_json, warnings_json,
     hedge_type, network, global_volume_usd, gate_duration_ms,
     vc_tier1_investors, vc_tier2_investors, vc_total_funding_usd,
-    vc_risk_level, mm_name, mm_risk_score, vcmm_data_source
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    vc_risk_level, mm_name, mm_risk_score, vcmm_data_source,
+    domestic_price_krw, global_price_usd
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 
@@ -91,6 +92,8 @@ async def log_gate_analysis(
             mm_name,
             mm_risk,
             vcmm_source,
+            None,  # domestic_price_krw
+            None,  # global_price_usd
         )
     else:
         params = (
@@ -117,6 +120,8 @@ async def log_gate_analysis(
             mm_name,
             mm_risk,
             vcmm_source,
+            gi.domestic_price_krw,
+            gi.global_price_usd,
         )
 
     await writer.enqueue(_INSERT_GATE_LOG_SQL, params, priority="normal")

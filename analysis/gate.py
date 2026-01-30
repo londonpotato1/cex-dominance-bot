@@ -319,6 +319,9 @@ class GateInput:
     hedge_type: str                  # "cex", "dex_only", "none"
     network: str = "unknown"         # 전송 네트워크
     top_exchange: str = ""           # 글로벌 주요 거래소
+    # 가격 정보 (UI 표시용)
+    domestic_price_krw: float = 0.0  # 국내 거래소 가격 (KRW)
+    global_price_usd: float = 0.0    # 글로벌 거래소 가격 (USD)
 
 
 class StrategyCode(Enum):
@@ -646,6 +649,8 @@ class GateChecker:
             hedge_type=hedge_type,
             network=network,
             top_exchange=vwap_result.sources[0] if vwap_result.sources else "",
+            domestic_price_krw=krw_price,
+            global_price_usd=vwap_result.price_usd,
         )
 
         # 7. Hard Gate 판정 (1단계)

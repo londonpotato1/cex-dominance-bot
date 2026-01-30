@@ -47,6 +47,8 @@ def _render_analysis_card(row: dict, vasp_matrix: dict) -> None:
     fx_source = row.get("fx_source", "")
     duration_ms = row.get("gate_duration_ms")
     ts = row.get("timestamp", 0)
+    domestic_price = row.get("domestic_price_krw")
+    global_price = row.get("global_price_usd")
 
     # GO/NO-GO 배지
     if can_proceed:
@@ -68,6 +70,16 @@ def _render_analysis_card(row: dict, vasp_matrix: dict) -> None:
     profit_text = f"{net_profit:.2f}%" if net_profit is not None else "N/A"
     cost_text = f"{total_cost:.2f}%" if total_cost is not None else "N/A"
     duration_text = f"{duration_ms:.0f}ms" if duration_ms is not None else "N/A"
+
+    # 가격 텍스트 (Phase 8: 직관적 가격 비교)
+    if domestic_price and domestic_price > 0:
+        domestic_text = f"₩{domestic_price:,.0f}"
+    else:
+        domestic_text = None
+    if global_price and global_price > 0:
+        global_text = f"${global_price:,.4f}" if global_price < 1 else f"${global_price:,.2f}"
+    else:
+        global_text = None
 
     # Blockers/Warnings
     blockers = json.loads(row.get("blockers_json", "[]") or "[]")
@@ -101,6 +113,16 @@ def _render_analysis_card(row: dict, vasp_matrix: dict) -> None:
     vcmm = render_vcmm_badge(row)
     vcmm_html = f'<div style="margin-top:0.4rem;display:flex;gap:0.4rem;flex-wrap:wrap;">{vcmm}</div>' if vcmm else ""
 
+    # 가격 비교 HTML (Phase 8)
+    price_html = ""
+    if domestic_text and global_text:
+        price_html = f"""
+        <div style="font-size:0.85rem;color:{COLORS["text_secondary"]};margin-bottom:0.3rem;">
+            <span>🇰🇷 국내: <b style="color:{COLORS["text_accent"]};">{domestic_text}</b></span>
+            <span style="margin-left:1rem;">🌍 글로벌: <b style="color:{COLORS["text_profit"]};">{global_text}</b></span>
+        </div>
+        """
+
     card_html = f"""
     <div style="{CARD_STYLE}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
@@ -121,6 +143,7 @@ def _render_analysis_card(row: dict, vasp_matrix: dict) -> None:
             <span>FX: <b>{fx_source or 'N/A'}</b></span>
             <span>소요: <b>{duration_text}</b></span>
         </div>
+        {price_html}
         {vcmm_html}
         {blockers_html}
         {warnings_html}
