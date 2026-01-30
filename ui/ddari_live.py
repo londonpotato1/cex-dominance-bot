@@ -1,0 +1,469 @@
+"""따리분석 실시간 현황 탭 (Tab 1).
+
+시간이 중요한 정보: Gate 분석, 통계, 프리미엄 차트, 현선갭 모니터.
+"""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from collections import defaultdict
+from datetime import datetime
+
+from ui.ddari_common import (
+    CARD_STYLE,
+    COLORS,
+    PREMIUM_THRESHOLDS,
+    SECTION_HEADER_STYLE,
+    PHASE8_AVAILABLE,
+    badge_style,
+    get_read_conn,
+    load_vasp_matrix_cached,
+    fetch_recent_analyses_cached,
+    fetch_stats_cached,
+    fetch_premium_history_cached,
+    render_degradation_badges,
+    render_vasp_badge,
+    render_vcmm_badge,
+)
+
+
+# ------------------------------------------------------------------
+# Gate 분석 카드
+# ------------------------------------------------------------------
+
+
+def _render_analysis_card(row: dict, vasp_matrix: dict) -> None:
+    """개별 분석 결과 카드 렌더링."""
+    import streamlit as st
+
+    symbol = row.get("symbol", "?")
+    exchange = row.get("exchange", "?")
+    can_proceed = row.get("can_proceed", 0)
+    alert_level = row.get("alert_level", "INFO")
+    premium = row.get("premium_pct")
+    net_profit = row.get("net_profit_pct")
+    total_cost = row.get("total_cost_pct")
+    fx_source = row.get("fx_source", "")
+    duration_ms = row.get("gate_duration_ms")
+    ts = row.get("timestamp", 0)
+
+    # GO/NO-GO 배지
+    if can_proceed:
+        status_badge = (
+            f'<span style="background:{COLORS["success_dark"]};color:{COLORS["text_primary"]};padding:3px 10px;'
+            'border-radius:6px;font-weight:600;">GO</span>'
+        )
+    else:
+        status_badge = (
+            f'<span style="background:{COLORS["danger_dark"]};color:{COLORS["text_primary"]};padding:3px 10px;'
+            'border-radius:6px;font-weight:600;">NO-GO</span>'
+        )
+
+    # 시간 포맷
+    time_str = datetime.fromtimestamp(ts).strftime("%m/%d %H:%M:%S") if ts else "?"
+
+    # 메트릭 텍스트
+    premium_text = f"{premium:.2f}%" if premium is not None else "N/A"
+    profit_text = f"{net_profit:.2f}%" if net_profit is not None else "N/A"
+    cost_text = f"{total_cost:.2f}%" if total_cost is not None else "N/A"
+    duration_text = f"{duration_ms:.0f}ms" if duration_ms is not None else "N/A"
+
+    # Blockers/Warnings
+    blockers = json.loads(row.get("blockers_json", "[]") or "[]")
+    warnings = json.loads(row.get("warnings_json", "[]") or "[]")
+
+    blockers_html = ""
+    if blockers:
+        items = "".join(
+            f'<li style="color:{COLORS["danger"]};font-size:0.8rem;">{b}</li>'
+            for b in blockers
+        )
+        blockers_html = f'<ul style="margin:0.3rem 0;padding-left:1.2rem;">{items}</ul>'
+
+    warnings_html = ""
+    if warnings:
+        items = "".join(
+            f'<li style="color:{COLORS["warning"]};font-size:0.8rem;">{w}</li>'
+            for w in warnings
+        )
+        warnings_html = f'<ul style="margin:0.3rem 0;padding-left:1.2rem;">{items}</ul>'
+
+    # 열화 배지
+    degradation = render_degradation_badges(row)
+    degradation_html = f'<div style="margin-top:0.3rem;">{degradation}</div>' if degradation else ""
+
+    # VASP 배지
+    vasp = render_vasp_badge(exchange, vasp_matrix)
+    vasp_html = f'<div style="margin-top:0.3rem;">{vasp}</div>' if vasp else ""
+
+    # VC/MM 배지 (Phase 7)
+    vcmm = render_vcmm_badge(row)
+    vcmm_html = f'<div style="margin-top:0.4rem;display:flex;gap:0.4rem;flex-wrap:wrap;">{vcmm}</div>' if vcmm else ""
+
+    card_html = f"""
+    <div style="{CARD_STYLE}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <div>
+                <span style="font-size:1.1rem;font-weight:600;color:{COLORS["text_primary"]};">{symbol}</span>
+                <span style="color:{COLORS["text_tertiary"]};font-size:0.8rem;margin-left:0.5rem;">@{exchange}</span>
+                <span style="color:{COLORS["text_muted"]};font-size:0.75rem;margin-left:0.5rem;">[{alert_level}]</span>
+            </div>
+            <div>
+                {status_badge}
+                <span style="color:{COLORS["text_muted"]};font-size:0.75rem;margin-left:0.5rem;">{time_str}</span>
+            </div>
+        </div>
+        <div style="display:flex;gap:1.5rem;font-size:0.85rem;color:{COLORS["text_secondary"]};margin-bottom:0.3rem;">
+            <span>프리미엄: <b style="color:{COLORS["text_accent"]};">{premium_text}</b></span>
+            <span>순수익: <b style="color:{COLORS["text_profit"]};">{profit_text}</b></span>
+            <span>비용: <b style="color:{COLORS["warning"]};">{cost_text}</b></span>
+            <span>FX: <b>{fx_source or 'N/A'}</b></span>
+            <span>소요: <b>{duration_text}</b></span>
+        </div>
+        {vcmm_html}
+        {blockers_html}
+        {warnings_html}
+        {degradation_html}
+        {vasp_html}
+    </div>
+    """
+    if hasattr(st, 'html'):
+        st.html(card_html)
+    else:
+        st.markdown(card_html, unsafe_allow_html=True)
+
+
+# ------------------------------------------------------------------
+# 프리미엄 차트 섹션
+# ------------------------------------------------------------------
+
+
+def _render_premium_chart_section(conn_id: int) -> None:
+    """실시간 프리미엄 차트 섹션 (Phase 7 Week 4)."""
+    import streamlit as st
+
+    st.markdown(
+        f'<p style="{SECTION_HEADER_STYLE}">📈 프리미엄 추이 차트</p>',
+        unsafe_allow_html=True,
+    )
+
+    # 최근 24시간 프리미엄 히스토리 조회
+    premium_history = fetch_premium_history_cached(conn_id, hours=24)
+
+    if not premium_history:
+        st.info("프리미엄 데이터가 없습니다. Gate 분석이 실행되면 차트가 표시됩니다.")
+        return
+
+    # 심볼별로 데이터 그룹화 (defaultdict로 간소화)
+    symbols_data = defaultdict(lambda: {"timestamps": [], "premiums": []})
+    for row in premium_history:
+        symbol = row.get("symbol", "unknown")
+        symbols_data[symbol]["timestamps"].append(row["timestamp"])
+        symbols_data[symbol]["premiums"].append(row["premium_pct"] or 0)
+
+    if not symbols_data:
+        st.info("차트에 표시할 데이터가 없습니다.")
+        return
+
+    # 심볼 선택 (최근 활성 심볼 기준)
+    recent_symbols = list(symbols_data.keys())[-10:]  # 최근 10개 심볼
+    selected_symbol = st.selectbox(
+        "심볼 선택",
+        recent_symbols,
+        index=len(recent_symbols) - 1 if recent_symbols else 0,
+        key="premium_chart_symbol_live",
+    )
+
+    if selected_symbol and selected_symbol in symbols_data:
+        data = symbols_data[selected_symbol]
+
+        # pandas 없이 간단한 차트 구현
+        try:
+            import pandas as pd
+
+            df = pd.DataFrame({
+                "시간": [datetime.fromtimestamp(ts) for ts in data["timestamps"]],
+                "프리미엄 (%)": data["premiums"],
+            })
+            df = df.set_index("시간")
+
+            # 라인 차트
+            st.line_chart(df, use_container_width=True)
+
+            # 통계 표시
+            premiums = data["premiums"]
+            if premiums:
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("현재", f"{premiums[-1]:.2f}%")
+                with col2:
+                    st.metric("최고", f"{max(premiums):.2f}%")
+                with col3:
+                    st.metric("최저", f"{min(premiums):.2f}%")
+                with col4:
+                    avg_premium = sum(premiums) / len(premiums)
+                    st.metric("평균", f"{avg_premium:.2f}%")
+
+        except ImportError:
+            # pandas 없으면 간단한 텍스트 표시
+            st.warning("pandas 미설치 — 차트 대신 텍스트로 표시합니다.")
+            premiums = data["premiums"]
+            if premiums:
+                st.write(f"**{selected_symbol}** 프리미엄 데이터 ({len(premiums)}건)")
+                st.write(f"- 현재: {premiums[-1]:.2f}%")
+                st.write(f"- 최고: {max(premiums):.2f}%")
+                st.write(f"- 최저: {min(premiums):.2f}%")
+
+    # 프리미엄 임계값 안내 (styles.py에서 import)
+    if hasattr(st, 'html'):
+        st.html(PREMIUM_THRESHOLDS)
+    else:
+        st.markdown(PREMIUM_THRESHOLDS, unsafe_allow_html=True)
+
+
+# ------------------------------------------------------------------
+# 현선갭 모니터 섹션 (Phase 8)
+# ------------------------------------------------------------------
+
+
+def _fetch_spot_futures_gap_cached(conn_id: int, limit: int = 5) -> list[dict]:
+    """현선갭 데이터 조회 (30초 캐시)."""
+    import streamlit as st
+
+    @st.cache_data(ttl=30)
+    def _inner(_conn_id: int, _limit: int) -> list[dict]:
+        conn = get_read_conn()
+        try:
+            rows = conn.execute(
+                """
+                SELECT symbol, domestic_exchange, global_exchange,
+                       domestic_price_krw, global_price_usd, fx_rate,
+                       gap_pct, hedge_strategy, is_profitable,
+                       estimated_profit_pct, created_at
+                FROM spot_futures_gap
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (_limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except sqlite3.OperationalError:
+            return []
+
+    return _inner(conn_id, limit)
+
+
+def _render_spot_futures_gap_card_html(data: dict) -> str:
+    """현선갭 카드 HTML 생성."""
+    symbol = data.get("symbol", "?")
+    domestic_ex = data.get("domestic_exchange", "upbit")
+    global_ex = data.get("global_exchange", "binance")
+    domestic_price = data.get("domestic_price_krw", 0)
+    global_price = data.get("global_price_usd", 0)
+    fx_rate = data.get("fx_rate", 1350)
+    gap_pct = data.get("gap_pct", 0)
+    hedge_strategy = data.get("hedge_strategy", "no_hedge")
+    is_profitable = data.get("is_profitable", False)
+    profit_pct = data.get("estimated_profit_pct", 0)
+
+    # 갭 색상
+    if gap_pct > 3:
+        gap_color = COLORS["success"]
+        gap_emoji = "🔥"
+    elif gap_pct > 1:
+        gap_color = COLORS["info"]
+        gap_emoji = "✨"
+    elif gap_pct < -1:
+        gap_color = COLORS["danger"]
+        gap_emoji = "📉"
+    else:
+        gap_color = COLORS["neutral"]
+        gap_emoji = "➖"
+
+    # 헤지 전략 스타일
+    hedge_styles = {
+        "long_global_short_domestic": {"name": "해외 롱 / 국내 숏", "emoji": "🔄"},
+        "short_global_long_domestic": {"name": "해외 숏 / 국내 롱", "emoji": "🔄"},
+        "no_hedge": {"name": "헤지 불가", "emoji": "🚫"},
+    }
+    hedge_style = hedge_styles.get(hedge_strategy, {"name": hedge_strategy, "emoji": "❓"})
+
+    # 수익성 배지
+    profit_badge = ""
+    if is_profitable:
+        profit_badge = f'<span style="{badge_style(COLORS["success"], size="0.7rem")}">💰 +{profit_pct:.2f}%</span>'
+
+    # 가격 포맷
+    domestic_str = f"₩{domestic_price:,.0f}" if domestic_price else "-"
+    global_str = f"${global_price:,.4f}" if global_price else "-"
+
+    return f"""
+    <div style="background:{COLORS["card_bg"]};border:1px solid {COLORS["card_border"]};
+                border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <div>
+                <span style="font-size:1.1rem;font-weight:600;color:{COLORS["text_primary"]};">{symbol}</span>
+                <span style="color:{gap_color};font-size:1rem;font-weight:600;margin-left:0.75rem;">
+                    {gap_emoji} {gap_pct:+.2f}%
+                </span>
+            </div>
+            {profit_badge}
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.5rem;">
+            <div style="color:{COLORS["text_secondary"]};">
+                <span style="color:{COLORS["text_muted"]};">{domestic_ex.upper()}</span>
+                <span style="margin-left:0.5rem;font-weight:600;color:{COLORS["warning"]};">{domestic_str}</span>
+            </div>
+            <div style="color:{COLORS["text_secondary"]};">
+                <span style="color:{COLORS["text_muted"]};">{global_ex.upper()}</span>
+                <span style="margin-left:0.5rem;font-weight:600;color:{COLORS["info"]};">{global_str}</span>
+            </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:{COLORS["text_muted"]};">
+            <span>FX: ₩{fx_rate:,.0f}/USD</span>
+            <span>{hedge_style['emoji']} {hedge_style['name']}</span>
+        </div>
+    </div>
+    """
+
+
+def _render_spot_futures_gap_section(conn_id: int) -> None:
+    """현선갭 모니터 섹션 렌더링 (Phase 8)."""
+    import streamlit as st
+
+    if not PHASE8_AVAILABLE:
+        return
+
+    st.markdown(
+        f'<p style="{SECTION_HEADER_STYLE}">📊 현선갭 모니터</p>',
+        unsafe_allow_html=True,
+    )
+
+    # 데이터 조회
+    gap_data = _fetch_spot_futures_gap_cached(conn_id, limit=5)
+
+    if not gap_data:
+        info_html = f"""
+        <div style="{CARD_STYLE}">
+            <p style="font-size:0.9rem;font-weight:600;color:{COLORS["info"]};margin-bottom:0.5rem;">
+                🔄 현선갭 (Spot-Futures Gap)이란?
+            </p>
+            <p style="font-size:0.8rem;color:{COLORS["text_secondary"]};margin-bottom:0.75rem;">
+                국내 거래소(업비트/빗썸) 현물 가격과 해외 거래소(바이낸스/바이빗) 선물 가격의 차이입니다.
+                갭이 크면 아비트라지 기회가 발생합니다.
+            </p>
+            <div style="display:flex;gap:1rem;font-size:0.8rem;margin-bottom:0.5rem;">
+                <div>
+                    <span style="color:{COLORS["success"]};">+3% 이상</span>
+                    <span style="color:{COLORS["text_muted"]};"> = 강한 김프</span>
+                </div>
+                <div>
+                    <span style="color:{COLORS["danger"]};">-3% 이하</span>
+                    <span style="color:{COLORS["text_muted"]};"> = 역프</span>
+                </div>
+            </div>
+            <p style="font-size:0.75rem;color:{COLORS["text_muted"]};">
+                💡 상장 감지 시 자동으로 갭 계산이 시작됩니다.
+            </p>
+        </div>
+        """
+        if hasattr(st, 'html'):
+            st.html(info_html)
+        else:
+            st.markdown(info_html, unsafe_allow_html=True)
+        return
+
+    # 갭 카드들
+    for data in gap_data:
+        card_html = _render_spot_futures_gap_card_html(data)
+        if hasattr(st, 'html'):
+            st.html(card_html)
+        else:
+            st.markdown(card_html, unsafe_allow_html=True)
+
+
+# ------------------------------------------------------------------
+# 메인 렌더 함수
+# ------------------------------------------------------------------
+
+
+def render_live_tab() -> None:
+    """실시간 현황 탭 렌더링."""
+    import streamlit as st
+
+    conn = get_read_conn()
+    conn_id = id(conn)
+
+    vasp_matrix = load_vasp_matrix_cached()
+    analyses = fetch_recent_analyses_cached(conn_id, limit=20)
+
+    if not analyses:
+        st.markdown(
+            f'<div style="text-align:center;padding:3rem;color:{COLORS["text_muted"]};">'
+            '<p style="font-size:1.2rem;">분석 기록 없음</p>'
+            '<p style="font-size:0.85rem;">수집 데몬이 실행 중이고 새 상장이 감지되면 '
+            '여기에 Gate 분석 결과가 표시됩니다.</p>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    # 헤더
+    st.markdown(
+        '<p style="font-size:1rem;font-weight:600;color:#fff;margin-bottom:0.75rem;">'
+        'Gate 분석 결과 (최근 20건)</p>',
+        unsafe_allow_html=True,
+    )
+
+    # 분석 카드 목록
+    for row in analyses:
+        _render_analysis_card(row, vasp_matrix)
+
+    # 통계 요약
+    stats = fetch_stats_cached(conn_id)
+    if stats["total"] > 0:
+        st.markdown(
+            '<p style="font-size:1rem;font-weight:600;color:#fff;'
+            'margin-top:1.5rem;margin-bottom:0.75rem;">통계 요약</p>',
+            unsafe_allow_html=True,
+        )
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("전체 분석", f"{stats['total']}건")
+        with col2:
+            st.metric("GO", f"{stats['go_count']}건")
+        with col3:
+            st.metric("NO-GO", f"{stats['nogo_count']}건")
+        with col4:
+            st.metric("평균 프리미엄", f"{stats['avg_premium']:.2f}%")
+
+        # FX 소스 분포
+        if stats["fx_distribution"]:
+            st.markdown(
+                f'<p style="font-size:0.85rem;font-weight:500;color:{COLORS["text_secondary"]};'
+                'margin-top:0.5rem;">FX 소스 분포</p>',
+                unsafe_allow_html=True,
+            )
+            dist_items = []
+            for source, count in stats["fx_distribution"].items():
+                pct = count / stats["total"] * 100
+                dist_items.append(
+                    f'<span style="color:{COLORS["text_tertiary"]};font-size:0.8rem;">'
+                    f'{source}: {count}건 ({pct:.0f}%)</span>'
+                )
+            st.markdown(
+                " &nbsp;|&nbsp; ".join(dist_items),
+                unsafe_allow_html=True,
+            )
+
+    # ------------------------------------------------------------------
+    # 프리미엄 차트 섹션
+    # ------------------------------------------------------------------
+    _render_premium_chart_section(conn_id)
+
+    # ------------------------------------------------------------------
+    # 현선갭 모니터 (Phase 8)
+    # ------------------------------------------------------------------
+    _render_spot_futures_gap_section(conn_id)

@@ -353,7 +353,7 @@ def test_12_health_load_broken() -> None:
 
 def test_13_degradation_badges() -> None:
     """Gate 열화 배지 로직."""
-    from ui.ddari_tab import _render_degradation_badges
+    from ui.ddari_common import render_degradation_badges as _render_degradation_badges
 
     # hardcoded FX → 빨간 배지
     row1 = {"fx_source": "hardcoded_fallback", "hedge_type": "cex", "network": "solana"}
@@ -404,7 +404,7 @@ def test_13_degradation_badges() -> None:
 
 def test_14_vasp_badges() -> None:
     """VASP alt_note 배지 로직."""
-    from ui.ddari_tab import _render_vasp_badge
+    from ui.ddari_common import render_vasp_badge as _render_vasp_badge
 
     vasp = {
         "vasp_matrix": {
@@ -518,7 +518,8 @@ def test_18_ui_imports() -> None:
         result("18 ui.health_display import", False, str(e))
 
     try:
-        from ui.ddari_tab import render_ddari_tab, _render_degradation_badges, _render_vasp_badge
+        from ui.ddari_tab import render_ddari_tab
+        from ui.ddari_common import render_degradation_badges, render_vasp_badge
         result("18b ui.ddari_tab import", True)
     except ImportError as e:
         result("18b ui.ddari_tab import", False, str(e))
@@ -543,10 +544,10 @@ def test_18_ui_imports() -> None:
 def test_19_caching_ttl() -> None:
     """캐싱 TTL 값 소스 코드 확인."""
     import inspect
-    from ui.ddari_tab import (
-        _fetch_recent_analyses_cached,
-        _fetch_stats_cached,
-        _load_vasp_matrix_cached,
+    from ui.ddari_common import (
+        fetch_recent_analyses_cached as _fetch_recent_analyses_cached,
+        fetch_stats_cached as _fetch_stats_cached,
+        load_vasp_matrix_cached as _load_vasp_matrix_cached,
     )
 
     # _fetch_recent_analyses_cached — cache_data(ttl=60) inside
