@@ -22,6 +22,7 @@ from ui.ddari_common import (
     fetch_recent_analyses_cached,
     fetch_stats_cached,
     fetch_premium_history_cached,
+    fetch_recent_trend_cached,
     render_degradation_badges,
     render_vasp_badge,
     render_vcmm_badge,
@@ -31,7 +32,97 @@ from ui.ddari_common import (
 
 
 # ------------------------------------------------------------------
-# Gate 분석 카드 (Phase 2.1: 신호등 시스템)
+# GO 스코어 계산 (통합 점수)
+# ------------------------------------------------------------------
+
+
+def _calculate_go_score(row: dict, trend: dict = None) -> tuple[int, list[tuple[str, int, str]]]:
+    """통합 GO 스코어 계산 (0-100).
+    
+    Args:
+        row: Gate 분석 결과
+        trend: 직전 상장 트렌드 (optional)
+    
+    Returns:
+        tuple: (총점, [(항목, 점수, 이유), ...])
+    """
+    score = 50  # 기본 점수
+    breakdown = []
+    
+    # 1. 프리미엄 (+/- 20점)
+    premium = row.get("premium_pct")
+    if premium is not None:
+        if premium >= 10:
+            score += 20
+            breakdown.append(("프리미엄", 20, f"{premium:+.1f}% (매우 높음)"))
+        elif premium >= 5:
+            score += 15
+            breakdown.append(("프리미엄", 15, f"{premium:+.1f}% (높음)"))
+        elif premium >= 3:
+            score += 10
+            breakdown.append(("프리미엄", 10, f"{premium:+.1f}% (양호)"))
+        elif premium >= 0:
+            score += 5
+            breakdown.append(("프리미엄", 5, f"{premium:+.1f}% (낮음)"))
+        else:
+            score -= 10
+            breakdown.append(("프리미엄", -10, f"{premium:+.1f}% (역프!)"))
+    
+    # 2. 순수익 (+/- 15점)
+    net_profit = row.get("net_profit_pct")
+    if net_profit is not None:
+        if net_profit >= 5:
+            score += 15
+            breakdown.append(("순수익", 15, f"{net_profit:+.1f}% (높음)"))
+        elif net_profit >= 2:
+            score += 10
+            breakdown.append(("순수익", 10, f"{net_profit:+.1f}% (양호)"))
+        elif net_profit >= 0:
+            score += 5
+            breakdown.append(("순수익", 5, f"{net_profit:+.1f}% (낮음)"))
+        else:
+            score -= 15
+            breakdown.append(("순수익", -15, f"{net_profit:+.1f}% (손실)"))
+    
+    # 3. 직전 상장 트렌드 (+/- 10점)
+    if trend:
+        heung_rate = trend.get("heung_rate", 50)
+        if heung_rate >= 60:
+            score += 10
+            breakdown.append(("직전상장", 10, f"{heung_rate:.0f}% 흥행 (좋음)"))
+        elif heung_rate >= 40:
+            score += 0
+            breakdown.append(("직전상장", 0, f"{heung_rate:.0f}% 흥행 (보통)"))
+        else:
+            score -= 10
+            breakdown.append(("직전상장", -10, f"{heung_rate:.0f}% 흥행 (냉각)"))
+    
+    # 4. 헤지 가능 여부 (+/- 10점)
+    hedge_type = row.get("hedge_type", "")
+    if hedge_type and hedge_type != "none":
+        score += 10
+        breakdown.append(("헤지", 10, f"{hedge_type} 가능"))
+    elif hedge_type == "none":
+        score -= 10
+        breakdown.append(("헤지", -10, "불가 (리스크!)"))
+    
+    # 5. FX 신뢰도 (+/- 5점)
+    fx_source = row.get("fx_source", "")
+    if fx_source in ("btc_implied", "eth_implied"):
+        score += 5
+        breakdown.append(("FX 신뢰도", 5, "정확한 소스"))
+    elif fx_source == "hardcoded_fallback":
+        score -= 10
+        breakdown.append(("FX 신뢰도", -10, "기본값 사용"))
+    
+    # 범위 제한 (0-100)
+    score = max(0, min(100, score))
+    
+    return score, breakdown
+
+
+# ------------------------------------------------------------------
+# Gate 분석 카드 (Phase 2.2: GO 스코어 포함)
 # ------------------------------------------------------------------
 
 
@@ -178,25 +269,37 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
         supply_emoji, supply_text = "", ""
 
     # ============================================================
-    # GO 카드: 크고 눈에 띄게 (히어로 스타일)
+    # GO 카드: 크고 눈에 띄게 (히어로 스타일) + GO 스코어
     # ============================================================
     if highlight and can_proceed:
+        # GO 스코어 계산
+        go_score, score_breakdown = _calculate_go_score(row)
+        
         # 프리미엄 바 (시각화)
         premium_val = premium or 0
         premium_bar_width = min(max(premium_val * 10, 5), 100)  # 5-100% 범위
         premium_color = "#4ade80" if premium_val > 0 else "#f87171"
         
-        # 신뢰도 바 (간소화)
-        conf_filled = confidence_score // 10
-        conf_bar = f'{"●" * conf_filled}{"○" * (10 - conf_filled)}'
-        conf_color = "#4ade80" if confidence_score >= 70 else "#fbbf24" if confidence_score >= 40 else "#f87171"
+        # GO 스코어 색상
+        if go_score >= 70:
+            score_color = "#4ade80"
+            score_label = "STRONG"
+        elif go_score >= 50:
+            score_color = "#60a5fa"
+            score_label = "GOOD"
+        elif go_score >= 30:
+            score_color = "#fbbf24"
+            score_label = "FAIR"
+        else:
+            score_color = "#f87171"
+            score_label = "WEAK"
         
         card_html = f"""
         <div style="background:linear-gradient(135deg, #0a2e1a 0%, #1a4a2a 50%, #0d3d1d 100%);
             border:3px solid #4ade80;border-radius:20px;padding:1.5rem;margin-bottom:1rem;
             box-shadow:0 8px 32px rgba(74,222,128,0.25), inset 0 1px 0 rgba(255,255,255,0.1);">
             
-            <!-- 헤더: 심볼 + 뱃지 -->
+            <!-- 헤더: 심볼 + GO 스코어 -->
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;">
                 <div>
                     <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.25rem;">
@@ -211,9 +314,15 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
                     </div>
                     <span style="color:#86efac;font-size:0.9rem;">@{exchange} · {time_str}</span>
                 </div>
-                <div style="text-align:right;">
-                    <div style="font-size:0.7rem;color:#6b7280;margin-bottom:2px;">신뢰도</div>
-                    <div style="font-family:monospace;font-size:0.75rem;color:{conf_color};">{conf_bar}</div>
+                <!-- GO 스코어 (원형 게이지 스타일) -->
+                <div style="text-align:center;background:rgba(0,0,0,0.3);padding:0.75rem 1rem;
+                    border-radius:12px;border:2px solid {score_color};">
+                    <div style="font-size:1.8rem;font-weight:800;color:{score_color};line-height:1;">
+                        {go_score}
+                    </div>
+                    <div style="font-size:0.65rem;color:{score_color};font-weight:600;letter-spacing:0.05em;">
+                        {score_label}
+                    </div>
                 </div>
             </div>
             
@@ -243,7 +352,7 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
                 </div>
             </div>
             
-            <!-- 하단: 비용/속도 -->
+            <!-- 하단: 비용/속도/스코어 -->
             <div style="display:flex;justify-content:space-around;font-size:0.85rem;color:#9ca3af;">
                 <div style="text-align:center;">
                     <div style="color:#6b7280;font-size:0.7rem;">총 비용</div>
@@ -256,8 +365,8 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
                 </div>
                 <div style="width:1px;background:#374151;"></div>
                 <div style="text-align:center;">
-                    <div style="color:#6b7280;font-size:0.7rem;">신뢰도</div>
-                    <div style="font-weight:600;color:{conf_color};">{confidence_score}%</div>
+                    <div style="color:#6b7280;font-size:0.7rem;">GO 스코어</div>
+                    <div style="font-weight:600;color:{score_color};">{go_score}/100</div>
                 </div>
             </div>
         </div>
@@ -268,8 +377,8 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
         else:
             st.markdown(card_html, unsafe_allow_html=True)
         
-        # 상세 정보 접이식
-        with st.expander(f"📋 {symbol} 상세 정보", expanded=False):
+        # 상세 정보 접이식 (스코어 breakdown 포함)
+        with st.expander(f"📋 {symbol} 상세 정보 & GO 스코어 분석", expanded=False):
             detail_cols = st.columns(2)
             with detail_cols[0]:
                 st.markdown("**⚠️ 주의사항**")
@@ -282,11 +391,12 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
                 if not blockers and not warnings:
                     st.markdown("✅ 특이사항 없음")
             with detail_cols[1]:
-                st.markdown("**📊 분석 상세**")
-                st.markdown(f"- 프리미엄: {premium:+.2f}%" if premium else "- 프리미엄: N/A")
-                st.markdown(f"- 비용: {total_cost:.2f}%" if total_cost else "- 비용: N/A")
-                if confidence_reason:
-                    st.markdown(f"- 신뢰도 감점: {confidence_reason}")
+                st.markdown("**📊 GO 스코어 분석**")
+                st.markdown(f"**총점: {go_score}/100** ({score_label})")
+                for item, points, reason in score_breakdown:
+                    color = "🟢" if points > 0 else "🔴" if points < 0 else "⚪"
+                    sign = "+" if points > 0 else ""
+                    st.markdown(f"{color} {item}: {sign}{points}점 ({reason})")
         
         return
 
@@ -917,18 +1027,34 @@ def _render_quick_analysis_section() -> None:
 
 
 def _render_quick_analysis_results(symbol: str, results: dict) -> None:
-    """빠른 분석 결과 렌더링."""
+    """빠른 분석 결과 렌더링 (현선갭 + DEX + 네트워크 속도)."""
     import streamlit as st
+    
+    # 네트워크 정보 가져오기
+    try:
+        from collectors.network_speed import get_network_by_symbol, get_network_info
+        network_info = get_network_by_symbol(symbol)
+    except Exception:
+        network_info = None
 
     gap_data = results.get("gap")
     dex_data = results.get("dex")
     
-    # 종합 판정
-    overall_signal = "🟡 분석중"
-    signal_color = "#fbbf24"
+    # DEX에서 체인 정보 추출 (네트워크 정보 없을 때)
+    detected_chain = None
+    if dex_data and dex_data.best_pair:
+        detected_chain = dex_data.best_pair.chain
+        if not network_info:
+            try:
+                from collectors.network_speed import get_network_info
+                network_info = get_network_info(detected_chain)
+            except Exception:
+                pass
     
+    # 각 요소별 신호
     gap_signal = None
     dex_signal = None
+    network_signal = None
     
     if gap_data and gap_data.get("gaps"):
         best_gap = gap_data["gaps"][0].gap_percent if gap_data["gaps"] else 0
@@ -942,14 +1068,20 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
     if dex_data:
         dex_signal = dex_data.go_signal
     
-    # 종합 판정 로직
-    if gap_signal == "GO" and dex_signal in ["STRONG_GO", "GO"]:
+    if network_info:
+        network_signal = network_info.go_signal
+    
+    # 종합 판정 로직 (3가지 요소 고려)
+    go_count = sum(1 for s in [gap_signal, dex_signal, network_signal] if s in ["GO", "STRONG_GO"])
+    nogo_count = sum(1 for s in [gap_signal, dex_signal, network_signal] if s == "NO_GO")
+    
+    if go_count >= 2 and nogo_count == 0:
         overall_signal = "🟢🟢 STRONG GO"
         signal_color = "#4ade80"
-    elif gap_signal == "GO" or dex_signal in ["STRONG_GO", "GO"]:
+    elif go_count >= 1 and nogo_count == 0:
         overall_signal = "🟢 GO"
         signal_color = "#4ade80"
-    elif gap_signal == "NO_GO" and dex_signal == "NO_GO":
+    elif nogo_count >= 2:
         overall_signal = "🔴 NO-GO"
         signal_color = "#f87171"
     else:
@@ -969,71 +1101,89 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
                 font-weight:700;font-size:0.9rem;">{overall_signal}</div>
         </div>
         
-        <!-- 2컬럼: 현선갭 | DEX 유동성 -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <!-- 3컬럼: 현선갭 | DEX 유동성 | 네트워크 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;">
     """
     
-    # 현선갭 결과
-    result_html += '<div style="background:#1f2937;border-radius:12px;padding:1rem;">'
-    result_html += '<div style="font-size:0.85rem;font-weight:600;color:#60a5fa;margin-bottom:0.75rem;">📊 현선갭</div>'
+    # 1. 현선갭 결과
+    result_html += '<div style="background:#1f2937;border-radius:12px;padding:0.85rem;">'
+    result_html += '<div style="font-size:0.8rem;font-weight:600;color:#60a5fa;margin-bottom:0.6rem;">📊 현선갭</div>'
     
     if results.get("gap_error"):
-        result_html += f'<div style="color:#f87171;font-size:0.8rem;">❌ {results["gap_error"][:40]}</div>'
+        result_html += f'<div style="color:#f87171;font-size:0.75rem;">❌ 에러</div>'
     elif gap_data and gap_data.get("gaps"):
-        for i, gap in enumerate(gap_data["gaps"][:3]):
+        for gap in gap_data["gaps"][:2]:
             gap_color = "#4ade80" if gap.gap_percent > 0 else "#f87171"
             result_html += f'''
-            <div style="display:flex;justify-content:space-between;padding:0.4rem 0;
-                border-bottom:1px solid #374151;font-size:0.8rem;">
+            <div style="display:flex;justify-content:space-between;padding:0.3rem 0;font-size:0.75rem;">
                 <span style="color:#9ca3af;">{gap.spot_exchange}→{gap.futures_exchange}</span>
                 <span style="color:{gap_color};font-weight:600;">{gap.gap_percent:+.2f}%</span>
             </div>
             '''
-        # 가격 정보
         spot_prices = gap_data.get("prices", {}).get("spot", {})
         if spot_prices:
             first_price = list(spot_prices.values())[0] if spot_prices else None
-            if first_price:
-                krw_text = f"₩{first_price.krw_price:,.0f}" if first_price.krw_price else ""
-                result_html += f'<div style="font-size:0.75rem;color:#6b7280;margin-top:0.5rem;">현재가: ${first_price.price:.4f} {krw_text}</div>'
+            if first_price and first_price.krw_price:
+                result_html += f'<div style="font-size:0.7rem;color:#6b7280;margin-top:0.3rem;">₩{first_price.krw_price:,.0f}</div>'
     else:
-        result_html += '<div style="color:#6b7280;font-size:0.8rem;">데이터 없음</div>'
+        result_html += '<div style="color:#6b7280;font-size:0.75rem;">데이터 없음</div>'
     
     result_html += '</div>'
     
-    # DEX 유동성 결과
-    result_html += '<div style="background:#1f2937;border-radius:12px;padding:1rem;">'
-    result_html += '<div style="font-size:0.85rem;font-weight:600;color:#a78bfa;margin-bottom:0.75rem;">💧 DEX 유동성</div>'
+    # 2. DEX 유동성 결과
+    result_html += '<div style="background:#1f2937;border-radius:12px;padding:0.85rem;">'
+    result_html += '<div style="font-size:0.8rem;font-weight:600;color:#a78bfa;margin-bottom:0.6rem;">💧 DEX 유동성</div>'
     
     if results.get("dex_error"):
-        result_html += f'<div style="color:#f87171;font-size:0.8rem;">❌ {results["dex_error"][:40]}</div>'
+        result_html += f'<div style="color:#f87171;font-size:0.75rem;">❌ 에러</div>'
     elif dex_data:
         dex_color = "#4ade80" if dex_data.go_signal in ["STRONG_GO", "GO"] else "#fbbf24" if dex_data.go_signal == "CAUTION" else "#f87171"
         result_html += f'''
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-            <span style="color:#9ca3af;font-size:0.8rem;">총 유동성</span>
-            <span style="color:{dex_color};font-weight:700;font-size:1.1rem;">${dex_data.total_liquidity_usd:,.0f}</span>
+        <div style="font-size:1rem;font-weight:700;color:{dex_color};margin-bottom:0.3rem;">
+            ${dex_data.total_liquidity_usd:,.0f}
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-            <span style="color:#9ca3af;font-size:0.8rem;">24h 거래량</span>
-            <span style="color:#fff;font-weight:600;">${dex_data.total_volume_24h:,.0f}</span>
+        <div style="display:flex;justify-content:space-between;font-size:0.7rem;">
+            <span style="color:#9ca3af;">24h</span>
+            <span style="color:#fff;">${dex_data.total_volume_24h:,.0f}</span>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="color:#9ca3af;font-size:0.8rem;">신호</span>
-            <span style="background:{dex_color};color:#000;padding:2px 8px;border-radius:4px;
-                font-size:0.75rem;font-weight:600;">{dex_data.go_emoji} {dex_data.go_signal}</span>
+        <div style="margin-top:0.4rem;">
+            <span style="background:{dex_color};color:#000;padding:2px 6px;border-radius:4px;
+                font-size:0.65rem;font-weight:600;">{dex_data.go_emoji} {dex_data.go_signal}</span>
         </div>
         '''
-        if dex_data.best_pair:
-            bp = dex_data.best_pair
-            result_html += f'''
-            <div style="font-size:0.7rem;color:#6b7280;margin-top:0.5rem;
-                padding-top:0.5rem;border-top:1px solid #374151;">
-                🏆 {bp.dex} ({bp.chain})
-            </div>
-            '''
     else:
-        result_html += '<div style="color:#6b7280;font-size:0.8rem;">데이터 없음</div>'
+        result_html += '<div style="color:#6b7280;font-size:0.75rem;">데이터 없음</div>'
+    
+    result_html += '</div>'
+    
+    # 3. 네트워크 속도 결과 (NEW!)
+    result_html += '<div style="background:#1f2937;border-radius:12px;padding:0.85rem;">'
+    result_html += '<div style="font-size:0.8rem;font-weight:600;color:#f59e0b;margin-bottom:0.6rem;">⚡ 네트워크</div>'
+    
+    if network_info:
+        net_color = "#4ade80" if network_info.go_signal == "GO" else "#fbbf24" if network_info.go_signal == "CAUTION" else "#f87171"
+        result_html += f'''
+        <div style="font-size:0.9rem;font-weight:700;color:#fff;margin-bottom:0.3rem;">
+            {network_info.emoji} {network_info.chain}
+        </div>
+        <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:0.3rem;">
+            {network_info.estimated_time}
+        </div>
+        <div style="margin-top:0.4rem;">
+            <span style="background:{net_color};color:#000;padding:2px 6px;border-radius:4px;
+                font-size:0.65rem;font-weight:600;">{network_info.go_signal}</span>
+        </div>
+        '''
+        if network_info.risk_note:
+            result_html += f'<div style="font-size:0.65rem;color:#fbbf24;margin-top:0.3rem;">{network_info.risk_note}</div>'
+    else:
+        chain_text = detected_chain or "알 수 없음"
+        result_html += f'''
+        <div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.3rem;">
+            {chain_text}
+        </div>
+        <div style="color:#6b7280;font-size:0.7rem;">속도 정보 없음</div>
+        '''
     
     result_html += '</div>'
     
@@ -1061,7 +1211,12 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
         - 🟡 $1M 이하: CAUTION
         - 🔴 $1M 초과: NO-GO
         
-        **종합 판정**: 둘 다 GO면 STRONG GO, 하나라도 GO면 GO
+        **네트워크 속도** (NEW!)
+        - 🟢 느림 (BTC, ETH, L2): GO - 선따리 유리
+        - 🟡 보통 (Polygon, BSC): CAUTION
+        - 🔴 빠름 (SOL, SUI, APT): NO-GO - 후따리 쉬움
+        
+        **종합 판정**: 2개 이상 GO면 STRONG GO, NO-GO가 2개 이상이면 NO-GO
         """)
 
 
@@ -1108,6 +1263,19 @@ def render_live_tab() -> None:
                 </span>
             '''
         
+        # 직전 상장 트렌드 가져오기
+        trend = fetch_recent_trend_cached(conn_id, count=5)
+        trend_color = "#4ade80" if trend["trend_signal"] == "GO" else "#fbbf24" if trend["trend_signal"] == "CAUTION" else "#f87171"
+        trend_badge = f'''
+            <span style="background:rgba(0,0,0,0.3);border:1px solid {trend_color};
+                padding:4px 10px;border-radius:8px;font-size:0.8rem;">
+                {trend["trend_emoji"]} 직전 {trend["total"]}건: {trend["result_emojis"]}
+                <span style="color:{trend_color};font-weight:600;margin-left:0.3rem;">
+                    {trend["heung_rate"]:.0f}% 흥행
+                </span>
+            </span>
+        '''
+        
         # 최고 수익 GO 찾기
         best_go = max(go_analyses, key=lambda x: x.get("net_profit_pct") or -999)
         best_profit = best_go.get("net_profit_pct")
@@ -1130,7 +1298,10 @@ def render_live_tab() -> None:
                             </div>
                         </div>
                     </div>
-                    <div>{mood_badge}</div>
+                    <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:flex-end;">
+                        {mood_badge}
+                        {trend_badge}
+                    </div>
                 </div>
             </div>''',
             unsafe_allow_html=True,

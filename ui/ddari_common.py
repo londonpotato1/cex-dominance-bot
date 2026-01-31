@@ -340,6 +340,110 @@ def fetch_scenario_data_cached(conn_id: int, limit: int = 5) -> list[dict]:
     return _inner(conn_id, limit)
 
 
+def fetch_recent_trend_cached(conn_id: int, count: int = 5) -> dict:
+    """직전 상장 트렌드 분석 (5분 캐시).
+    
+    Returns:
+        dict with:
+        - recent_listings: 최근 상장 리스트
+        - heung_count: 흥따리 수
+        - mang_count: 망따리 수
+        - heung_rate: 흥따리 비율 (%)
+        - trend_emoji: 트렌드 이모지
+        - trend_signal: GO/CAUTION/NO_GO
+    """
+    import streamlit as st
+    import pandas as pd
+
+    @st.cache_data(ttl=300)
+    def _inner(_conn_id: int, _count: int) -> dict:
+        # CSV 파일에서 로드
+        csv_path = _DATA_DIR / "labeling" / "listing_data.csv"
+        recent = []
+        
+        if csv_path.exists():
+            try:
+                df = pd.read_csv(csv_path)
+                df = df.sort_values('date', ascending=False).head(_count)
+                
+                for _, row in df.iterrows():
+                    label = row.get('result_label', '')
+                    recent.append({
+                        'symbol': row.get('symbol', '?'),
+                        'result_label': label,
+                        'premium': row.get('premium_at_5m_pct', 0),
+                    })
+            except Exception as e:
+                logger.warning(f"트렌드 CSV 로드 실패: {e}")
+        
+        # DB fallback
+        if not recent:
+            conn = get_read_conn()
+            try:
+                rows = conn.execute(
+                    """
+                    SELECT symbol, result_label, premium_pct as premium
+                    FROM listing_history
+                    ORDER BY listing_time DESC
+                    LIMIT ?
+                    """,
+                    (_count,),
+                ).fetchall()
+                recent = [dict(r) for r in rows]
+            except sqlite3.OperationalError:
+                pass
+        
+        # 흥/망 카운트
+        heung_labels = ['heung', 'heung_big', '흥따리', '대흥따리']
+        mang_labels = ['mang', '망따리']
+        
+        heung_count = sum(1 for r in recent if r.get('result_label') in heung_labels)
+        mang_count = sum(1 for r in recent if r.get('result_label') in mang_labels)
+        total = len(recent)
+        
+        # 흥따리 비율
+        heung_rate = (heung_count / total * 100) if total > 0 else 0
+        
+        # 트렌드 판정
+        if heung_rate >= 60:
+            trend_emoji = "🔥"
+            trend_signal = "GO"
+            trend_text = "상승세"
+        elif heung_rate >= 40:
+            trend_emoji = "😐"
+            trend_signal = "CAUTION"
+            trend_text = "보통"
+        else:
+            trend_emoji = "❄️"
+            trend_signal = "NO_GO"
+            trend_text = "냉각"
+        
+        # 최근 결과 이모지 (예: 🟢🟢🔴🟢🔴)
+        result_emojis = ""
+        for r in recent[:5]:
+            label = r.get('result_label', '')
+            if label in heung_labels:
+                result_emojis += "🟢"
+            elif label in mang_labels:
+                result_emojis += "🔴"
+            else:
+                result_emojis += "🟡"
+        
+        return {
+            "recent_listings": recent,
+            "heung_count": heung_count,
+            "mang_count": mang_count,
+            "total": total,
+            "heung_rate": heung_rate,
+            "trend_emoji": trend_emoji,
+            "trend_signal": trend_signal,
+            "trend_text": trend_text,
+            "result_emojis": result_emojis,
+        }
+
+    return _inner(conn_id, count)
+
+
 # ------------------------------------------------------------------
 # 순수 로직 함수 (배지 렌더링)
 # ------------------------------------------------------------------
