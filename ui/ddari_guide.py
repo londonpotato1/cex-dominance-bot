@@ -181,14 +181,52 @@ def _get_guide_html() -> str:
                     </tr>
                     <tr>
                         <td style="padding:8px;color:{COLORS["text_primary"]};">역프 상황</td>
-                        <td style="padding:8px;text-align:center;"><span style="color:{COLORS["danger"]};">🔴 높음</span></td>
-                        <td style="padding:8px;color:{COLORS["text_secondary"]};">절대 진입 금지</td>
+                        <td style="padding:8px;text-align:center;"><span style="color:{COLORS["info"]};">🔄 역따리</span></td>
+                        <td style="padding:8px;color:{COLORS["text_secondary"]};">반대 전략 검토 (아래 참조)</td>
                     </tr>
                 </tbody>
             </table>
         </div>
 
-        <!-- 7. 탭별 활용법 -->
+        <!-- 7. 역프 전략 (NEW!) -->
+        <div style="margin-bottom:1.5rem;">
+            <h3 style="color:{COLORS["text_primary"]};font-size:1.1rem;margin-bottom:0.75rem;">
+                🔄 역프 상황 전략 (역따리)
+            </h3>
+            <div style="background:linear-gradient(135deg, #1e3a5f 0%, #2d1f47 100%);padding:1rem;border-radius:8px;border:1px solid {COLORS["info"]};">
+                <p style="font-size:0.85rem;color:{COLORS["text_secondary"]};margin-bottom:0.75rem;">
+                    <b style="color:{COLORS["info"]};">역프 = 국내 가격 < 해외 가격</b><br>
+                    일반 따리(해외→국내)는 손실이지만, <b>반대 방향</b>으로 수익 가능!
+                </p>
+                
+                <div style="background:rgba(0,0,0,0.2);padding:0.75rem;border-radius:6px;margin-bottom:0.75rem;">
+                    <p style="font-size:0.8rem;font-weight:600;color:{COLORS["success"]};margin-bottom:0.5rem;">✅ 역따리 전략</p>
+                    <ol style="color:{COLORS["text_secondary"]};font-size:0.75rem;padding-left:1.2rem;margin:0;">
+                        <li><b>국내 현물 매수</b> (업비트/빗썸)</li>
+                        <li><b>해외 선물 숏</b> (바이낸스/바이비트) - 가격 변동 헷징</li>
+                        <li><b>국내→해외 전송</b> (네트워크 확인)</li>
+                        <li><b>해외 현물 매도</b> + <b>숏 청산</b></li>
+                    </ol>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">
+                    <div style="background:rgba(74,222,128,0.1);padding:0.5rem;border-radius:4px;">
+                        <p style="font-size:0.7rem;color:{COLORS["success"]};font-weight:600;">수익 = 역프 - 수수료</p>
+                        <p style="font-size:0.65rem;color:{COLORS["text_muted"]};">역프 3% - 수수료 0.5% = 순익 2.5%</p>
+                    </div>
+                    <div style="background:rgba(248,113,113,0.1);padding:0.5rem;border-radius:4px;">
+                        <p style="font-size:0.7rem;color:{COLORS["danger"]};font-weight:600;">주의사항</p>
+                        <p style="font-size:0.65rem;color:{COLORS["text_muted"]};">현선갭, 펀딩비, 전송 시간 고려</p>
+                    </div>
+                </div>
+                
+                <p style="font-size:0.7rem;color:{COLORS["text_muted"]};margin-top:0.5rem;">
+                    💡 <b>역프 3% 이상</b>일 때 검토 권장 | 헷징 비용(현선갭+펀딩비) 차감 후 순익 계산
+                </p>
+            </div>
+        </div>
+
+        <!-- 8. 탭별 활용법 -->
         <div>
             <h3 style="color:{COLORS["text_primary"]};font-size:1.1rem;margin-bottom:0.75rem;">
                 📑 탭별 활용법

@@ -1101,11 +1101,40 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
     if network_info:
         network_signal = network_info.go_signal
     
-    # 종합 판정 로직 (3가지 요소 고려)
+    # 프리미엄 계산 (김프/역프 판단)
+    spot_premium = None
+    is_reverse = False
+    orderbook_data = results.get("orderbook")
+    
+    if orderbook_data and len(orderbook_data) > 0:
+        best_ob = orderbook_data[0]
+        spot_premium = best_ob.premium_percent
+        is_reverse = spot_premium < -1.0  # 역프 1% 이상
+    elif gap_data and gap_data.get("prices"):
+        # 오더북 없으면 가격으로 계산
+        spot_prices = gap_data.get("prices", {}).get("spot", {})
+        kr_price = next((p.price for ex, p in spot_prices.items() if ex in ['upbit', 'bithumb']), None)
+        global_price = next((p.price for ex, p in spot_prices.items() if ex in ['binance', 'bybit']), None)
+        if kr_price and global_price:
+            spot_premium = (kr_price - global_price) / global_price * 100
+            is_reverse = spot_premium < -1.0
+    
+    # 종합 판정 로직 (역프 전략 포함)
     go_count = sum(1 for s in [gap_signal, dex_signal, network_signal] if s in ["GO", "STRONG_GO"])
     nogo_count = sum(1 for s in [gap_signal, dex_signal, network_signal] if s == "NO_GO")
     
-    if go_count >= 2 and nogo_count == 0:
+    if is_reverse and spot_premium is not None:
+        # 역프 상황 - 역따리 전략 추천
+        if spot_premium < -3.0:
+            overall_signal = "🔄🟢 역따리 GO"
+            signal_color = "#8b5cf6"  # 보라색
+        elif spot_premium < -1.5:
+            overall_signal = "🔄 역따리 검토"
+            signal_color = "#a78bfa"
+        else:
+            overall_signal = "🔄⚠️ 역프 주의"
+            signal_color = "#fbbf24"
+    elif go_count >= 2 and nogo_count == 0:
         overall_signal = "🟢🟢 STRONG GO"
         signal_color = "#4ade80"
     elif go_count >= 1 and nogo_count == 0:
@@ -1282,6 +1311,43 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
         
         result_html += '</div>'
         result_html += '</div>'
+    
+    # 역프 전략 박스 (역프일 때만 표시)
+    if is_reverse and spot_premium is not None:
+        reverse_premium = abs(spot_premium)
+        # 대략적인 비용 계산
+        fee_estimate = 0.3  # 거래수수료 + 전송수수료
+        futures_gap = 0.5  # 현선갭 추정
+        net_estimate = reverse_premium - fee_estimate - futures_gap
+        
+        result_html += f'''
+        <div style="background:linear-gradient(135deg, #1e3a5f 0%, #2d1f47 100%);
+            border:1px solid #8b5cf6;border-radius:12px;padding:1rem;margin-top:0.75rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                <span style="font-size:1.2rem;">🔄</span>
+                <span style="font-size:0.9rem;font-weight:700;color:#a78bfa;">역따리 전략 분석</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                <div>
+                    <p style="font-size:0.7rem;color:#9ca3af;margin-bottom:0.25rem;">현재 역프</p>
+                    <p style="font-size:1.1rem;font-weight:700;color:#f87171;">{spot_premium:+.2f}%</p>
+                </div>
+                <div>
+                    <p style="font-size:0.7rem;color:#9ca3af;margin-bottom:0.25rem;">예상 순익 (추정)</p>
+                    <p style="font-size:1.1rem;font-weight:700;color:{"#4ade80" if net_estimate > 0 else "#f87171"};">{net_estimate:+.2f}%</p>
+                </div>
+            </div>
+            <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #374151;">
+                <p style="font-size:0.7rem;font-weight:600;color:#fff;margin-bottom:0.4rem;">💡 추천 전략:</p>
+                <ol style="font-size:0.65rem;color:#9ca3af;margin:0;padding-left:1.2rem;">
+                    <li>국내 현물 매수 (업비트/빗썸)</li>
+                    <li>해외 선물 숏 진입 (헷징)</li>
+                    <li>국내→해외 전송</li>
+                    <li>해외 현물 매도 + 숏 청산</li>
+                </ol>
+            </div>
+        </div>
+        '''
     
     result_html += """
     </div>
