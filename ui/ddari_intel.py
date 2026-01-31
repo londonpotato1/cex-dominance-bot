@@ -749,6 +749,176 @@ def _render_hot_wallet_section() -> None:
 
 
 # ------------------------------------------------------------------
+# GO/NO-GO 분석 섹션
+# ------------------------------------------------------------------
+
+
+def _render_go_nogo_section() -> None:
+    """GO/NO-GO 분석 섹션 렌더링."""
+    import streamlit as st
+    import asyncio
+
+    st.markdown(
+        f'<p style="{SECTION_HEADER_STYLE}">🎯 GO/NO-GO 분석기</p>',
+        unsafe_allow_html=True,
+    )
+
+    # 심볼 입력
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        symbol = st.text_input(
+            "심볼 입력",
+            placeholder="예: AVAIL, ME, NXPC",
+            key="gonogo_symbol",
+            label_visibility="collapsed",
+        )
+    with col2:
+        exchange = st.selectbox(
+            "거래소",
+            ["bithumb", "upbit"],
+            key="gonogo_exchange",
+            label_visibility="collapsed",
+        )
+    with col3:
+        analyze_btn = st.button("🔍 분석", key="gonogo_analyze", use_container_width=True)
+
+    if analyze_btn and symbol:
+        symbol = symbol.upper().strip()
+        
+        with st.spinner(f"{symbol} 분석 중..."):
+            try:
+                # DEX 유동성 조회
+                dex_liquidity = None
+                try:
+                    from collectors.dex_liquidity import get_dex_liquidity
+                    dex_result = asyncio.run(get_dex_liquidity(symbol))
+                    if dex_result:
+                        dex_liquidity = dex_result.total_liquidity_usd
+                except Exception as e:
+                    st.warning(f"DEX 유동성 조회 실패: {e}")
+
+                # 현선갭 조회
+                spot_futures_gap = None
+                funding_rate = None
+                try:
+                    from collectors.exchange_service import ExchangeService
+                    from collectors.gap_calculator import GapCalculator
+                    
+                    service = ExchangeService()
+                    prices = service.fetch_all_prices(
+                        symbol,
+                        ['binance', 'bybit'],
+                        ['binance', 'bybit']
+                    )
+                    gaps = GapCalculator.calculate_all_gaps(prices, symbol)
+                    if gaps:
+                        spot_futures_gap = gaps[0].gap_percent
+                        funding_rate = gaps[0].funding_rate
+                except Exception as e:
+                    st.warning(f"현선갭 조회 실패: {e}")
+
+                # GO/NO-GO 분석
+                from analysis.go_nogo_scorer import GoNoGoScorer
+                
+                scorer = GoNoGoScorer()
+                result = asyncio.run(scorer.calculate_score(
+                    symbol=symbol,
+                    exchange=exchange,
+                    dex_liquidity_usd=dex_liquidity,
+                    spot_futures_gap_pct=spot_futures_gap,
+                    funding_rate=funding_rate,
+                ))
+
+                # 결과 표시
+                signal_colors = {
+                    "STRONG_GO": COLORS["success"],
+                    "GO": COLORS["success"],
+                    "CAUTION": COLORS["warning"],
+                    "NO_GO": COLORS["danger"],
+                }
+                signal_color = signal_colors.get(result.signal.value, COLORS["neutral"])
+
+                result_html = f"""
+                <div style="background:{COLORS["card_bg"]};border:2px solid {signal_color};
+                            border-radius:12px;padding:1.25rem;margin-top:1rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                        <div>
+                            <span style="font-size:1.5rem;font-weight:700;color:{COLORS["text_primary"]};">
+                                {result.emoji} {symbol}
+                            </span>
+                            <span style="color:{COLORS["text_muted"]};font-size:0.9rem;margin-left:0.5rem;">
+                                @ {exchange.upper()}
+                            </span>
+                        </div>
+                        <div style="background:{signal_color};color:#fff;padding:8px 16px;
+                                    border-radius:8px;font-weight:700;font-size:1.1rem;">
+                            {result.signal_text} ({result.total_score:.0f}점)
+                        </div>
+                    </div>
+                    <p style="color:{COLORS["text_secondary"]};font-size:0.9rem;margin-bottom:1rem;">
+                        {result.summary}
+                    </p>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.75rem;">
+                """
+
+                for c in result.components:
+                    comp_colors = {
+                        "STRONG_GO": COLORS["success"],
+                        "GO": COLORS["success"],
+                        "CAUTION": COLORS["warning"],
+                        "NO_GO": COLORS["danger"],
+                        "UNKNOWN": COLORS["neutral"],
+                        "NEUTRAL": COLORS["neutral"],
+                    }
+                    comp_color = comp_colors.get(c.signal, COLORS["neutral"])
+                    raw_text = f'<br><span style="color:{COLORS["text_muted"]};font-size:0.75rem;">{c.raw_value}</span>' if c.raw_value else ''
+                    
+                    result_html += f"""
+                        <div style="background:{COLORS["bg_card"]};border:1px solid {comp_color};
+                                    border-radius:8px;padding:0.75rem;">
+                            <div style="font-size:0.8rem;color:{COLORS["text_muted"]};">{c.name}</div>
+                            <div style="font-size:1.1rem;font-weight:600;color:{comp_color};">{c.score:.0f}점</div>
+                            {raw_text}
+                        </div>
+                    """
+
+                result_html += """
+                    </div>
+                </div>
+                """
+
+                if hasattr(st, 'html'):
+                    st.html(result_html)
+                else:
+                    st.markdown(result_html, unsafe_allow_html=True)
+
+            except Exception as e:
+                st.error(f"분석 실패: {e}")
+
+    # 설명 카드
+    info_html = f"""
+    <div style="{CARD_STYLE}margin-top:1rem;">
+        <p style="font-size:0.85rem;font-weight:600;color:{COLORS["info"]};margin-bottom:0.5rem;">
+            💡 GO/NO-GO 판단 기준
+        </p>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.8rem;color:{COLORS["text_secondary"]};">
+            <span>🟢🟢 STRONG_GO: 85점+</span>
+            <span>🟢 GO: 70-84점</span>
+            <span>🟡 CAUTION: 50-69점</span>
+            <span>🔴 NO_GO: 50점 미만</span>
+        </div>
+        <p style="font-size:0.75rem;color:{COLORS["text_muted"]};margin-top:0.5rem;">
+            DEX 유동성 (25%) + 핫월렛 (20%) + 현선갭 (20%) + 네트워크 (15%) + 시황 (10%) + 펀딩비 (10%)
+        </p>
+    </div>
+    """
+    if hasattr(st, 'html'):
+        st.html(info_html)
+    else:
+        st.markdown(info_html, unsafe_allow_html=True)
+
+
+# ------------------------------------------------------------------
 # 메인 렌더 함수
 # ------------------------------------------------------------------
 
@@ -759,6 +929,11 @@ def render_intel_tab() -> None:
 
     conn = get_read_conn()
     conn_id = id(conn)
+
+    # ------------------------------------------------------------------
+    # GO/NO-GO 분석 섹션 (최상단)
+    # ------------------------------------------------------------------
+    _render_go_nogo_section()
 
     # ------------------------------------------------------------------
     # 상장 히스토리 섹션
