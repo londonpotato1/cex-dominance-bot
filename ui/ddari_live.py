@@ -213,6 +213,158 @@ def _render_traffic_light(can_proceed: bool, score: int, has_warnings: bool) -> 
         return '<span style="font-size:1.8rem;">🔴</span> <span style="font-size:1.4rem;font-weight:700;color:#f87171;">NO-GO</span>'
 
 
+def _build_strategy_summary_html(row: dict) -> str:
+    """GO 카드용 전략 요약 HTML 생성.
+    
+    row에서 관련 필드를 가져와 간단한 전략 추천을 생성.
+    
+    Args:
+        row: Gate 분석 결과 데이터
+        
+    Returns:
+        전략 요약 HTML 문자열
+    """
+    # === 데이터 추출 ===
+    # 현선갭: spot_futures_gap_pct 또는 premium_pct 기반으로 추정
+    spot_futures_gap = row.get("spot_futures_gap_pct")
+    premium_pct = row.get("premium_pct") or 0
+    
+    # 현선갭이 없으면 프리미엄 기반으로 간접 추정 (실제로는 다름)
+    gap_pct = spot_futures_gap if spot_futures_gap is not None else None
+    
+    # 론 정보
+    loan_available = row.get("loan_available", False)
+    best_loan_exchange = row.get("best_loan_exchange")
+    best_loan_rate = row.get("best_loan_rate")  # 시간당 이자율 (%)
+    
+    # DEX 유동성
+    dex_liquidity_usd = row.get("dex_liquidity_usd")
+    
+    # 네트워크 정보
+    network_chain = row.get("network_chain") or row.get("best_network")
+    network_speed = row.get("network_speed")
+    
+    # 헤지 타입
+    hedge_type = row.get("hedge_type", "")
+    hedge_exchange = row.get("hedge_exchange", "")
+    
+    # === 전략 결정 로직 ===
+    strategy_text = ""
+    strategy_color = "#4ade80"  # 기본 녹색
+    
+    if gap_pct is not None:
+        if gap_pct < 2:
+            if loan_available:
+                strategy_text = "헷지 갭익절 (론 빌려서 헷지)"
+                strategy_color = "#4ade80"  # 녹색
+            else:
+                strategy_text = "현물 선따리 (헷지 불가)"
+                strategy_color = "#60a5fa"  # 파랑
+        elif gap_pct < 5:
+            strategy_text = "헷지 비용 고려 필요"
+            strategy_color = "#fbbf24"  # 노랑
+        else:
+            strategy_text = "후따리 대기 (갭 높음)"
+            strategy_color = "#f87171"  # 빨강
+    else:
+        # 갭 정보 없으면 론/헤지 기반으로 추천
+        if loan_available and hedge_type and hedge_type != "none":
+            strategy_text = "헷지 갭익절 권장"
+            strategy_color = "#4ade80"
+        elif hedge_type and hedge_type != "none":
+            strategy_text = "헷지 가능 (론 없음)"
+            strategy_color = "#60a5fa"
+        else:
+            strategy_text = "현물 선따리 (헷지 불가)"
+            strategy_color = "#fbbf24"
+    
+    # === 개별 항목 HTML 생성 ===
+    items_html = []
+    
+    # 1. 추천 전략
+    items_html.append(
+        f'<div>🎯 추천: <b style="color:{strategy_color};">{strategy_text}</b></div>'
+    )
+    
+    # 2. 현선갭 (있을 때만)
+    if gap_pct is not None:
+        gap_status = "낮음 ✅" if gap_pct < 2 else "보통" if gap_pct < 5 else "높음 ⚠️"
+        hedge_info = ""
+        if hedge_type and hedge_type != "none":
+            # 헷지 방향 표시 (예: 바낸롱-바빗숏)
+            if hedge_exchange:
+                hedge_info = f" · {hedge_exchange}"
+            else:
+                hedge_info = f" · {hedge_type}"
+        items_html.append(
+            f'<div>📈 현선갭: {gap_pct:.1f}% ({gap_status}){hedge_info}</div>'
+        )
+    
+    # 3. 론 정보
+    if loan_available and best_loan_exchange:
+        rate_str = f" ({best_loan_rate:.4f}%/h)" if best_loan_rate else ""
+        items_html.append(
+            f'<div>💰 론: {best_loan_exchange} 가능{rate_str}</div>'
+        )
+    elif loan_available:
+        items_html.append('<div>💰 론: 가능</div>')
+    else:
+        items_html.append('<div style="color:#9ca3af;">💰 론: 불가</div>')
+    
+    # 4. DEX 유동성 (있을 때만)
+    if dex_liquidity_usd is not None:
+        if dex_liquidity_usd >= 1_000_000:
+            liq_str = f"${dex_liquidity_usd/1_000_000:.1f}M"
+            liq_status = "많음 ⚠️"
+            liq_color = "#fbbf24"
+        elif dex_liquidity_usd >= 200_000:
+            liq_str = f"${dex_liquidity_usd/1000:.0f}K"
+            liq_status = "보통"
+            liq_color = "#d1d5db"
+        else:
+            liq_str = f"${dex_liquidity_usd/1000:.0f}K"
+            liq_status = "적음 ✅"
+            liq_color = "#4ade80"
+        items_html.append(
+            f'<div>💧 DEX: <span style="color:{liq_color};">{liq_str} ({liq_status})</span></div>'
+        )
+    
+    # 5. 네트워크 (있을 때만)
+    if network_chain:
+        speed_emoji = "⚡"
+        speed_text = ""
+        if network_speed:
+            speed_map = {
+                "very_fast": "매우 빠름",
+                "fast": "빠름", 
+                "medium": "보통",
+                "slow": "느림"
+            }
+            speed_text = f" ({speed_map.get(network_speed, network_speed)})"
+        items_html.append(
+            f'<div>{speed_emoji} 네트워크: {network_chain.upper()}{speed_text}</div>'
+        )
+    
+    # 아무 정보도 없으면 빈 문자열 반환
+    if len(items_html) <= 1:  # 추천 전략만 있으면
+        # 최소한의 정보라도 표시
+        pass
+    
+    # === 최종 HTML 조립 ===
+    items_joined = "\n            ".join(items_html)
+    
+    return f'''
+            <div style="background:#1f2937;border-radius:8px;padding:0.75rem;margin-bottom:0.75rem;">
+                <div style="font-size:0.8rem;font-weight:600;color:#60a5fa;margin-bottom:0.5rem;">
+                    📋 전략 요약
+                </div>
+                <div style="font-size:0.75rem;color:#d1d5db;line-height:1.6;">
+                    {items_joined}
+                </div>
+            </div>
+    '''
+
+
 def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False) -> None:
     """개별 분석 결과 카드 렌더링 (Phase 2.2: 개선된 UI).
     
@@ -294,6 +446,11 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
             score_color = "#f87171"
             score_label = "WEAK"
         
+        # =========================================================
+        # 전략 요약 섹션 생성
+        # =========================================================
+        strategy_summary_html = _build_strategy_summary_html(row)
+        
         card_html = f"""
         <div style="background:linear-gradient(135deg, #0a2e1a 0%, #1a4a2a 50%, #0d3d1d 100%);
             border:2px solid #4ade80;border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
@@ -328,7 +485,7 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
             </div>
             
             <!-- 프리미엄 바 (시각화) -->
-            <div style="margin-bottom:1rem;">
+            <div style="margin-bottom:0.75rem;">
                 <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.3rem;">
                     <span style="color:#9ca3af;">📈 김치프리미엄</span>
                     <span style="color:{premium_color};font-weight:700;">{premium:+.2f}%</span>
@@ -339,6 +496,9 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
                         box-shadow:0 0 10px {premium_color}66;"></div>
                 </div>
             </div>
+            
+            <!-- 전략 요약 섹션 -->
+            {strategy_summary_html}
             
             <!-- 하단: 비용/속도/스코어 -->
             <div style="display:flex;justify-content:space-around;font-size:0.85rem;color:#9ca3af;">
