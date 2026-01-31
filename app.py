@@ -918,16 +918,15 @@ def _render_market_status_bar(config):
                 
                 avg_color = "#4ade80" if avg_rate > 0 else "#f87171" if avg_rate < 0 else "#9ca3af"
                 
-                funding_html = f'''
-            <div class="status-divider"></div>
-            <div class="status-item">
-                <span class="status-label">💹펀딩비</span>
-                <span class="status-value" style="color:{avg_color};">{avg_rate:+.4f}%</span>
-            </div>
-            <div class="status-item">
-                <span class="status-value" style="color:{funding_color};font-size:0.75rem;background:{funding_color}15;padding:2px 6px;border-radius:4px;">{funding_text}</span>
-            </div>
-                '''
+                # 배경색 투명도 처리 (rgba 사용)
+                if funding_color == "#4ade80":
+                    bg_rgba = "rgba(74,222,128,0.15)"
+                elif funding_color == "#f87171":
+                    bg_rgba = "rgba(248,113,113,0.15)"
+                else:
+                    bg_rgba = "rgba(156,163,175,0.15)"
+                
+                funding_html = f'<div class="status-divider"></div><div class="status-item"><span class="status-label">💹펀딩비</span><span class="status-value" style="color:{avg_color};">{avg_rate:+.4f}%</span></div><div class="status-item"><span class="status-value" style="color:{funding_color};font-size:0.75rem;background:{bg_rgba};padding:2px 6px;border-radius:4px;">{funding_text}</span></div>'
         except Exception as fe:
             logger.debug(f"Funding rate fetch skipped: {fe}")
 
