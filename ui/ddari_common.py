@@ -269,6 +269,14 @@ def fetch_listing_history_cached(conn_id: int, limit: int = 20) -> list[dict]:
     import streamlit as st
     import pandas as pd
 
+    # 한글 result_label → 영문 키 매핑
+    RESULT_LABEL_MAP = {
+        "대흥따리": "heung_big",
+        "흥따리": "heung",
+        "보통": "neutral",
+        "망따리": "mang",
+    }
+
     @st.cache_data(ttl=300)
     def _inner(_conn_id: int, _limit: int) -> list[dict]:
         # CSV 파일에서 로드 (DB보다 CSV가 더 풍부한 데이터)
@@ -279,6 +287,14 @@ def fetch_listing_history_cached(conn_id: int, limit: int = 20) -> list[dict]:
                 # date 컬럼을 listing_time으로 매핑
                 if 'date' in df.columns:
                     df['listing_time'] = df['date']
+                # premium_at_5m_pct → premium_pct 매핑
+                if 'premium_at_5m_pct' in df.columns:
+                    df['premium_pct'] = df['premium_at_5m_pct']
+                # result_label 한글 → 영문 변환
+                if 'result_label' in df.columns:
+                    df['result_label'] = df['result_label'].map(
+                        lambda x: RESULT_LABEL_MAP.get(x, x) if pd.notna(x) else None
+                    )
                 # 최신순 정렬
                 df = df.sort_values('date', ascending=False).head(_limit)
                 return df.to_dict('records')
