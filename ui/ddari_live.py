@@ -1561,9 +1561,6 @@ def render_live_tab() -> None:
         else:
             st.markdown(market_info_html, unsafe_allow_html=True)
         
-        # 펀딩비 (컴팩트)
-        _render_funding_rate_compact()
-
     with col_right:
         # 🔍 빠른 분석 섹션
         _render_quick_analysis_section()
@@ -1590,6 +1587,78 @@ def render_live_tab() -> None:
                 _render_analysis_card(row, vasp_matrix, highlight=False)
         else:
             st.info("NO-GO 분석 기록이 없습니다.")
+
+    # ============================================================
+    # 하단 고정 바: 펀딩비
+    # ============================================================
+    _render_funding_rate_bottom_bar()
+
+
+def _render_funding_rate_bottom_bar() -> None:
+    """펀딩비 하단 고정 바."""
+    import streamlit as st
+
+    funding_data = fetch_funding_rates_cached()
+    
+    if funding_data.get("status") in ["error", "no_data"]:
+        return  # 데이터 없으면 바 표시 안함
+
+    avg_rate = funding_data.get("avg_funding_rate_pct", 0)
+    position_bias = funding_data.get("position_bias", "neutral")
+    symbols_data = funding_data.get("symbols", {})
+
+    # 쏠림 방향 & 설명
+    if position_bias == "long_heavy":
+        bias_color = "#4ade80"
+        bias_text = "롱↑"
+        meaning = "롱 과열 → 선물 > 현물"
+    elif position_bias == "short_heavy":
+        bias_color = "#f87171"
+        bias_text = "숏↑"
+        meaning = "숏 과열 → 선물 < 현물"
+    else:
+        bias_color = "#9ca3af"
+        bias_text = "중립"
+        meaning = "롱/숏 균형"
+
+    # 심볼별 펀딩비
+    symbols_parts = []
+    for symbol, data in list(symbols_data.items())[:3]:
+        rate_pct = data.get("rate_pct", 0)
+        sym_color = "#4ade80" if rate_pct > 0 else "#f87171" if rate_pct < 0 else "#9ca3af"
+        sym_name = symbol.replace('USDT', '')
+        symbols_parts.append(
+            f'<span style="color:#888;">{sym_name}</span>'
+            f'<span style="color:{sym_color};margin-left:3px;">{rate_pct:+.3f}%</span>'
+        )
+    symbols_html = " &nbsp;·&nbsp; ".join(symbols_parts)
+
+    avg_color = "#4ade80" if avg_rate > 0 else "#f87171" if avg_rate < 0 else "#9ca3af"
+
+    # 하단 고정 바 HTML (position: fixed)
+    bottom_bar_html = f'''
+    <div style="position:fixed;bottom:0;left:0;right:0;z-index:999;
+        background:linear-gradient(180deg, rgba(17,17,27,0.95) 0%, rgba(17,17,27,1) 100%);
+        border-top:1px solid rgba(255,255,255,0.1);
+        padding:10px 20px;
+        display:flex;align-items:center;justify-content:center;gap:16px;
+        backdrop-filter:blur(10px);">
+        <span style="font-size:0.85rem;color:#9ca3af;">💹 펀딩비</span>
+        <span style="font-size:1rem;font-weight:700;color:{avg_color};">{avg_rate:+.4f}%</span>
+        <span style="font-size:0.75rem;color:{bias_color};background:{bias_color}18;
+            padding:3px 8px;border-radius:4px;font-weight:600;">{bias_text}</span>
+        <span style="font-size:0.8rem;color:#666;">│</span>
+        <span style="font-size:0.8rem;">{symbols_html}</span>
+        <span style="font-size:0.8rem;color:#666;">│</span>
+        <span style="font-size:0.75rem;color:#888;font-style:italic;">{meaning}</span>
+    </div>
+    <div style="height:50px;"></div>
+    '''
+    
+    if hasattr(st, 'html'):
+        st.html(bottom_bar_html)
+    else:
+        st.markdown(bottom_bar_html, unsafe_allow_html=True)
 
 
 def _render_funding_rate_compact() -> None:
