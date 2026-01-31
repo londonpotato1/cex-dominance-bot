@@ -997,7 +997,10 @@ def _render_quick_analysis_section() -> None:
         symbol = symbol.upper().strip()
         
         with st.spinner(f"🔄 {symbol} 통합 분석 중..."):
-            results = {"gap": None, "dex": None, "gap_error": None, "dex_error": None}
+            results = {
+                "gap": None, "dex": None, "orderbook": None, "deposit": None,
+                "gap_error": None, "dex_error": None, "orderbook_error": None, "deposit_error": None
+            }
             
             # 1. 현선갭 조회
             try:
@@ -1021,6 +1024,33 @@ def _render_quick_analysis_section() -> None:
                 results["dex"] = dex_result
             except Exception as e:
                 results["dex_error"] = str(e)
+            
+            # 3. 오더북 기반 프리미엄 조회 (NEW!)
+            try:
+                from collectors.exchange_service import ExchangeService, MarketType
+                from collectors.gap_calculator import GapCalculator
+                
+                service = ExchangeService()
+                orderbooks = service.fetch_orderbooks_parallel(
+                    symbol,
+                    spot_exchanges=['binance', 'bybit', 'upbit', 'bithumb'],
+                    futures_exchanges=[],
+                    limit=20
+                )
+                ob_gaps = GapCalculator.calculate_all_orderbook_gaps(
+                    orderbooks, symbol, amount_usd=10000
+                )
+                results["orderbook"] = ob_gaps
+            except Exception as e:
+                results["orderbook_error"] = str(e)
+            
+            # 4. 입금 상태 조회 (NEW!)
+            try:
+                from collectors.deposit_status import check_all_exchanges
+                deposit_info = asyncio.run(check_all_exchanges(symbol))
+                results["deposit"] = deposit_info
+            except Exception as e:
+                results["deposit_error"] = str(e)
             
             # 결과 렌더링
             _render_quick_analysis_results(symbol, results)
@@ -1189,6 +1219,71 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
     
     result_html += """
         </div>
+    """
+    
+    # 추가 정보 섹션 (오더북 프리미엄 + 입금 상태)
+    orderbook_data = results.get("orderbook")
+    deposit_data = results.get("deposit")
+    
+    if orderbook_data or deposit_data:
+        result_html += """
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:0.75rem;">
+        """
+        
+        # 오더북 기반 프리미엄 (10K USD 기준)
+        result_html += '<div style="background:#1f2937;border-radius:12px;padding:0.85rem;">'
+        result_html += '<div style="font-size:0.8rem;font-weight:600;color:#10b981;margin-bottom:0.6rem;">📈 오더북 프리미엄 (10K)</div>'
+        
+        if results.get("orderbook_error"):
+            result_html += f'<div style="color:#f87171;font-size:0.75rem;">❌ 에러</div>'
+        elif orderbook_data and len(orderbook_data) > 0:
+            for ob in orderbook_data[:2]:
+                prem_color = "#4ade80" if ob.net_premium > 0 else "#f87171"
+                result_html += f'''
+                <div style="display:flex;justify-content:space-between;padding:0.3rem 0;font-size:0.75rem;">
+                    <span style="color:#9ca3af;">{ob.buy_exchange}→{ob.sell_exchange}</span>
+                    <span style="color:{prem_color};font-weight:600;">{ob.net_premium:+.2f}%</span>
+                </div>
+                '''
+            best = orderbook_data[0]
+            result_html += f'''
+            <div style="font-size:0.65rem;color:#6b7280;margin-top:0.4rem;border-top:1px solid #374151;padding-top:0.4rem;">
+                슬리피지: {best.total_slippage:.3f}% | 예상: ${best.estimated_pnl_usd:+.0f}
+            </div>
+            '''
+        else:
+            result_html += '<div style="color:#6b7280;font-size:0.75rem;">데이터 없음</div>'
+        
+        result_html += '</div>'
+        
+        # 입금 상태
+        result_html += '<div style="background:#1f2937;border-radius:12px;padding:0.85rem;">'
+        result_html += '<div style="font-size:0.8rem;font-weight:600;color:#ec4899;margin-bottom:0.6rem;">🔄 입출금 상태</div>'
+        
+        if results.get("deposit_error"):
+            result_html += f'<div style="color:#f87171;font-size:0.75rem;">❌ 에러</div>'
+        elif deposit_data:
+            for exchange, info in list(deposit_data.items())[:3]:
+                signal_color = "#4ade80" if info.go_signal == "GO" else "#fbbf24" if info.go_signal == "CAUTION" else "#f87171"
+                dep_count = sum(1 for n in info.networks if n.deposit_enabled)
+                wth_count = sum(1 for n in info.networks if n.withdraw_enabled)
+                result_html += f'''
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:0.3rem 0;font-size:0.75rem;">
+                    <span style="color:#fff;font-weight:500;">{exchange.upper()}</span>
+                    <div style="display:flex;gap:0.5rem;align-items:center;">
+                        <span style="color:#9ca3af;">D:{dep_count} W:{wth_count}</span>
+                        <span style="background:{signal_color};color:#000;padding:1px 5px;border-radius:3px;
+                            font-size:0.6rem;font-weight:600;">{info.go_signal}</span>
+                    </div>
+                </div>
+                '''
+        else:
+            result_html += '<div style="color:#6b7280;font-size:0.75rem;">데이터 없음</div>'
+        
+        result_html += '</div>'
+        result_html += '</div>'
+    
+    result_html += """
     </div>
     """
     
@@ -1211,10 +1306,20 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
         - 🟡 $1M 이하: CAUTION
         - 🔴 $1M 초과: NO-GO
         
-        **네트워크 속도** (NEW!)
+        **네트워크 속도**
         - 🟢 느림 (BTC, ETH, L2): GO - 선따리 유리
         - 🟡 보통 (Polygon, BSC): CAUTION
         - 🔴 빠름 (SOL, SUI, APT): NO-GO - 후따리 쉬움
+        
+        **오더북 프리미엄** (NEW!)
+        - 10K USD 거래 기준 실제 체결 가능한 가격
+        - 슬리피지 차감 후 순 프리미엄 표시
+        - 예상 손익도 함께 계산
+        
+        **입출금 상태** (NEW!)
+        - D: 입금 가능 네트워크 수
+        - W: 출금 가능 네트워크 수
+        - Gate, Bitget API 기준
         
         **종합 판정**: 2개 이상 GO면 STRONG GO, NO-GO가 2개 이상이면 NO-GO
         """)
