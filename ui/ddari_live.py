@@ -123,7 +123,10 @@ def _render_traffic_light(can_proceed: bool, score: int, has_warnings: bool) -> 
 
 
 def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False) -> None:
-    """개별 분석 결과 카드 렌더링 (Phase 2.1: 신호등 시스템).
+    """개별 분석 결과 카드 렌더링 (Phase 2.2: 개선된 UI).
+    
+    GO 카드: 크고 눈에 띄게, 핵심 정보 강조
+    NO-GO 카드: 컴팩트하게
     
     Args:
         row: 분석 결과 데이터.
@@ -147,110 +150,192 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
     
     # 신뢰도 계산
     confidence_score, confidence_reason = _calculate_confidence_score(row)
-    
-    # 신호등 + 신뢰도 바
-    traffic_light = _render_traffic_light(can_proceed, confidence_score, len(warnings) > 0)
-    confidence_bar = _render_confidence_bar(confidence_score)
 
     # 시간 포맷
     time_str = datetime.fromtimestamp(ts).strftime("%H:%M:%S") if ts else "?"
     
     # 예상 수익 계산 (50만원 기준)
     base_krw = 500_000
-    if net_profit is not None:
-        profit_krw = int(base_krw * net_profit / 100)
-        if net_profit > 0:
-            profit_display = f'<span style="font-size:1.6rem;font-weight:700;color:#4ade80;">+{net_profit:.2f}%</span>'
-            profit_krw_display = f'<span style="color:#4ade80;">(≈₩{profit_krw:,})</span>'
-        else:
-            profit_display = f'<span style="font-size:1.6rem;font-weight:700;color:#f87171;">{net_profit:.2f}%</span>'
-            profit_krw_display = f'<span style="color:#f87171;">(≈₩{profit_krw:,})</span>'
-    else:
-        profit_display = '<span style="font-size:1.6rem;color:#6b7280;">N/A</span>'
-        profit_krw_display = ""
+    profit_krw = int(base_krw * (net_profit or 0) / 100)
     
-    # 김프/비용/속도 한 줄
-    premium_text = f"{premium:+.2f}%" if premium is not None else "N/A"
-    cost_text = f"{total_cost:.2f}%" if total_cost is not None else "N/A"
-    duration_text = f"{duration_ms:.0f}ms" if duration_ms is not None else "N/A"
-    
-    # 흥/망따리 분류 (supply_score 기반 또는 순수익 기반)
+    # 흥/망따리 분류
     supply_score = row.get("supply_score")
     if supply_score is not None:
         if supply_score > 6:
-            supply_badge = '<span style="background:#166534;color:#4ade80;padding:2px 8px;border-radius:4px;font-size:0.8rem;">🔥 흥따리</span>'
+            supply_emoji, supply_text = "🔥", "흥따리"
         elif supply_score < 3:
-            supply_badge = '<span style="background:#7f1d1d;color:#fca5a5;padding:2px 8px;border-radius:4px;font-size:0.8rem;">💀 망따리</span>'
+            supply_emoji, supply_text = "💀", "망따리"
         else:
-            supply_badge = '<span style="background:#374151;color:#9ca3af;padding:2px 8px;border-radius:4px;font-size:0.8rem;">😐 보통</span>'
+            supply_emoji, supply_text = "😐", "보통"
     elif net_profit is not None:
         if net_profit > 3:
-            supply_badge = '<span style="background:#166534;color:#4ade80;padding:2px 8px;border-radius:4px;font-size:0.8rem;">🔥 흥따리</span>'
+            supply_emoji, supply_text = "🔥", "흥따리"
         elif net_profit < 0:
-            supply_badge = '<span style="background:#7f1d1d;color:#fca5a5;padding:2px 8px;border-radius:4px;font-size:0.8rem;">💀 망따리</span>'
+            supply_emoji, supply_text = "💀", "망따리"
         else:
-            supply_badge = '<span style="background:#374151;color:#9ca3af;padding:2px 8px;border-radius:4px;font-size:0.8rem;">😐 보통</span>'
+            supply_emoji, supply_text = "😐", "보통"
     else:
-        supply_badge = ""
+        supply_emoji, supply_text = "", ""
+
+    # ============================================================
+    # GO 카드: 크고 눈에 띄게 (히어로 스타일)
+    # ============================================================
+    if highlight and can_proceed:
+        # 프리미엄 바 (시각화)
+        premium_val = premium or 0
+        premium_bar_width = min(max(premium_val * 10, 5), 100)  # 5-100% 범위
+        premium_color = "#4ade80" if premium_val > 0 else "#f87171"
+        
+        # 신뢰도 바 (간소화)
+        conf_filled = confidence_score // 10
+        conf_bar = f'{"●" * conf_filled}{"○" * (10 - conf_filled)}'
+        conf_color = "#4ade80" if confidence_score >= 70 else "#fbbf24" if confidence_score >= 40 else "#f87171"
+        
+        card_html = f"""
+        <div style="background:linear-gradient(135deg, #0a2e1a 0%, #1a4a2a 50%, #0d3d1d 100%);
+            border:3px solid #4ade80;border-radius:20px;padding:1.5rem;margin-bottom:1rem;
+            box-shadow:0 8px 32px rgba(74,222,128,0.25), inset 0 1px 0 rgba(255,255,255,0.1);">
+            
+            <!-- 헤더: 심볼 + 뱃지 -->
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;">
+                <div>
+                    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.25rem;">
+                        <span style="font-size:2rem;font-weight:800;color:#fff;text-shadow:0 2px 4px rgba(0,0,0,0.3);">
+                            {symbol}
+                        </span>
+                        <span style="background:linear-gradient(135deg, #166534, #15803d);color:#4ade80;
+                            padding:6px 14px;border-radius:20px;font-size:0.85rem;font-weight:700;
+                            border:1px solid #22c55e;box-shadow:0 2px 8px rgba(34,197,94,0.3);">
+                            {supply_emoji} {supply_text}
+                        </span>
+                    </div>
+                    <span style="color:#86efac;font-size:0.9rem;">@{exchange} · {time_str}</span>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:0.7rem;color:#6b7280;margin-bottom:2px;">신뢰도</div>
+                    <div style="font-family:monospace;font-size:0.75rem;color:{conf_color};">{conf_bar}</div>
+                </div>
+            </div>
+            
+            <!-- 메인: 순수익 (초대형) -->
+            <div style="text-align:center;padding:1.25rem 0;border-top:1px solid rgba(74,222,128,0.2);
+                border-bottom:1px solid rgba(74,222,128,0.2);margin-bottom:1rem;">
+                <div style="font-size:0.85rem;color:#86efac;margin-bottom:0.25rem;">예상 순수익</div>
+                <div style="font-size:3rem;font-weight:800;color:#4ade80;line-height:1;
+                    text-shadow:0 0 30px rgba(74,222,128,0.5);">
+                    +{net_profit:.2f}%
+                </div>
+                <div style="font-size:1.1rem;color:#86efac;margin-top:0.25rem;">
+                    ≈ ₩{profit_krw:,} <span style="font-size:0.8rem;color:#6b7280;">(50만원 기준)</span>
+                </div>
+            </div>
+            
+            <!-- 프리미엄 바 (시각화) -->
+            <div style="margin-bottom:1rem;">
+                <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.3rem;">
+                    <span style="color:#9ca3af;">📈 김치프리미엄</span>
+                    <span style="color:{premium_color};font-weight:700;">{premium:+.2f}%</span>
+                </div>
+                <div style="background:#1f2937;border-radius:4px;height:8px;overflow:hidden;">
+                    <div style="background:linear-gradient(90deg, {premium_color}, {premium_color}88);
+                        width:{premium_bar_width}%;height:100%;border-radius:4px;
+                        box-shadow:0 0 10px {premium_color}66;"></div>
+                </div>
+            </div>
+            
+            <!-- 하단: 비용/속도 -->
+            <div style="display:flex;justify-content:space-around;font-size:0.85rem;color:#9ca3af;">
+                <div style="text-align:center;">
+                    <div style="color:#6b7280;font-size:0.7rem;">총 비용</div>
+                    <div style="font-weight:600;color:#fbbf24;">{total_cost:.2f}%</div>
+                </div>
+                <div style="width:1px;background:#374151;"></div>
+                <div style="text-align:center;">
+                    <div style="color:#6b7280;font-size:0.7rem;">분석 속도</div>
+                    <div style="font-weight:600;color:#60a5fa;">{duration_ms:.0f}ms</div>
+                </div>
+                <div style="width:1px;background:#374151;"></div>
+                <div style="text-align:center;">
+                    <div style="color:#6b7280;font-size:0.7rem;">신뢰도</div>
+                    <div style="font-weight:600;color:{conf_color};">{confidence_score}%</div>
+                </div>
+            </div>
+        </div>
+        """
+        
+        if hasattr(st, 'html'):
+            st.html(card_html)
+        else:
+            st.markdown(card_html, unsafe_allow_html=True)
+        
+        # 상세 정보 접이식
+        with st.expander(f"📋 {symbol} 상세 정보", expanded=False):
+            detail_cols = st.columns(2)
+            with detail_cols[0]:
+                st.markdown("**⚠️ 주의사항**")
+                if blockers:
+                    for b in blockers[:3]:
+                        st.markdown(f"🚫 {b}")
+                if warnings:
+                    for w in warnings[:3]:
+                        st.markdown(f"⚠️ {w}")
+                if not blockers and not warnings:
+                    st.markdown("✅ 특이사항 없음")
+            with detail_cols[1]:
+                st.markdown("**📊 분석 상세**")
+                st.markdown(f"- 프리미엄: {premium:+.2f}%" if premium else "- 프리미엄: N/A")
+                st.markdown(f"- 비용: {total_cost:.2f}%" if total_cost else "- 비용: N/A")
+                if confidence_reason:
+                    st.markdown(f"- 신뢰도 감점: {confidence_reason}")
+        
+        return
+
+    # ============================================================
+    # NO-GO 카드: 컴팩트 (또는 일반 GO)
+    # ============================================================
+    traffic_light = _render_traffic_light(can_proceed, confidence_score, len(warnings) > 0)
+    confidence_bar = _render_confidence_bar(confidence_score)
+    
+    premium_text = f"{premium:+.2f}%" if premium is not None else "N/A"
+    cost_text = f"{total_cost:.2f}%" if total_cost is not None else "N/A"
+    
+    if net_profit is not None:
+        if net_profit > 0:
+            profit_display = f'<span style="color:#4ade80;font-weight:700;">+{net_profit:.2f}%</span>'
+        else:
+            profit_display = f'<span style="color:#f87171;font-weight:700;">{net_profit:.2f}%</span>'
+    else:
+        profit_display = '<span style="color:#6b7280;">N/A</span>'
 
     # 경고사항 (간결하게)
-    alerts_html = ""
+    alert_text = ""
     if blockers:
-        items = "".join(f'<div style="color:#f87171;font-size:0.75rem;">🚫 {b[:35]}</div>' for b in blockers[:2])
-        alerts_html += items
-    if warnings and can_proceed:
-        items = "".join(f'<div style="color:#fbbf24;font-size:0.75rem;">⚠️ {w[:35]}</div>' for w in warnings[:2])
-        alerts_html += items
-    
-    # 신뢰도 감점 사유
-    if confidence_reason:
-        alerts_html += f'<div style="color:#6b7280;font-size:0.7rem;margin-top:0.2rem;">📉 {confidence_reason}</div>'
+        alert_text = f'<span style="color:#f87171;font-size:0.75rem;">🚫 {blockers[0][:30]}</span>'
+    elif warnings:
+        alert_text = f'<span style="color:#fbbf24;font-size:0.75rem;">⚠️ {warnings[0][:30]}</span>'
 
-    # 카드 스타일
-    if highlight and can_proceed:
-        card_style = """background:linear-gradient(135deg, #1a3a2a 0%, #1f4a35 100%);
-            border:2px solid #4ade80;border-radius:16px;padding:1rem;margin-bottom:0.75rem;
-            box-shadow:0 4px 20px rgba(74,222,128,0.15);"""
-    elif can_proceed:
-        card_style = """background:linear-gradient(135deg, #1a2e1a 0%, #1f3d25 100%);
-            border:1px solid #166534;border-radius:16px;padding:1rem;margin-bottom:0.75rem;"""
-    else:
-        card_style = """background:linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%);
-            border:1px solid #374151;border-radius:16px;padding:1rem;margin-bottom:0.75rem;"""
+    card_style = """background:linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%);
+        border:1px solid #374151;border-radius:12px;padding:0.85rem;margin-bottom:0.5rem;"""
 
     card_html = f"""
     <div style="{card_style}">
-        <!-- 1행: 신호등 + 신뢰도 바 -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-            <div>{traffic_light}</div>
-            <div style="font-size:0.85rem;font-family:monospace;">{confidence_bar}</div>
-        </div>
-        
-        <!-- 2행: 심볼 + 시간 -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;">
-            <div>
-                <span style="font-size:1.2rem;font-weight:600;color:#fff;">{symbol}</span>
-                <span style="color:#9ca3af;font-size:0.9rem;margin-left:0.4rem;">@{exchange}</span>
-                <span style="margin-left:0.5rem;">{supply_badge}</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+                {traffic_light}
+                <span style="font-size:1rem;font-weight:600;color:#fff;">{symbol}</span>
+                <span style="color:#6b7280;font-size:0.8rem;">@{exchange}</span>
             </div>
-            <span style="color:#6b7280;font-size:0.8rem;">{time_str}</span>
+            <div style="text-align:right;">
+                <div>{profit_display} <span style="color:#6b7280;font-size:0.75rem;">순수익</span></div>
+                <div style="font-size:0.7rem;color:#6b7280;">{time_str}</div>
+            </div>
         </div>
-        
-        <!-- 3행: 예상 수익 (크게) -->
-        <div style="margin-bottom:0.5rem;">
-            <span style="color:#9ca3af;font-size:0.8rem;">예상 수익: </span>
-            {profit_display} {profit_krw_display}
+        <div style="display:flex;justify-content:space-between;margin-top:0.5rem;font-size:0.8rem;">
+            <div style="color:#9ca3af;">
+                김프 <b style="color:#60a5fa;">{premium_text}</b> · 비용 <b style="color:#fbbf24;">{cost_text}</b>
+            </div>
+            {alert_text}
         </div>
-        
-        <!-- 4행: 김프/비용/속도 -->
-        <div style="display:flex;gap:1rem;font-size:0.8rem;color:#9ca3af;margin-bottom:0.4rem;">
-            <span>📈 김프 <b style="color:#60a5fa;">{premium_text}</b></span>
-            <span>💸 비용 <b style="color:#fbbf24;">{cost_text}</b></span>
-            <span>⚡ <b>{duration_text}</b></span>
-        </div>
-        
-        <!-- 5행: 경고사항 -->
-        {f'<div style="margin-top:0.4rem;border-top:1px solid #374151;padding-top:0.4rem;">{alerts_html}</div>' if alerts_html else ''}
     </div>
     """
     
@@ -761,145 +846,236 @@ def _render_realtime_gap_section() -> None:
 
 
 # ------------------------------------------------------------------
-# DEX 유동성 조회 섹션
+# 🔍 빠른 분석 통합 섹션 (현선갭 + DEX 유동성 통합)
 # ------------------------------------------------------------------
 
 
-def _render_dex_liquidity_section() -> None:
-    """DEX 유동성 조회 섹션."""
+def _render_quick_analysis_section() -> None:
+    """빠른 분석 통합 섹션 (현선갭 + DEX 유동성 한번에 조회)."""
     import streamlit as st
     import asyncio
 
     st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">💧 DEX 유동성 조회</p>',
+        f'''<div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border:1px solid #3b82f6;border-radius:16px;padding:1.25rem;margin-bottom:1rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
+                <span style="font-size:1.3rem;">🔍</span>
+                <span style="font-size:1.1rem;font-weight:700;color:#fff;">빠른 분석</span>
+                <span style="font-size:0.75rem;color:#6b7280;margin-left:0.5rem;">현선갭 + DEX 유동성 통합 조회</span>
+            </div>
+        ''',
         unsafe_allow_html=True,
     )
 
-    col1, col2 = st.columns([3, 1])
+    col1, col2 = st.columns([4, 1])
     with col1:
         symbol = st.text_input(
-            "심볼",
-            placeholder="예: AVAIL, ME, NXPC",
-            key="dex_symbol",
+            "심볼 입력",
+            placeholder="심볼 입력 (예: SOL, AVAIL, ME)",
+            key="quick_analysis_symbol",
             label_visibility="collapsed",
         )
     with col2:
-        search_btn = st.button("🔍 조회", key="dex_search", use_container_width=True)
+        search_btn = st.button("🚀 분석", key="quick_analysis_btn", use_container_width=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if search_btn and symbol:
         symbol = symbol.upper().strip()
         
-        with st.spinner(f"{symbol} DEX 유동성 조회 중..."):
+        with st.spinner(f"🔄 {symbol} 통합 분석 중..."):
+            results = {"gap": None, "dex": None, "gap_error": None, "dex_error": None}
+            
+            # 1. 현선갭 조회
+            try:
+                from collectors.exchange_service import ExchangeService
+                from collectors.gap_calculator import GapCalculator
+
+                service = ExchangeService()
+                spot_exchanges = ['binance', 'bybit', 'okx', 'upbit', 'bithumb']
+                futures_exchanges = ['binance', 'bybit', 'okx', 'hyperliquid']
+                
+                prices = service.fetch_all_prices(symbol, spot_exchanges, futures_exchanges)
+                gaps = GapCalculator.calculate_all_gaps(prices, symbol)
+                results["gap"] = {"prices": prices, "gaps": gaps}
+            except Exception as e:
+                results["gap_error"] = str(e)
+            
+            # 2. DEX 유동성 조회
             try:
                 from collectors.dex_liquidity import get_dex_liquidity
-
-                result = asyncio.run(get_dex_liquidity(symbol))
-                
-                if not result:
-                    st.warning(f"{symbol}: DEX에서 찾을 수 없습니다.")
-                else:
-                    # GO/NO-GO 색상
-                    signal_colors = {
-                        "STRONG_GO": COLORS["success"],
-                        "GO": COLORS["success"],
-                        "CAUTION": COLORS["warning"],
-                        "NO_GO": COLORS["danger"],
-                    }
-                    signal_color = signal_colors.get(result.go_signal, COLORS["neutral"])
-
-                    result_html = f"""
-                    <div style="background:{COLORS["card_bg"]};border:2px solid {signal_color};
-                                border-radius:12px;padding:1rem;margin-top:0.75rem;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
-                            <div>
-                                <span style="font-size:1.3rem;font-weight:700;color:{COLORS["text_primary"]};">
-                                    {result.go_emoji} {result.symbol}
-                                </span>
-                            </div>
-                            <div style="background:{signal_color};color:#fff;padding:6px 14px;
-                                        border-radius:8px;font-weight:600;">
-                                {result.go_signal}
-                            </div>
-                        </div>
-                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;">
-                            <div style="background:{COLORS["bg_card"]};padding:0.75rem;border-radius:8px;text-align:center;">
-                                <div style="font-size:0.75rem;color:{COLORS["text_muted"]};">총 유동성</div>
-                                <div style="font-size:1.1rem;font-weight:600;color:{signal_color};">
-                                    ${result.total_liquidity_usd:,.0f}
-                                </div>
-                            </div>
-                            <div style="background:{COLORS["bg_card"]};padding:0.75rem;border-radius:8px;text-align:center;">
-                                <div style="font-size:0.75rem;color:{COLORS["text_muted"]};">24h 거래량</div>
-                                <div style="font-size:1.1rem;font-weight:600;color:{COLORS["text_primary"]};">
-                                    ${result.total_volume_24h:,.0f}
-                                </div>
-                            </div>
-                            <div style="background:{COLORS["bg_card"]};padding:0.75rem;border-radius:8px;text-align:center;">
-                                <div style="font-size:0.75rem;color:{COLORS["text_muted"]};">페어 수</div>
-                                <div style="font-size:1.1rem;font-weight:600;color:{COLORS["text_primary"]};">
-                                    {result.pair_count}개
-                                </div>
-                            </div>
-                        </div>
-                    """
-
-                    # 최고 유동성 페어
-                    if result.best_pair:
-                        bp = result.best_pair
-                        result_html += f"""
-                        <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid {COLORS["border_gray"]};">
-                            <p style="font-size:0.8rem;color:{COLORS["text_muted"]};margin-bottom:0.5rem;">🏆 최고 유동성 페어</p>
-                            <div style="display:flex;justify-content:space-between;align-items:center;">
-                                <span style="color:{COLORS["text_secondary"]};">
-                                    {bp.dex} ({bp.chain}) - {bp.base_token}/{bp.quote_token}
-                                </span>
-                                <span style="color:{COLORS["success"]};font-weight:600;">
-                                    ${bp.liquidity_usd:,.0f}
-                                </span>
-                            </div>
-                        </div>
-                        """
-
-                    result_html += "</div>"
-
-                    if hasattr(st, 'html'):
-                        st.html(result_html)
-                    else:
-                        st.markdown(result_html, unsafe_allow_html=True)
-
+                dex_result = asyncio.run(get_dex_liquidity(symbol))
+                results["dex"] = dex_result
             except Exception as e:
-                st.error(f"조회 실패: {e}")
+                results["dex_error"] = str(e)
+            
+            # 결과 렌더링
+            _render_quick_analysis_results(symbol, results)
 
-    # 기준 설명
-    info_html = f"""
-    <div style="{CARD_STYLE}margin-top:0.75rem;">
-        <p style="font-size:0.85rem;font-weight:600;color:{COLORS["info"]};margin-bottom:0.5rem;">
-            💡 DEX 유동성 기준
-        </p>
-        <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.8rem;color:{COLORS["text_secondary"]};">
-            <span>🟢🟢 200k↓: STRONG_GO</span>
-            <span>🟢 500k↓: GO</span>
-            <span>🟡 1M↓: CAUTION</span>
-            <span>🔴 1M↑: NO_GO</span>
+
+def _render_quick_analysis_results(symbol: str, results: dict) -> None:
+    """빠른 분석 결과 렌더링."""
+    import streamlit as st
+
+    gap_data = results.get("gap")
+    dex_data = results.get("dex")
+    
+    # 종합 판정
+    overall_signal = "🟡 분석중"
+    signal_color = "#fbbf24"
+    
+    gap_signal = None
+    dex_signal = None
+    
+    if gap_data and gap_data.get("gaps"):
+        best_gap = gap_data["gaps"][0].gap_percent if gap_data["gaps"] else 0
+        if best_gap > 3:
+            gap_signal = "GO"
+        elif best_gap > 1:
+            gap_signal = "CAUTION"
+        else:
+            gap_signal = "NO_GO"
+    
+    if dex_data:
+        dex_signal = dex_data.go_signal
+    
+    # 종합 판정 로직
+    if gap_signal == "GO" and dex_signal in ["STRONG_GO", "GO"]:
+        overall_signal = "🟢🟢 STRONG GO"
+        signal_color = "#4ade80"
+    elif gap_signal == "GO" or dex_signal in ["STRONG_GO", "GO"]:
+        overall_signal = "🟢 GO"
+        signal_color = "#4ade80"
+    elif gap_signal == "NO_GO" and dex_signal == "NO_GO":
+        overall_signal = "🔴 NO-GO"
+        signal_color = "#f87171"
+    else:
+        overall_signal = "🟡 CAUTION"
+        signal_color = "#fbbf24"
+
+    # 메인 결과 카드
+    result_html = f"""
+    <div style="background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border:2px solid {signal_color};border-radius:16px;padding:1.25rem;margin-top:0.5rem;">
+        
+        <!-- 헤더: 심볼 + 종합 판정 -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;
+            padding-bottom:0.75rem;border-bottom:1px solid #374151;">
+            <span style="font-size:1.5rem;font-weight:800;color:#fff;">{symbol}</span>
+            <div style="background:{signal_color};color:#000;padding:8px 16px;border-radius:10px;
+                font-weight:700;font-size:0.9rem;">{overall_signal}</div>
         </div>
-        <p style="font-size:0.75rem;color:{COLORS["text_muted"]};margin-top:0.5rem;">
-            유동성 낮음 → 후따리 어려움 → 공급 제약 → 흥따리 가능성 ↑
-        </p>
+        
+        <!-- 2컬럼: 현선갭 | DEX 유동성 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+    """
+    
+    # 현선갭 결과
+    result_html += '<div style="background:#1f2937;border-radius:12px;padding:1rem;">'
+    result_html += '<div style="font-size:0.85rem;font-weight:600;color:#60a5fa;margin-bottom:0.75rem;">📊 현선갭</div>'
+    
+    if results.get("gap_error"):
+        result_html += f'<div style="color:#f87171;font-size:0.8rem;">❌ {results["gap_error"][:40]}</div>'
+    elif gap_data and gap_data.get("gaps"):
+        for i, gap in enumerate(gap_data["gaps"][:3]):
+            gap_color = "#4ade80" if gap.gap_percent > 0 else "#f87171"
+            result_html += f'''
+            <div style="display:flex;justify-content:space-between;padding:0.4rem 0;
+                border-bottom:1px solid #374151;font-size:0.8rem;">
+                <span style="color:#9ca3af;">{gap.spot_exchange}→{gap.futures_exchange}</span>
+                <span style="color:{gap_color};font-weight:600;">{gap.gap_percent:+.2f}%</span>
+            </div>
+            '''
+        # 가격 정보
+        spot_prices = gap_data.get("prices", {}).get("spot", {})
+        if spot_prices:
+            first_price = list(spot_prices.values())[0] if spot_prices else None
+            if first_price:
+                krw_text = f"₩{first_price.krw_price:,.0f}" if first_price.krw_price else ""
+                result_html += f'<div style="font-size:0.75rem;color:#6b7280;margin-top:0.5rem;">현재가: ${first_price.price:.4f} {krw_text}</div>'
+    else:
+        result_html += '<div style="color:#6b7280;font-size:0.8rem;">데이터 없음</div>'
+    
+    result_html += '</div>'
+    
+    # DEX 유동성 결과
+    result_html += '<div style="background:#1f2937;border-radius:12px;padding:1rem;">'
+    result_html += '<div style="font-size:0.85rem;font-weight:600;color:#a78bfa;margin-bottom:0.75rem;">💧 DEX 유동성</div>'
+    
+    if results.get("dex_error"):
+        result_html += f'<div style="color:#f87171;font-size:0.8rem;">❌ {results["dex_error"][:40]}</div>'
+    elif dex_data:
+        dex_color = "#4ade80" if dex_data.go_signal in ["STRONG_GO", "GO"] else "#fbbf24" if dex_data.go_signal == "CAUTION" else "#f87171"
+        result_html += f'''
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <span style="color:#9ca3af;font-size:0.8rem;">총 유동성</span>
+            <span style="color:{dex_color};font-weight:700;font-size:1.1rem;">${dex_data.total_liquidity_usd:,.0f}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <span style="color:#9ca3af;font-size:0.8rem;">24h 거래량</span>
+            <span style="color:#fff;font-weight:600;">${dex_data.total_volume_24h:,.0f}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="color:#9ca3af;font-size:0.8rem;">신호</span>
+            <span style="background:{dex_color};color:#000;padding:2px 8px;border-radius:4px;
+                font-size:0.75rem;font-weight:600;">{dex_data.go_emoji} {dex_data.go_signal}</span>
+        </div>
+        '''
+        if dex_data.best_pair:
+            bp = dex_data.best_pair
+            result_html += f'''
+            <div style="font-size:0.7rem;color:#6b7280;margin-top:0.5rem;
+                padding-top:0.5rem;border-top:1px solid #374151;">
+                🏆 {bp.dex} ({bp.chain})
+            </div>
+            '''
+    else:
+        result_html += '<div style="color:#6b7280;font-size:0.8rem;">데이터 없음</div>'
+    
+    result_html += '</div>'
+    
+    result_html += """
+        </div>
     </div>
     """
+    
     if hasattr(st, 'html'):
-        st.html(info_html)
+        st.html(result_html)
     else:
-        st.markdown(info_html, unsafe_allow_html=True)
+        st.markdown(result_html, unsafe_allow_html=True)
+
+    # 판정 기준 설명 (접이식)
+    with st.expander("💡 판정 기준", expanded=False):
+        st.markdown("""
+        **현선갭 (Spot-Futures Gap)**
+        - 🟢 +3% 이상: GO (헷징 어려움 → 공급 제약)
+        - 🟡 +1~3%: CAUTION
+        - 🔴 +1% 미만: NO-GO
+        
+        **DEX 유동성**
+        - 🟢🟢 $200K 이하: STRONG GO
+        - 🟢 $500K 이하: GO
+        - 🟡 $1M 이하: CAUTION
+        - 🔴 $1M 초과: NO-GO
+        
+        **종합 판정**: 둘 다 GO면 STRONG GO, 하나라도 GO면 GO
+        """)
 
 
 # ------------------------------------------------------------------
-# 메인 렌더 함수
+# 메인 렌더 함수 (Phase 2.2: 개선된 레이아웃)
 # ------------------------------------------------------------------
 
 
 def render_live_tab() -> None:
-    """실시간 현황 탭 렌더링."""
+    """실시간 현황 탭 렌더링.
+    
+    레이아웃 구조:
+    1. GO 카드 (최상단, 크게)
+    2. 2컬럼: [실시간 정보 | 빠른 분석]
+    3. 차트/통계 (접이식)
+    4. NO-GO (접이식)
+    """
     import streamlit as st
 
     conn = get_read_conn()
@@ -908,22 +1084,12 @@ def render_live_tab() -> None:
     vasp_matrix = load_vasp_matrix_cached()
     analyses = fetch_recent_analyses_cached(conn_id, limit=20)
 
-    if not analyses:
-        st.markdown(
-            f'<div style="text-align:center;padding:3rem;color:{COLORS["text_muted"]};">'
-            '<p style="font-size:1.2rem;">분석 기록 없음</p>'
-            '<p style="font-size:0.85rem;">수집 데몬이 실행 중이고 새 상장이 감지되면 '
-            '여기에 Gate 분석 결과가 표시됩니다.</p>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
-        return
+    # ============================================================
+    # 섹션 1: GO 카드 (최상단, 눈에 띄게)
+    # ============================================================
+    go_analyses = [r for r in analyses if r.get("can_proceed", 0)] if analyses else []
+    nogo_analyses = [r for r in analyses if not r.get("can_proceed", 0)] if analyses else []
 
-    # GO와 NO-GO 분리
-    go_analyses = [r for r in analyses if r.get("can_proceed", 0)]
-    nogo_analyses = [r for r in analyses if not r.get("can_proceed", 0)]
-
-    # 🚀 GO 섹션 (상단 강조) + 시장 분위기 뱃지
     if go_analyses:
         # 시장 분위기 가져오기
         mood = get_market_mood_cached()
@@ -945,17 +1111,19 @@ def render_live_tab() -> None:
         best_profit_text = f"+{best_profit:.1f}%" if best_profit and best_profit > 0 else ""
 
         st.markdown(
-            f'''<div style="background:linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%);
-                border:2px solid #4ade80;border-radius:16px;padding:1.25rem;margin-bottom:1rem;">
+            f'''<div style="background:linear-gradient(135deg, #0d3320 0%, #166534 50%, #15803d 100%);
+                border:3px solid #4ade80;border-radius:20px;padding:1.25rem 1.5rem;margin-bottom:1.25rem;
+                box-shadow:0 8px 32px rgba(74,222,128,0.2);">
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
-                    <div style="display:flex;align-items:center;gap:0.75rem;">
-                        <span style="font-size:2rem;">🟢</span>
+                    <div style="display:flex;align-items:center;gap:1rem;">
+                        <span style="font-size:2.5rem;filter:drop-shadow(0 0 8px #4ade80);">🚀</span>
                         <div>
-                            <div style="font-size:1.3rem;font-weight:700;color:#4ade80;">
+                            <div style="font-size:1.5rem;font-weight:800;color:#4ade80;
+                                text-shadow:0 0 20px rgba(74,222,128,0.5);">
                                 GO! {len(go_analyses)}건
                             </div>
-                            <div style="font-size:0.85rem;color:#86efac;">
-                                최고 수익 {best_profit_text}
+                            <div style="font-size:0.9rem;color:#86efac;">
+                                최고 수익 <b>{best_profit_text}</b>
                             </div>
                         </div>
                     </div>
@@ -964,107 +1132,169 @@ def render_live_tab() -> None:
             </div>''',
             unsafe_allow_html=True,
         )
+        
+        # GO 카드들 렌더링
         for row in go_analyses:
             _render_analysis_card(row, vasp_matrix, highlight=True)
 
-    # 📋 NO-GO 섹션 (접기 가능) - 신호등 스타일
-    if nogo_analyses:
-        nogo_header = f"🔴 NO-GO ({len(nogo_analyses)}건) - 클릭하여 펼치기"
+    elif not analyses:
+        # 데이터 없음 상태
+        st.markdown(
+            f'''<div style="background:linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%);
+                border:1px dashed #374151;border-radius:16px;padding:2.5rem;text-align:center;margin-bottom:1rem;">
+                <div style="font-size:2.5rem;margin-bottom:0.75rem;">⏳</div>
+                <div style="font-size:1.2rem;color:#9ca3af;margin-bottom:0.5rem;">분석 기록 없음</div>
+                <div style="font-size:0.85rem;color:#6b7280;">
+                    수집 데몬이 실행 중이고 새 상장이 감지되면<br>여기에 GO/NO-GO 분석 결과가 표시됩니다.
+                </div>
+            </div>''',
+            unsafe_allow_html=True,
+        )
+
     else:
-        nogo_header = "분석 기록 없음"
+        # GO 없음 - 대기 상태
+        st.markdown(
+            f'''<div style="background:linear-gradient(135deg, #1a1a1a 0%, #262626 100%);
+                border:2px dashed #374151;border-radius:16px;padding:1.5rem;text-align:center;margin-bottom:1rem;">
+                <div style="font-size:1.8rem;margin-bottom:0.5rem;">😴</div>
+                <div style="font-size:1.1rem;color:#9ca3af;">현재 GO 기회 없음</div>
+                <div style="font-size:0.8rem;color:#6b7280;">대기 중... 새 상장 감지 시 알림</div>
+            </div>''',
+            unsafe_allow_html=True,
+        )
+
+    # ============================================================
+    # 섹션 2: 2컬럼 레이아웃 (실시간 정보 | 빠른 분석)
+    # ============================================================
+    col_left, col_right = st.columns([1, 1])
+
+    with col_left:
+        # 📊 실시간 시장 정보
+        st.markdown(
+            f'''<div style="background:{COLORS["card_bg"]};border:1px solid {COLORS["card_border"]};
+                border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+                <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;">
+                    📊 실시간 시장 정보
+                </div>
+            ''',
+            unsafe_allow_html=True,
+        )
+        
+        # 통계 요약 (컴팩트)
+        stats = fetch_stats_cached(conn_id)
+        if stats["total"] > 0:
+            stats_html = f'''
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem;margin-bottom:0.75rem;">
+                <div style="background:#1f2937;padding:0.6rem;border-radius:8px;text-align:center;">
+                    <div style="font-size:1.2rem;font-weight:700;color:#4ade80;">{stats['go_count']}</div>
+                    <div style="font-size:0.7rem;color:#6b7280;">GO</div>
+                </div>
+                <div style="background:#1f2937;padding:0.6rem;border-radius:8px;text-align:center;">
+                    <div style="font-size:1.2rem;font-weight:700;color:#f87171;">{stats['nogo_count']}</div>
+                    <div style="font-size:0.7rem;color:#6b7280;">NO-GO</div>
+                </div>
+                <div style="background:#1f2937;padding:0.6rem;border-radius:8px;text-align:center;">
+                    <div style="font-size:1.2rem;font-weight:700;color:#60a5fa;">{stats['avg_premium']:.1f}%</div>
+                    <div style="font-size:0.7rem;color:#6b7280;">평균 김프</div>
+                </div>
+                <div style="background:#1f2937;padding:0.6rem;border-radius:8px;text-align:center;">
+                    <div style="font-size:1.2rem;font-weight:700;color:#fff;">{stats['total']}</div>
+                    <div style="font-size:0.7rem;color:#6b7280;">총 분석</div>
+                </div>
+            </div>
+            '''
+            st.markdown(stats_html, unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # 펀딩비 (컴팩트)
+        _render_funding_rate_compact()
+
+    with col_right:
+        # 🔍 빠른 분석 섹션
+        _render_quick_analysis_section()
+
+    # ============================================================
+    # 섹션 3: 차트/상세 정보 (접이식)
+    # ============================================================
+    with st.expander("📈 차트 & 상세 분석", expanded=False):
+        _render_premium_chart_section(conn_id)
+        _render_spot_futures_gap_section(conn_id)
+
+    # ============================================================
+    # 섹션 4: NO-GO 목록 (접이식)
+    # ============================================================
+    if nogo_analyses:
+        avg_profit = sum(r.get("net_profit_pct") or 0 for r in nogo_analyses) / len(nogo_analyses)
+        nogo_header = f"🔴 NO-GO ({len(nogo_analyses)}건) · 평균 {avg_profit:.1f}%"
+    else:
+        nogo_header = "🔴 NO-GO (0건)"
     
     with st.expander(nogo_header, expanded=False):
         if nogo_analyses:
-            # NO-GO 요약 통계
-            avg_profit = sum(r.get("net_profit_pct") or 0 for r in nogo_analyses) / len(nogo_analyses)
-            st.markdown(
-                f'''<div style="background:#1f1f1f;border-radius:8px;padding:0.75rem;margin-bottom:0.75rem;
-                    font-size:0.85rem;color:#9ca3af;">
-                    평균 순수익: <span style="color:#f87171;">{avg_profit:.2f}%</span> | 
-                    주요 차단 사유: 순수익 부족, 입출금 제한
-                </div>''',
-                unsafe_allow_html=True,
-            )
             for row in nogo_analyses:
                 _render_analysis_card(row, vasp_matrix, highlight=False)
         else:
             st.info("NO-GO 분석 기록이 없습니다.")
 
-    # 통계 요약
-    stats = fetch_stats_cached(conn_id)
-    if stats["total"] > 0:
+
+def _render_funding_rate_compact() -> None:
+    """펀딩비 컴팩트 버전."""
+    import streamlit as st
+
+    funding_data = fetch_funding_rates_cached()
+    
+    if funding_data.get("status") in ["error", "no_data"]:
         st.markdown(
-            '<p style="font-size:1rem;font-weight:600;color:#fff;'
-            'margin-top:1.5rem;margin-bottom:0.75rem;">통계 요약</p>',
+            f'''<div style="background:{COLORS["card_bg"]};border:1px solid {COLORS["card_border"]};
+                border-radius:12px;padding:1rem;">
+                <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">
+                    💹 펀딩비
+                </div>
+                <div style="color:#6b7280;font-size:0.8rem;">데이터 로딩 중...</div>
+            </div>''',
             unsafe_allow_html=True,
         )
+        return
 
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("전체 분석", f"{stats['total']}건")
-        with col2:
-            go_label = "GO" if stats['go_count'] > 0 else "GO ⏳"
-            go_help = None if stats['go_count'] > 0 else "현재 진입 가능한 기회 없음 - 대기 중"
-            st.metric(go_label, f"{stats['go_count']}건", help=go_help)
-        with col3:
-            st.metric("NO-GO", f"{stats['nogo_count']}건")
-        with col4:
-            st.metric("평균 프리미엄", f"{stats['avg_premium']:.2f}%")
+    avg_rate = funding_data.get("avg_funding_rate_pct", 0)
+    position_bias = funding_data.get("position_bias", "neutral")
+    symbols_data = funding_data.get("symbols", {})
 
-        # FX 소스 분포
-        if stats["fx_distribution"]:
-            st.markdown(
-                f'<p style="font-size:0.85rem;font-weight:500;color:{COLORS["text_secondary"]};'
-                'margin-top:0.5rem;">FX 소스 분포</p>',
-                unsafe_allow_html=True,
-            )
-            dist_items = []
-            for source, count in stats["fx_distribution"].items():
-                pct = count / stats["total"] * 100
-                dist_items.append(
-                    f'<span style="color:{COLORS["text_tertiary"]};font-size:0.8rem;">'
-                    f'{source}: {count}건 ({pct:.0f}%)</span>'
-                )
-            st.markdown(
-                " &nbsp;|&nbsp; ".join(dist_items),
-                unsafe_allow_html=True,
-            )
+    # 쏠림 방향
+    if position_bias == "long_heavy":
+        bias_color, bias_emoji, bias_text = "#4ade80", "📈", "롱 과다"
+    elif position_bias == "short_heavy":
+        bias_color, bias_emoji, bias_text = "#f87171", "📉", "숏 과다"
+    else:
+        bias_color, bias_emoji, bias_text = "#9ca3af", "➖", "중립"
 
-        # 마지막 업데이트 시간
-        if stats.get("last_analysis_at"):
-            from datetime import datetime
-            try:
-                last_dt = datetime.fromisoformat(stats["last_analysis_at"].replace("Z", "+00:00"))
-                time_str = last_dt.strftime("%Y-%m-%d %H:%M:%S")
-                st.markdown(
-                    f'<p style="font-size:0.75rem;color:{COLORS["text_muted"]};'
-                    f'margin-top:0.5rem;">🕐 마지막 분석: {time_str}</p>',
-                    unsafe_allow_html=True,
-                )
-            except (ValueError, AttributeError):
-                pass
-
-    # ------------------------------------------------------------------
-    # 프리미엄 차트 섹션
-    # ------------------------------------------------------------------
-    _render_premium_chart_section(conn_id)
-
-    # ------------------------------------------------------------------
-    # 현선갭 모니터 (Phase 8)
-    # ------------------------------------------------------------------
-    _render_spot_futures_gap_section(conn_id)
-
-    # ------------------------------------------------------------------
-    # 펀딩비 섹션
-    # ------------------------------------------------------------------
-    _render_funding_rate_section()
-
-    # ------------------------------------------------------------------
-    # 실시간 현선갭 조회 섹션
-    # ------------------------------------------------------------------
-    _render_realtime_gap_section()
-
-    # ------------------------------------------------------------------
-    # DEX 유동성 조회 섹션
-    # ------------------------------------------------------------------
-    _render_dex_liquidity_section()
+    funding_html = f'''
+    <div style="background:{COLORS["card_bg"]};border:1px solid {COLORS["card_border"]};
+        border-radius:12px;padding:1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+            <span style="font-size:0.9rem;font-weight:600;color:#fff;">💹 펀딩비</span>
+            <span style="background:{bias_color}22;color:{bias_color};padding:3px 8px;
+                border-radius:6px;font-size:0.75rem;font-weight:600;">
+                {bias_emoji} {bias_text}
+            </span>
+        </div>
+        <div style="font-size:1.3rem;font-weight:700;color:{bias_color};margin-bottom:0.5rem;">
+            {avg_rate:+.4f}%
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
+    '''
+    
+    for symbol, data in list(symbols_data.items())[:4]:
+        rate_pct = data.get("rate_pct", 0)
+        sym_color = "#4ade80" if rate_pct > 0 else "#f87171" if rate_pct < 0 else "#9ca3af"
+        funding_html += f'''
+            <span style="background:#1f2937;padding:4px 8px;border-radius:4px;font-size:0.75rem;">
+                <span style="color:#9ca3af;">{symbol.replace('USDT', '')}</span>
+                <span style="color:{sym_color};font-weight:600;margin-left:4px;">{rate_pct:+.3f}%</span>
+            </span>
+        '''
+    
+    funding_html += "</div></div>"
+    
+    st.markdown(funding_html, unsafe_allow_html=True)

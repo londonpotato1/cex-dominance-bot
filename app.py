@@ -525,11 +525,11 @@ st.markdown("""
     }
 
     /* ============================================
-       MOBILE RESPONSIVE STYLES
+       MOBILE RESPONSIVE STYLES (Enhanced)
        ============================================ */
     @media (max-width: 768px) {
         .main .block-container {
-            padding: 0.5rem 1rem 5rem 1rem !important;
+            padding: 0.5rem 0.75rem 5rem 0.75rem !important;
         }
 
         /* Status bar mobile */
@@ -558,15 +558,41 @@ st.markdown("""
             display: none;
         }
 
-        /* Ticker cards stack vertically */
+        /* Columns stack vertically on mobile */
         div[data-testid="stHorizontalBlock"] {
             flex-direction: column !important;
+            gap: 0.75rem !important;
         }
 
         div[data-testid="column"] {
             width: 100% !important;
             flex: 1 1 100% !important;
             padding: 0 !important;
+        }
+
+        /* GO Hero Card - mobile */
+        [style*="font-size:3rem"] {
+            font-size: 2.2rem !important;
+        }
+        
+        [style*="font-size:2rem"] {
+            font-size: 1.5rem !important;
+        }
+        
+        [style*="font-size:2.5rem"] {
+            font-size: 1.8rem !important;
+        }
+
+        /* Touch-friendly buttons */
+        .stButton > button {
+            min-height: 44px !important;
+            font-size: 0.9rem !important;
+        }
+
+        /* Larger touch targets for inputs */
+        .stTextInput > div > div > input {
+            min-height: 44px !important;
+            font-size: 1rem !important;
         }
 
         /* Compact cards */
@@ -602,6 +628,12 @@ st.markdown("""
         .exchange-mini-row {
             padding: 0.4rem 0.5rem;
             font-size: 0.75rem;
+        }
+
+        /* 2-column grid to 1-column on mobile */
+        [style*="grid-template-columns:1fr 1fr"],
+        [style*="grid-template-columns: 1fr 1fr"] {
+            grid-template-columns: 1fr !important;
         }
 
         /* Charts smaller on mobile */
