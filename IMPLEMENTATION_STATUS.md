@@ -30,7 +30,7 @@
 
 | 기능 | 상태 | 문제점 | 개선 방향 |
 |------|------|--------|----------|
-| **프리미엄 계산** | ⚠️ | Last Price 기반 | 오더북 기반으로 변경 필요 |
+| **프리미엄 계산** | ✅ 완료 | ~~Last Price 기반~~ | 오더북 기반 추가 완료! |
 | **환율** | ⚠️ | Fallback 1450원 | 다중 소스 + 신뢰도 표시 |
 | **핫월렛 물량** | ⚠️ | API 키 필요 | Etherscan 무료 티어 활용 |
 
@@ -42,11 +42,19 @@
 | **손바뀜 비율 계산** | ⭐⭐⭐⭐ | 중간 | 거래량 ÷ 입금액 |
 | **에어드랍 클레임 상태** | ⭐⭐⭐ | 높음 | 온체인 데이터 필요 |
 
+### ✅ 신규 구현 (2026-02-01)
+
+| 기능 | 파일 | 설명 |
+|------|------|------|
+| **오더북 기반 프리미엄** | `exchange_service.py`, `gap_calculator.py` | Ask/Bid 가중평균 체결가 계산, 슬리피지 반영 |
+| **DEX 심볼 자동 보정** | `dex_liquidity.py` | WBTC/WETH 등 래핑 토큰 자동 검색 |
+| **입금 가능 여부 확인** | `deposit_status.py` (NEW) | Gate, Bitget API로 입출금 상태 확인 |
+
 ### ❌ 미구현 (DATAMAXI_ANALYSIS 기준)
 
 | 기능 | 우선순위 | 설명 |
 |------|----------|------|
-| **오더북 기반 프리미엄** | 🔴 높음 | Ask/Bid 기반 실제 체결 가능 가격 |
+| **오더북 기반 프리미엄** | ✅ 완료 | `exchange_service.py` + `gap_calculator.py` |
 | **Spot-Spot 아비트라지** | 🟡 중간 | 해외→해외 기회 포착 |
 | **다중 거래소 확장** | 🟡 중간 | OKX, Gate, Bitget 추가 |
 | **Perp-Perp 아비트라지** | 🟢 낮음 | 선물 간 프리미엄 |
@@ -188,10 +196,11 @@ cex_dominance_bot/
 
 ## 🚀 다음 개발 로드맵
 
-### Phase 5: 데이터 정확도 (2주)
-1. 오더북 기반 프리미엄 계산
-2. 다중 환율 소스 (BTC/ETH implied)
-3. DEX 심볼 자동 보정
+### Phase 5: 데이터 정확도 (2주) ✅ 완료
+1. ✅ 오더북 기반 프리미엄 계산 - `OrderbookData`, `OrderbookGapResult`
+2. ⏳ 다중 환율 소스 (BTC/ETH implied) - 진행 예정
+3. ✅ DEX 심볼 자동 보정 - WBTC/WETH 별칭 지원
+4. ✅ 입금 가능 여부 확인 - `deposit_status.py` (Gate, Bitget)
 
 ### Phase 6: 거래소 확장 (2주)
 1. OKX, Gate, Bitget 추가

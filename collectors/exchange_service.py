@@ -38,6 +38,114 @@ class PriceData:
 
 
 @dataclass
+class OrderbookData:
+    """오더북 데이터"""
+    exchange: str
+    symbol: str
+    market_type: MarketType
+    bids: List[List[float]]  # [[price, amount], ...]
+    asks: List[List[float]]  # [[price, amount], ...]
+    timestamp: float
+    latency_ms: Optional[float] = None
+    
+    @property
+    def best_bid(self) -> Optional[float]:
+        """최우선 매수호가"""
+        return self.bids[0][0] if self.bids else None
+    
+    @property
+    def best_ask(self) -> Optional[float]:
+        """최우선 매도호가"""
+        return self.asks[0][0] if self.asks else None
+    
+    @property
+    def mid_price(self) -> Optional[float]:
+        """중간가"""
+        if self.best_bid and self.best_ask:
+            return (self.best_bid + self.best_ask) / 2
+        return None
+    
+    @property
+    def spread_percent(self) -> Optional[float]:
+        """스프레드 (%)"""
+        if self.best_bid and self.best_ask and self.best_bid > 0:
+            return (self.best_ask - self.best_bid) / self.best_bid * 100
+        return None
+    
+    def get_executable_buy_price(self, amount_usd: float) -> Optional[float]:
+        """특정 금액으로 매수 시 가중평균 체결가 (Ask 소진)
+        
+        Args:
+            amount_usd: 매수할 USD 금액
+            
+        Returns:
+            가중평균 체결가 (슬리피지 포함)
+        """
+        if not self.asks:
+            return None
+        
+        remaining = amount_usd
+        total_qty = 0.0
+        total_cost = 0.0
+        
+        for price, qty in self.asks:
+            level_value = price * qty
+            if remaining <= 0:
+                break
+            if level_value >= remaining:
+                # 이 호가에서 남은 금액 전부 체결
+                fill_qty = remaining / price
+                total_qty += fill_qty
+                total_cost += remaining
+                remaining = 0
+            else:
+                # 이 호가 전부 소진
+                total_qty += qty
+                total_cost += level_value
+                remaining -= level_value
+        
+        if total_qty > 0:
+            return total_cost / total_qty
+        return None
+    
+    def get_executable_sell_price(self, amount_usd: float) -> Optional[float]:
+        """특정 금액으로 매도 시 가중평균 체결가 (Bid 소진)
+        
+        Args:
+            amount_usd: 매도할 USD 금액 상당의 코인
+            
+        Returns:
+            가중평균 체결가 (슬리피지 포함)
+        """
+        if not self.bids:
+            return None
+        
+        remaining = amount_usd
+        total_qty = 0.0
+        total_revenue = 0.0
+        
+        for price, qty in self.bids:
+            level_value = price * qty
+            if remaining <= 0:
+                break
+            if level_value >= remaining:
+                # 이 호가에서 남은 금액 전부 체결
+                fill_qty = remaining / price
+                total_qty += fill_qty
+                total_revenue += remaining
+                remaining = 0
+            else:
+                # 이 호가 전부 소진
+                total_qty += qty
+                total_revenue += level_value
+                remaining -= level_value
+        
+        if total_qty > 0:
+            return total_revenue / total_qty
+        return None
+
+
+@dataclass
 class ExchangeStatus:
     """거래소 상태"""
     exchange: str
@@ -869,6 +977,108 @@ class ExchangeService:
     def get_status(self) -> Dict[str, ExchangeStatus]:
         """거래소 상태 반환"""
         return self._status.copy()
+
+    def fetch_orderbook(
+        self, 
+        exchange: str, 
+        symbol: str, 
+        market_type: MarketType = MarketType.SPOT,
+        limit: int = 20
+    ) -> Optional[OrderbookData]:
+        """오더북 조회
+        
+        Args:
+            exchange: 거래소 ID (upbit, bithumb, binance 등)
+            symbol: 심볼 (BTC, ETH 등)
+            market_type: SPOT 또는 FUTURES
+            limit: 호가 depth (기본 20)
+            
+        Returns:
+            OrderbookData 또는 None
+        """
+        config = self.EXCHANGE_CONFIG.get(exchange, {})
+        
+        try:
+            start_time = time.time()
+            
+            if market_type == MarketType.SPOT:
+                if exchange not in self._spot_exchanges:
+                    return None
+                ex = self._spot_exchanges[exchange]
+                full_symbol = f"{symbol}{config.get('spot_suffix', '/USDT')}"
+            else:
+                if exchange not in self._futures_exchanges:
+                    return None
+                ex = self._futures_exchanges[exchange]
+                full_symbol = f"{symbol}{config.get('futures_suffix', '/USDT:USDT')}"
+            
+            orderbook = ex.fetch_order_book(full_symbol, limit=limit)
+            latency = (time.time() - start_time) * 1000
+            
+            bids = [[float(p), float(a)] for p, a in orderbook.get('bids', [])]
+            asks = [[float(p), float(a)] for p, a in orderbook.get('asks', [])]
+            
+            # KRW 거래소는 USDT로 환산
+            if config.get('krw', False):
+                krw_rate = self._get_krw_rate(exchange)
+                if krw_rate and krw_rate > 0:
+                    bids = [[p / krw_rate, a] for p, a in bids]
+                    asks = [[p / krw_rate, a] for p, a in asks]
+                else:
+                    self._emit_event(f"{exchange} 환율 조회 실패로 오더북 스킵", "warning")
+                    return None
+            
+            return OrderbookData(
+                exchange=exchange,
+                symbol=symbol,
+                market_type=market_type,
+                bids=bids,
+                asks=asks,
+                timestamp=time.time(),
+                latency_ms=latency
+            )
+            
+        except Exception as e:
+            self._emit_event(f"{exchange} orderbook error: {str(e)[:50]}", "warning")
+            return None
+
+    def fetch_orderbooks_parallel(
+        self,
+        symbol: str,
+        spot_exchanges: List[str],
+        futures_exchanges: List[str],
+        limit: int = 20
+    ) -> Dict[str, Dict[str, OrderbookData]]:
+        """모든 거래소 오더북 병렬 조회
+        
+        Returns:
+            {'spot': {exchange: OrderbookData}, 'futures': {exchange: OrderbookData}}
+        """
+        result = {'spot': {}, 'futures': {}}
+        futures_list = []
+        
+        # Spot 오더북 조회 태스크
+        for ex in spot_exchanges:
+            futures_list.append(
+                (self._executor.submit(self.fetch_orderbook, ex, symbol, MarketType.SPOT, limit), 'spot', ex)
+            )
+        
+        # Futures 오더북 조회 태스크
+        for ex in futures_exchanges:
+            futures_list.append(
+                (self._executor.submit(self.fetch_orderbook, ex, symbol, MarketType.FUTURES, limit), 'futures', ex)
+            )
+        
+        # 결과 수집
+        for future, category, ex in futures_list:
+            try:
+                orderbook = future.result(timeout=10)
+                if orderbook:
+                    result[category][ex] = orderbook
+            except Exception:
+                pass
+        
+        return result
 
     def shutdown(self):
         """서비스 종료"""

@@ -132,47 +132,117 @@ def _parse_pair(raw: dict) -> Optional[DexPair]:
         return None
 
 
-async def get_dex_liquidity(symbol: str) -> Optional[DexLiquidityResult]:
-    """심볼로 DEX 유동성 조회.
-    
-    Args:
-        symbol: 토큰 심볼 (예: "AVAIL", "ME", "NXPC")
-    
-    Returns:
-        DexLiquidityResult 또는 None
-    """
+async def _search_with_symbol(symbol: str, original_symbol: str) -> list[DexPair]:
+    """특정 심볼로 검색 후 페어 파싱."""
     raw_pairs = await search_token(symbol)
     
-    if not raw_pairs:
-        logger.info(f"DEX 페어 없음: {symbol}")
-        return None
-    
-    # 심볼 필터링 (정확히 일치하는 것만)
     pairs = []
     for raw in raw_pairs:
         base_symbol = raw.get("baseToken", {}).get("symbol", "").upper()
-        if base_symbol == symbol.upper():
+        # 원본 심볼 또는 검색 심볼과 일치
+        if base_symbol == original_symbol.upper() or base_symbol == symbol.upper():
             pair = _parse_pair(raw)
             if pair:
                 pairs.append(pair)
     
-    if not pairs:
-        logger.info(f"일치하는 페어 없음: {symbol}")
+    return pairs
+
+
+# 심볼 변환 규칙 (알려진 래핑/변형 토큰)
+SYMBOL_ALIASES = {
+    # 래핑 토큰
+    "BTC": ["WBTC", "BTCB", "tBTC"],
+    "ETH": ["WETH", "stETH", "wstETH"],
+    "SOL": ["WSOL", "mSOL"],
+    "AVAX": ["WAVAX"],
+    "BNB": ["WBNB"],
+    "MATIC": ["WMATIC", "POL"],
+    "POL": ["WMATIC", "MATIC"],
+    # 특수 케이스
+    "USDT": ["USDT.e", "USDTe"],
+    "USDC": ["USDC.e", "USDCe", "USDbC"],
+}
+
+
+async def get_dex_liquidity(
+    symbol: str, 
+    chain: Optional[str] = None,
+    try_aliases: bool = True
+) -> Optional[DexLiquidityResult]:
+    """심볼로 DEX 유동성 조회 (자동 보정 포함).
+    
+    검색 실패 시 자동으로 대안 시도:
+    1. 원본 심볼 검색
+    2. 래핑 토큰 시도 (WBTC, WETH 등)
+    3. 알려진 별칭 시도
+    
+    Args:
+        symbol: 토큰 심볼 (예: "AVAIL", "ME", "NXPC")
+        chain: 특정 체인만 검색 (예: "ethereum", "solana")
+        try_aliases: 별칭 검색 시도 여부
+    
+    Returns:
+        DexLiquidityResult 또는 None
+    """
+    original_symbol = symbol.upper()
+    all_pairs = []
+    searched_symbols = [original_symbol]
+    
+    # 1. 원본 심볼 검색
+    pairs = await _search_with_symbol(symbol, original_symbol)
+    all_pairs.extend(pairs)
+    
+    # 2. 결과 없으면 래핑 토큰 시도 (W prefix)
+    if not all_pairs and try_aliases:
+        wrapped_symbol = f"W{original_symbol}"
+        if wrapped_symbol not in searched_symbols:
+            searched_symbols.append(wrapped_symbol)
+            pairs = await _search_with_symbol(wrapped_symbol, original_symbol)
+            all_pairs.extend(pairs)
+    
+    # 3. 알려진 별칭 시도
+    if not all_pairs and try_aliases:
+        aliases = SYMBOL_ALIASES.get(original_symbol, [])
+        for alias in aliases:
+            if alias not in searched_symbols:
+                searched_symbols.append(alias)
+                pairs = await _search_with_symbol(alias, original_symbol)
+                all_pairs.extend(pairs)
+                if pairs:
+                    break  # 찾으면 중단
+    
+    if not all_pairs:
+        logger.info(f"DEX 페어 없음: {symbol} (시도: {searched_symbols})")
         return None
     
+    # 체인 필터링 (선택적)
+    if chain:
+        all_pairs = [p for p in all_pairs if p.chain.lower() == chain.lower()]
+        if not all_pairs:
+            logger.info(f"{symbol}: {chain} 체인에서 페어 없음")
+            return None
+    
+    # 중복 제거 (pair_address 기준)
+    seen_addresses = set()
+    unique_pairs = []
+    for p in all_pairs:
+        if p.pair_address not in seen_addresses:
+            seen_addresses.add(p.pair_address)
+            unique_pairs.append(p)
+    
     # 유동성 합산
-    total_liquidity = sum(p.liquidity_usd for p in pairs)
-    total_volume = sum(p.volume_24h for p in pairs)
+    total_liquidity = sum(p.liquidity_usd for p in unique_pairs)
+    total_volume = sum(p.volume_24h for p in unique_pairs)
     
     # 최고 유동성 페어
-    best_pair = max(pairs, key=lambda p: p.liquidity_usd) if pairs else None
+    best_pair = max(unique_pairs, key=lambda p: p.liquidity_usd) if unique_pairs else None
     
     return DexLiquidityResult(
-        symbol=symbol.upper(),
+        symbol=original_symbol,
         total_liquidity_usd=total_liquidity,
         total_volume_24h=total_volume,
-        pair_count=len(pairs),
-        pairs=pairs,
+        pair_count=len(unique_pairs),
+        pairs=unique_pairs,
         best_pair=best_pair,
         timestamp=datetime.now(),
     )
