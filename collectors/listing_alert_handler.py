@@ -81,6 +81,7 @@ class ListingAlertHandler:
         """심볼 분석 및 알림 발송"""
         try:
             from collectors.listing_strategy import analyze_listing, format_strategy_recommendation
+            from collectors.listing_data_logger import log_listing_to_csv, extract_analysis_for_csv
             
             # 종합 분석 실행
             recommendation = await analyze_listing(symbol)
@@ -95,10 +96,67 @@ class ListingAlertHandler:
             if recommendation.strategy_type.value == "hedge_gap_exit":
                 await self._start_gap_monitoring(symbol, recommendation)
             
+            # ============================================
+            # CSV 자동 기록 (라벨링 데이터 수집)
+            # ============================================
+            try:
+                # 상장 유형 결정 (notice에서 추론)
+                listing_type = self._detect_listing_type(notice, symbol)
+                
+                # 분석 결과에서 CSV용 데이터 추출
+                analysis_data = extract_analysis_for_csv(recommendation)
+                
+                # CSV에 기록 (중복 시 스킵됨)
+                logged = await log_listing_to_csv(
+                    symbol=symbol,
+                    exchange=notice.exchange.capitalize(),
+                    listing_type=listing_type,
+                    analysis_result=analysis_data,
+                )
+                
+                if logged:
+                    logger.info(f"[ListingAlertHandler] CSV 기록 완료: {symbol}/{notice.exchange}")
+                else:
+                    logger.debug(f"[ListingAlertHandler] CSV 기록 스킵 (중복): {symbol}/{notice.exchange}")
+                    
+            except Exception as csv_err:
+                logger.warning(f"[ListingAlertHandler] CSV 기록 실패 ({symbol}): {csv_err}")
+                # CSV 기록 실패해도 알림은 이미 발송됨
+            
         except Exception as e:
             logger.error(f"[ListingAlertHandler] 분석 실패 ({symbol}): {e}")
             # 에러 발생해도 기본 알림은 보냄
             await self._send_alert(f"🚀 신규 상장 감지: {symbol}\n분석 중 오류 발생: {e}")
+    
+    def _detect_listing_type(self, notice, symbol: str) -> str:
+        """상장 유형 추론
+        
+        TGE: Token Generation Event - 최초 상장
+        직상장: 기존 코인 신규 마켓 추가
+        옆상장: 다른 거래소에 이미 상장된 코인
+        """
+        title_lower = notice.title.lower()
+        
+        # TGE 키워드 체크
+        tge_keywords = ['tge', 'token generation', '신규 발행', '최초 상장', 'launchpad', 'launch']
+        for kw in tge_keywords:
+            if kw in title_lower:
+                return "TGE"
+        
+        # 옆상장 키워드 (원화 마켓 추가 등)
+        side_keywords = ['원화 마켓', 'krw 마켓', '마켓 추가', '페어 추가', '원화마켓']
+        for kw in side_keywords:
+            if kw in title_lower:
+                return "옆상장"
+        
+        # 직상장 키워드
+        direct_keywords = ['신규 상장', '거래 지원', '상장 안내']
+        for kw in direct_keywords:
+            if kw in title_lower:
+                return "직상장"
+        
+        # 기본값
+        return "직상장"
     
     def _format_alert_message(self, rec, notice) -> str:
         """알림 메시지 포맷"""
