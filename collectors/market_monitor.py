@@ -17,6 +17,14 @@ import aiohttp
 from store.token_registry import TokenRegistry, fetch_token_by_symbol
 from collectors.notice_parser import NoticeParseResult
 
+# AI 분석 (Phase 3) - lazy import
+try:
+    from analysis.ai_analyzer import get_ai_analyzer, AIAnalysisResult
+    AI_ANALYZER_AVAILABLE = True
+except ImportError:
+    AI_ANALYZER_AVAILABLE = False
+    AIAnalysisResult = None  # type: ignore
+
 # NoticeFetcher는 notice_polling=True일 때만 lazy import (Playwright 의존성 회피)
 
 if TYPE_CHECKING:
@@ -352,9 +360,25 @@ class MarketMonitor:
                         symbol, exchange, e,
                     )
 
-                # 4. 텔레그램 알림 (속도 정보 + 인라인 버튼)
+                # 4. AI 분석 (Phase 3) - 비동기로 실행
+                ai_result = None
+                if AI_ANALYZER_AVAILABLE and result.can_proceed:
+                    try:
+                        analyzer = get_ai_analyzer()
+                        if analyzer.is_available:
+                            # 간단한 텍스트로 AI 분석 요청
+                            ai_text = f"신규 상장: {symbol} @ {exchange.upper()}"
+                            ai_result = await analyzer.analyze_announcement(
+                                ai_text, exchange, symbol, use_smart_model=False
+                            )
+                    except Exception as e:
+                        logger.warning("[MarketMonitor] AI 분석 실패: %s", e)
+                
+                # 5. 텔레그램 알림 (속도 정보 + AI 결과 + 인라인 버튼)
                 if self._alert:
-                    alert_msg, buttons = self._format_alert(symbol, exchange, result, duration_ms)
+                    alert_msg, buttons = self._format_alert(
+                        symbol, exchange, result, duration_ms, ai_result=ai_result
+                    )
                     await self._alert.send(
                         result.alert_level,
                         alert_msg,
@@ -385,14 +409,16 @@ class MarketMonitor:
         exchange: str, 
         result: GateResult,
         duration_ms: float = 0,
+        ai_result: "AIAnalysisResult | None" = None,
     ) -> tuple[str, list[list[dict]] | None]:
-        """Gate 결과를 알림 메시지로 포맷 (Phase 1.1 개선).
+        """Gate 결과를 알림 메시지로 포맷 (Phase 1.1 + Phase 3 AI).
         
         Args:
             symbol: 토큰 심볼.
             exchange: 거래소.
             result: Gate 분석 결과.
             duration_ms: 감지→분석 완료 시간 (ms).
+            ai_result: AI 분석 결과 (optional).
             
         Returns:
             tuple: (메시지 텍스트, 인라인 버튼 배열 또는 None)
@@ -458,6 +484,25 @@ class MarketMonitor:
             lines.append("⚠️ *주의:*")
             for w in result.warnings[:2]:  # 최대 2개
                 lines.append(f"  • {w[:40]}")
+        
+        # ===== AI 인사이트 (Phase 3) =====
+        if ai_result is not None:
+            lines.append("")
+            lines.append("🤖 *AI 분석:*")
+            
+            # AI 요약
+            if ai_result.summary:
+                lines.append(f"  {ai_result.summary[:50]}")
+            
+            # AI 리스크 레벨
+            risk_emoji = {
+                "low": "🟢", "medium": "🟡", "high": "🟠", "critical": "🔴"
+            }.get(ai_result.risk_level.value, "⚪")
+            lines.append(f"  {risk_emoji} 리스크: {ai_result.risk_level.value.upper()}")
+            
+            # AI 경고
+            for w in ai_result.warnings[:1]:
+                lines.append(f"  ⚠️ {w[:35]}")
         
         message = "\n".join(lines)
         
@@ -585,10 +630,29 @@ class MarketMonitor:
                             symbol, exchange, e,
                         )
 
-                    # 3. 텔레그램 알림 (공지 링크 + 속도 정보 + 인라인 버튼)
+                    # 3. AI 분석 (Phase 3) - 공지 텍스트로 분석
+                    ai_result = None
+                    if AI_ANALYZER_AVAILABLE and gate_result.can_proceed:
+                        try:
+                            analyzer = get_ai_analyzer()
+                            if analyzer.is_available:
+                                # 공지 URL이나 제목으로 분석
+                                ai_text = f"상장 공지: {symbol} @ {exchange.upper()}"
+                                if result.notice_url:
+                                    ai_text += f"\n공지 URL: {result.notice_url}"
+                                if result.listing_time:
+                                    ai_text += f"\n상장 예정 시간: {result.listing_time}"
+                                ai_result = await analyzer.analyze_announcement(
+                                    ai_text, exchange, symbol, use_smart_model=False
+                                )
+                        except Exception as e:
+                            logger.warning("[MarketMonitor] AI 분석 실패: %s", e)
+                    
+                    # 4. 텔레그램 알림 (공지 링크 + 속도 정보 + AI 결과 + 인라인 버튼)
                     if self._alert:
                         alert_msg, buttons = self._format_notice_alert(
-                            symbol, exchange, gate_result, result, duration_ms
+                            symbol, exchange, gate_result, result, duration_ms,
+                            ai_result=ai_result
                         )
                         await self._alert.send(
                             gate_result.alert_level,
@@ -609,8 +673,9 @@ class MarketMonitor:
         result: GateResult,
         notice: NoticeParseResult,
         duration_ms: float = 0,
+        ai_result: "AIAnalysisResult | None" = None,
     ) -> tuple[str, list[list[dict]] | None]:
-        """공지 기반 Gate 결과를 알림 메시지로 포맷 (Phase 1.1 개선).
+        """공지 기반 Gate 결과를 알림 메시지로 포맷 (Phase 1.1 + Phase 3 AI).
         
         Args:
             symbol: 토큰 심볼.
@@ -618,6 +683,7 @@ class MarketMonitor:
             result: Gate 분석 결과.
             notice: 공지 파싱 결과.
             duration_ms: 감지→분석 완료 시간 (ms).
+            ai_result: AI 분석 결과 (optional).
             
         Returns:
             tuple: (메시지 텍스트, 인라인 버튼 배열 또는 None)
@@ -687,6 +753,25 @@ class MarketMonitor:
             lines.append("⚠️ *주의:*")
             for w in result.warnings[:2]:
                 lines.append(f"  • {w[:40]}")
+        
+        # ===== AI 인사이트 (Phase 3) =====
+        if ai_result is not None:
+            lines.append("")
+            lines.append("🤖 *AI 분석:*")
+            
+            # AI 요약
+            if ai_result.summary:
+                lines.append(f"  {ai_result.summary[:50]}")
+            
+            # AI 리스크 레벨
+            risk_emoji = {
+                "low": "🟢", "medium": "🟡", "high": "🟠", "critical": "🔴"
+            }.get(ai_result.risk_level.value, "⚪")
+            lines.append(f"  {risk_emoji} 리스크: {ai_result.risk_level.value.upper()}")
+            
+            # AI 경고
+            for w in ai_result.warnings[:1]:
+                lines.append(f"  ⚠️ {w[:35]}")
         
         message = "\n".join(lines)
         
