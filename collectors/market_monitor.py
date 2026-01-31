@@ -352,13 +352,14 @@ class MarketMonitor:
                         symbol, exchange, e,
                     )
 
-                # 4. 텔레그램 알림 (속도 정보 포함)
+                # 4. 텔레그램 알림 (속도 정보 + 인라인 버튼)
                 if self._alert:
-                    alert_msg = self._format_alert(symbol, exchange, result, duration_ms)
+                    alert_msg, buttons = self._format_alert(symbol, exchange, result, duration_ms)
                     await self._alert.send(
                         result.alert_level,
                         alert_msg,
                         key=f"listing:{symbol}",
+                        buttons=buttons,
                     )
             except Exception as e:
                 logger.error(
@@ -384,44 +385,111 @@ class MarketMonitor:
         exchange: str, 
         result: GateResult,
         duration_ms: float = 0,
-    ) -> str:
-        """Gate 결과를 알림 메시지로 포맷.
+    ) -> tuple[str, list[list[dict]] | None]:
+        """Gate 결과를 알림 메시지로 포맷 (Phase 1.1 개선).
         
         Args:
             symbol: 토큰 심볼.
             exchange: 거래소.
             result: Gate 분석 결과.
             duration_ms: 감지→분석 완료 시간 (ms).
+            
+        Returns:
+            tuple: (메시지 텍스트, 인라인 버튼 배열 또는 None)
         """
         gi = result.gate_input
-        status = "🚀 *GO*" if result.can_proceed else "🔴 *NO-GO*"
-
-        lines = [
-            f"{status} | *{symbol}* @ {exchange.upper()}",
-        ]
-
+        is_go = result.can_proceed
+        
+        # ===== 헤더: 크고 명확하게 =====
+        if is_go:
+            header = f"🚀 *GO!* {symbol} @{exchange.upper()}"
+        else:
+            header = f"🔴 *NO-GO* {symbol} @{exchange.upper()}"
+        
+        lines = [header, ""]
+        
+        # ===== 핵심 지표: 수익 중심 =====
         if gi:
-            lines.append(
-                f"📊 프리미엄: *{gi.premium_pct:+.2f}%* | "
-                f"순수익: *{gi.cost_result.net_profit_pct:+.2f}%*"
-            )
-            lines.append(f"💱 FX: {gi.fx_source} (비용 {gi.cost_result.total_cost_pct:.2f}%)")
-
-        # 속도 정보 추가
+            net_profit = gi.cost_result.net_profit_pct
+            premium = gi.premium_pct
+            
+            # 예상 수익 계산 (50만원 기준)
+            base_krw = 500_000
+            profit_krw = int(base_krw * net_profit / 100)
+            
+            if is_go:
+                lines.append(f"💰 *예상 수익: {net_profit:+.2f}%* (≈₩{profit_krw:,})")
+            else:
+                lines.append(f"💸 순수익: {net_profit:+.2f}% (≈₩{profit_krw:,})")
+            
+            lines.append(f"📈 김프: {premium:+.2f}% | 비용: {gi.cost_result.total_cost_pct:.2f}%")
+        
+        # ===== 공급 분류 + 전략 =====
+        if result.supply_result:
+            supply = result.supply_result.classification.value
+            confidence = result.supply_result.total_score
+            
+            # 흥/망따리 이모지
+            if "smooth" in supply.lower() or confidence > 6:
+                supply_emoji = "🔥"
+                supply_text = "흥따리 유력"
+            elif "tight" in supply.lower() or confidence < 3:
+                supply_emoji = "💀"
+                supply_text = "망따리 주의"
+            else:
+                supply_emoji = "😐"
+                supply_text = "보통"
+            
+            lines.append(f"{supply_emoji} {supply_text} (점수: {confidence:.1f})")
+        
+        # ===== 속도 정보 =====
         if duration_ms > 0:
-            lines.append(f"⚡ 분석 속도: *{duration_ms:.0f}ms* ({duration_ms/1000:.2f}초)")
-
+            lines.append(f"⚡ 감지 → 분석: *{duration_ms:.0f}ms*")
+        
+        # ===== 경고사항 (간결하게) =====
         if result.blockers:
-            lines.append("🚫 Blockers:")
-            for b in result.blockers:
-                lines.append(f"  • {b}")
-
-        if result.warnings:
-            lines.append("⚠️ Warnings:")
-            for w in result.warnings:
-                lines.append(f"  • {w}")
-
-        return "\n".join(lines)
+            lines.append("")
+            lines.append("🚫 *차단 사유:*")
+            for b in result.blockers[:2]:  # 최대 2개
+                lines.append(f"  • {b[:40]}")
+        
+        if result.warnings and is_go:  # GO일 때만 경고 표시
+            lines.append("")
+            lines.append("⚠️ *주의:*")
+            for w in result.warnings[:2]:  # 최대 2개
+                lines.append(f"  • {w[:40]}")
+        
+        message = "\n".join(lines)
+        
+        # ===== 인라인 버튼 (GO일 때만) =====
+        buttons = None
+        if is_go:
+            buttons = MarketMonitor._get_exchange_buttons(symbol, exchange)
+        
+        return message, buttons
+    
+    @staticmethod
+    def _get_exchange_buttons(symbol: str, exchange: str) -> list[list[dict]]:
+        """거래소 바로가기 인라인 버튼 생성."""
+        buttons = []
+        
+        # 국내 거래소 (입금 페이지)
+        if exchange == "upbit":
+            buttons.append([
+                {"text": "📥 업비트", "url": f"https://upbit.com/exchange?code=CRIX.UPBIT.KRW-{symbol}"},
+            ])
+        elif exchange == "bithumb":
+            buttons.append([
+                {"text": "📥 빗썸", "url": f"https://www.bithumb.com/trade/order/{symbol}_KRW"},
+            ])
+        
+        # 해외 거래소 (숏 페이지)
+        buttons.append([
+            {"text": "📉 바이낸스 숏", "url": f"https://www.binance.com/futures/{symbol}USDT"},
+            {"text": "📉 바이빗 숏", "url": f"https://www.bybit.com/trade/usdt/{symbol}USDT"},
+        ])
+        
+        return buttons
 
     async def _auto_register_token(self, symbol: str) -> None:
         """CoinGecko에서 토큰 정보 조회 → token_registry 등록."""
@@ -517,15 +585,16 @@ class MarketMonitor:
                             symbol, exchange, e,
                         )
 
-                    # 3. 텔레그램 알림 (공지 링크 + 속도 정보 포함)
+                    # 3. 텔레그램 알림 (공지 링크 + 속도 정보 + 인라인 버튼)
                     if self._alert:
-                        alert_msg = self._format_notice_alert(
+                        alert_msg, buttons = self._format_notice_alert(
                             symbol, exchange, gate_result, result, duration_ms
                         )
                         await self._alert.send(
                             gate_result.alert_level,
                             alert_msg,
                             key=f"notice_listing:{symbol}",
+                            buttons=buttons,
                         )
                 except Exception as e:
                     logger.error(
@@ -540,8 +609,8 @@ class MarketMonitor:
         result: GateResult,
         notice: NoticeParseResult,
         duration_ms: float = 0,
-    ) -> str:
-        """공지 기반 Gate 결과를 알림 메시지로 포맷.
+    ) -> tuple[str, list[list[dict]] | None]:
+        """공지 기반 Gate 결과를 알림 메시지로 포맷 (Phase 1.1 개선).
         
         Args:
             symbol: 토큰 심볼.
@@ -549,43 +618,91 @@ class MarketMonitor:
             result: Gate 분석 결과.
             notice: 공지 파싱 결과.
             duration_ms: 감지→분석 완료 시간 (ms).
+            
+        Returns:
+            tuple: (메시지 텍스트, 인라인 버튼 배열 또는 None)
         """
         gi = result.gate_input
-        status = "🚀 *GO*" if result.can_proceed else "🔴 *NO-GO*"
-
-        lines = [
-            f"📢 *공지 감지* | {status}",
-            f"*{symbol}* @ {exchange.upper()}",
-        ]
-
+        is_go = result.can_proceed
+        
+        # ===== 헤더: 공지 감지 강조 =====
+        if is_go:
+            header = f"📢 *공지 감지!* 🚀 *GO!*\n{symbol} @{exchange.upper()}"
+        else:
+            header = f"📢 *공지 감지* 🔴 *NO-GO*\n{symbol} @{exchange.upper()}"
+        
+        lines = [header, ""]
+        
+        # ===== 상장 시간 =====
         if notice.listing_time:
-            lines.append(f"🕐 상장 시간: {notice.listing_time}")
-
+            lines.append(f"🕐 *상장 시간: {notice.listing_time}*")
+            lines.append("")
+        
+        # ===== 핵심 지표: 수익 중심 =====
         if gi:
-            lines.append(
-                f"📊 프리미엄: *{gi.premium_pct:+.2f}%* | "
-                f"순수익: *{gi.cost_result.net_profit_pct:+.2f}%*"
-            )
-            lines.append(f"💱 FX: {gi.fx_source} (비용 {gi.cost_result.total_cost_pct:.2f}%)")
-
-        # 속도 정보 추가
+            net_profit = gi.cost_result.net_profit_pct
+            premium = gi.premium_pct
+            
+            # 예상 수익 계산 (50만원 기준)
+            base_krw = 500_000
+            profit_krw = int(base_krw * net_profit / 100)
+            
+            if is_go:
+                lines.append(f"💰 *예상 수익: {net_profit:+.2f}%* (≈₩{profit_krw:,})")
+            else:
+                lines.append(f"💸 순수익: {net_profit:+.2f}% (≈₩{profit_krw:,})")
+            
+            lines.append(f"📈 김프: {premium:+.2f}% | 비용: {gi.cost_result.total_cost_pct:.2f}%")
+        
+        # ===== 공급 분류 + 전략 =====
+        if result.supply_result:
+            supply = result.supply_result.classification.value
+            confidence = result.supply_result.total_score
+            
+            if "smooth" in supply.lower() or confidence > 6:
+                supply_emoji = "🔥"
+                supply_text = "흥따리 유력"
+            elif "tight" in supply.lower() or confidence < 3:
+                supply_emoji = "💀"
+                supply_text = "망따리 주의"
+            else:
+                supply_emoji = "😐"
+                supply_text = "보통"
+            
+            lines.append(f"{supply_emoji} {supply_text} (점수: {confidence:.1f})")
+        
+        # ===== 속도 정보 =====
         if duration_ms > 0:
-            lines.append(f"⚡ 분석 속도: *{duration_ms:.0f}ms* ({duration_ms/1000:.2f}초)")
-
+            lines.append(f"⚡ 공지 → 분석: *{duration_ms:.0f}ms*")
+        
+        # ===== 경고사항 =====
         if result.blockers:
-            lines.append("🚫 Blockers:")
-            for b in result.blockers[:3]:
-                lines.append(f"  • {b}")
-
-        if result.warnings:
-            lines.append("⚠️ Warnings:")
-            for w in result.warnings[:3]:
-                lines.append(f"  • {w}")
-
+            lines.append("")
+            lines.append("🚫 *차단 사유:*")
+            for b in result.blockers[:2]:
+                lines.append(f"  • {b[:40]}")
+        
+        if result.warnings and is_go:
+            lines.append("")
+            lines.append("⚠️ *주의:*")
+            for w in result.warnings[:2]:
+                lines.append(f"  • {w[:40]}")
+        
+        message = "\n".join(lines)
+        
+        # ===== 인라인 버튼 =====
+        buttons = []
+        
+        # 공지 링크 버튼
         if notice.notice_url:
-            lines.append(f"\n📎 [공지 보기]({notice.notice_url})")
-
-        return "\n".join(lines)
+            buttons.append([{"text": "📎 공지 보기", "url": notice.notice_url}])
+        
+        # GO일 때 거래소 버튼 추가
+        if is_go:
+            exchange_buttons = MarketMonitor._get_exchange_buttons(symbol, exchange)
+            buttons.extend(exchange_buttons)
+        
+        return message, buttons if buttons else None
 
     async def _handle_non_listing_event(self, result: NoticeParseResult) -> None:
         """Phase 7: 비상장 이벤트 처리 (WARNING/HALT/MIGRATION/DEPEG).

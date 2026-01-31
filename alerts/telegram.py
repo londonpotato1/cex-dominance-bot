@@ -82,6 +82,7 @@ class TelegramAlert:
         level: AlertLevel,
         message: str,
         key: str | None = None,
+        buttons: list[list[dict]] | None = None,
     ) -> None:
         """레벨별 알림 전송.
 
@@ -89,9 +90,14 @@ class TelegramAlert:
             level: 알림 레벨.
             message: 알림 메시지.
             key: 디바운스 키 (None이면 디바운스 없음).
+            buttons: 인라인 버튼 배열 (optional).
         """
-        prefix = self._level_prefix(level)
-        formatted = f"{prefix} {message}"
+        # CRITICAL/HIGH는 prefix 제거 (이미 이모지로 표현됨)
+        if level in (AlertLevel.CRITICAL, AlertLevel.HIGH):
+            formatted = message
+        else:
+            prefix = self._level_prefix(level)
+            formatted = f"{prefix} {message}"
 
         if level == AlertLevel.INFO:
             logger.info("[Alert/INFO] %s", message)
@@ -112,7 +118,7 @@ class TelegramAlert:
 
         # CRITICAL, HIGH, MEDIUM → 전송
         logger.info("[Alert/%s] %s", level.value, message[:100])
-        await self._send_telegram(formatted)
+        await self._send_telegram(formatted, buttons=buttons)
 
     async def flush_batch(self) -> None:
         """배치 버퍼 강제 flush."""
@@ -166,13 +172,23 @@ class TelegramAlert:
             (key, now, expires_at),
         )
 
-    async def _send_telegram(self, message: str) -> None:
-        """텔레그램 메시지 전송.
+    async def _send_telegram(
+        self, 
+        message: str,
+        buttons: list[list[dict]] | None = None,
+    ) -> None:
+        """텔레그램 메시지 전송 (인라인 버튼 지원).
 
         bot_token/chat_id 미설정 시 로그만 출력.
+        
+        Args:
+            message: 메시지 텍스트.
+            buttons: 인라인 버튼 배열. 각 버튼은 {"text": str, "url": str} 형태.
         """
         if not self.is_configured:
             logger.info("[Telegram/dry-run] %s", message[:200])
+            if buttons:
+                logger.info("[Telegram/dry-run] 버튼: %s", buttons)
             return
 
         url = _TELEGRAM_API.format(token=self._bot_token)
@@ -182,6 +198,19 @@ class TelegramAlert:
             "parse_mode": "Markdown",
             "disable_web_page_preview": True,
         }
+        
+        # 인라인 버튼 추가
+        if buttons:
+            inline_keyboard = []
+            for row in buttons:
+                keyboard_row = []
+                for btn in row:
+                    keyboard_row.append({
+                        "text": btn.get("text", "Link"),
+                        "url": btn.get("url", ""),
+                    })
+                inline_keyboard.append(keyboard_row)
+            payload["reply_markup"] = {"inline_keyboard": inline_keyboard}
 
         try:
             async with aiohttp.ClientSession(
