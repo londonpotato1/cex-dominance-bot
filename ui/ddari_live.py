@@ -26,6 +26,7 @@ from ui.ddari_common import (
     render_vasp_badge,
     render_vcmm_badge,
     get_market_mood_cached,
+    fetch_funding_rates_cached,
 )
 
 
@@ -509,6 +510,132 @@ def _render_spot_futures_gap_section(conn_id: int) -> None:
 
 
 # ------------------------------------------------------------------
+# 펀딩비 섹션
+# ------------------------------------------------------------------
+
+
+def _render_funding_rate_section() -> None:
+    """펀딩비 섹션 렌더링."""
+    import streamlit as st
+
+    st.markdown(
+        f'<p style="{SECTION_HEADER_STYLE}">💹 펀딩비 (Funding Rate)</p>',
+        unsafe_allow_html=True,
+    )
+
+    funding_data = fetch_funding_rates_cached()
+
+    if funding_data.get("status") == "error" or funding_data.get("status") == "no_data":
+        info_html = f"""
+        <div style="{CARD_STYLE}">
+            <p style="font-size:0.9rem;font-weight:600;color:{COLORS["info"]};margin-bottom:0.5rem;">
+                📊 펀딩비란?
+            </p>
+            <p style="font-size:0.8rem;color:{COLORS["text_secondary"]};margin-bottom:0.75rem;">
+                선물 거래소에서 롱/숏 포지션 밸런스를 맞추기 위해 8시간마다 지불하는 수수료입니다.
+            </p>
+            <div style="display:flex;gap:1rem;font-size:0.8rem;margin-bottom:0.5rem;">
+                <div>
+                    <span style="color:{COLORS["success"]};">양수</span>
+                    <span style="color:{COLORS["text_muted"]};"> = 롱 과다 (롱이 숏에 지불)</span>
+                </div>
+                <div>
+                    <span style="color:{COLORS["danger"]};">음수</span>
+                    <span style="color:{COLORS["text_muted"]};"> = 숏 과다 (숏이 롱에 지불)</span>
+                </div>
+            </div>
+            <p style="font-size:0.75rem;color:{COLORS["text_muted"]};">
+                ⚠️ 펀딩비 데이터를 불러오지 못했습니다.
+            </p>
+        </div>
+        """
+        if hasattr(st, 'html'):
+            st.html(info_html)
+        else:
+            st.markdown(info_html, unsafe_allow_html=True)
+        return
+
+    # 펀딩비 요약
+    avg_rate = funding_data.get("avg_funding_rate_pct", 0)
+    position_bias = funding_data.get("position_bias", "neutral")
+    symbols_data = funding_data.get("symbols", {})
+
+    # 쏠림 방향에 따른 스타일
+    if position_bias == "long_heavy":
+        bias_color = COLORS["success"]
+        bias_emoji = "📈"
+        bias_text = "롱 과다"
+        bias_hint = "시장이 상승을 기대 중"
+    elif position_bias == "short_heavy":
+        bias_color = COLORS["danger"]
+        bias_emoji = "📉"
+        bias_text = "숏 과다"
+        bias_hint = "시장이 하락을 기대 중"
+    else:
+        bias_color = COLORS["neutral"]
+        bias_emoji = "➖"
+        bias_text = "중립"
+        bias_hint = "롱/숏 균형"
+
+    # 요약 카드
+    summary_html = f"""
+    <div style="background:{COLORS["card_bg"]};border:1px solid {COLORS["card_border"]};
+                border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+            <div>
+                <span style="font-size:1rem;font-weight:600;color:{COLORS["text_primary"]};">
+                    평균 펀딩비
+                </span>
+                <span style="font-size:1.2rem;font-weight:700;color:{bias_color};margin-left:0.75rem;">
+                    {avg_rate:+.4f}%
+                </span>
+            </div>
+            <div style="background:rgba(0,0,0,0.3);border:1px solid {bias_color};
+                        padding:4px 12px;border-radius:8px;font-size:0.85rem;">
+                {bias_emoji} <span style="color:{bias_color};font-weight:600;">{bias_text}</span>
+            </div>
+        </div>
+        <p style="font-size:0.8rem;color:{COLORS["text_muted"]};margin-bottom:0.75rem;">
+            💡 {bias_hint}
+        </p>
+        <div style="display:flex;flex-wrap:wrap;gap:0.75rem;">
+    """
+
+    for symbol, data in symbols_data.items():
+        rate_pct = data.get("rate_pct", 0)
+        sym_bias = data.get("bias", "neutral")
+        
+        if sym_bias == "long_heavy":
+            sym_color = COLORS["success"]
+        elif sym_bias == "short_heavy":
+            sym_color = COLORS["danger"]
+        else:
+            sym_color = COLORS["text_secondary"]
+
+        summary_html += f"""
+            <div style="background:{COLORS["bg_card"]};border:1px solid {COLORS["border_gray"]};
+                        padding:8px 12px;border-radius:8px;min-width:100px;">
+                <div style="font-size:0.85rem;font-weight:600;color:{COLORS["text_primary"]};">
+                    {symbol.replace('USDT', '')}
+                </div>
+                <div style="font-size:0.9rem;font-weight:700;color:{sym_color};">
+                    {rate_pct:+.4f}%
+                </div>
+            </div>
+        """
+
+    summary_html += """
+        </div>
+    </div>
+    """
+
+    if hasattr(st, 'html'):
+        st.html(summary_html)
+    else:
+        st.markdown(summary_html, unsafe_allow_html=True)
+
+
+# ------------------------------------------------------------------
 # 메인 렌더 함수
 # ------------------------------------------------------------------
 
@@ -668,3 +795,8 @@ def render_live_tab() -> None:
     # 현선갭 모니터 (Phase 8)
     # ------------------------------------------------------------------
     _render_spot_futures_gap_section(conn_id)
+
+    # ------------------------------------------------------------------
+    # 펀딩비 섹션
+    # ------------------------------------------------------------------
+    _render_funding_rate_section()

@@ -549,6 +549,50 @@ def _default_mood() -> dict:
     }
 
 
+# ------------------------------------------------------------------
+# 펀딩비 데이터 로더
+# ------------------------------------------------------------------
+
+
+def fetch_funding_rates_cached() -> dict:
+    """펀딩비 데이터 조회 (1분 캐시)."""
+    import streamlit as st
+    import asyncio
+
+    @st.cache_data(ttl=60)
+    def _inner() -> dict:
+        try:
+            from collectors.funding_rate import get_funding_rates, get_funding_summary
+            
+            # asyncio 이벤트 루프 처리
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 이미 루프가 실행 중이면 새 스레드에서 실행
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            get_funding_rates(["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+                        )
+                        rates = future.result(timeout=15)
+                else:
+                    rates = loop.run_until_complete(
+                        get_funding_rates(["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+                    )
+            except RuntimeError:
+                rates = asyncio.run(
+                    get_funding_rates(["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+                )
+            
+            return get_funding_summary(rates)
+        except Exception as e:
+            logger.warning(f"펀딩비 조회 실패: {e}")
+            return {"status": "error", "error": str(e)}
+
+    return _inner()
+
+
 # Re-export for convenience
 __all__ = [
     # Constants
@@ -578,4 +622,5 @@ __all__ = [
     "render_vcmm_badge",
     "render_result_label_badge",
     "get_market_mood_cached",
+    "fetch_funding_rates_cached",
 ]
