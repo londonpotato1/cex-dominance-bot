@@ -352,9 +352,9 @@ class MarketMonitor:
                         symbol, exchange, e,
                     )
 
-                # 4. 텔레그램 알림
+                # 4. 텔레그램 알림 (속도 정보 포함)
                 if self._alert:
-                    alert_msg = self._format_alert(symbol, exchange, result)
+                    alert_msg = self._format_alert(symbol, exchange, result, duration_ms)
                     await self._alert.send(
                         result.alert_level,
                         alert_msg,
@@ -379,31 +379,47 @@ class MarketMonitor:
             await self._bithumb_collector.add_market(market)
 
     @staticmethod
-    def _format_alert(symbol: str, exchange: str, result: GateResult) -> str:
-        """Gate 결과를 알림 메시지로 포맷."""
+    def _format_alert(
+        symbol: str, 
+        exchange: str, 
+        result: GateResult,
+        duration_ms: float = 0,
+    ) -> str:
+        """Gate 결과를 알림 메시지로 포맷.
+        
+        Args:
+            symbol: 토큰 심볼.
+            exchange: 거래소.
+            result: Gate 분석 결과.
+            duration_ms: 감지→분석 완료 시간 (ms).
+        """
         gi = result.gate_input
-        status = "GO" if result.can_proceed else "NO-GO"
+        status = "🚀 *GO*" if result.can_proceed else "🔴 *NO-GO*"
 
         lines = [
-            f"*{status}* | {symbol} @ {exchange.upper()}",
+            f"{status} | *{symbol}* @ {exchange.upper()}",
         ]
 
         if gi:
             lines.append(
-                f"프리미엄: {gi.premium_pct:+.2f}% | "
-                f"순수익: {gi.cost_result.net_profit_pct:+.2f}%"
+                f"📊 프리미엄: *{gi.premium_pct:+.2f}%* | "
+                f"순수익: *{gi.cost_result.net_profit_pct:+.2f}%*"
             )
-            lines.append(f"FX: {gi.fx_source} ({gi.cost_result.total_cost_pct:.2f}% 비용)")
+            lines.append(f"💱 FX: {gi.fx_source} (비용 {gi.cost_result.total_cost_pct:.2f}%)")
+
+        # 속도 정보 추가
+        if duration_ms > 0:
+            lines.append(f"⚡ 분석 속도: *{duration_ms:.0f}ms* ({duration_ms/1000:.2f}초)")
 
         if result.blockers:
-            lines.append("Blockers:")
+            lines.append("🚫 Blockers:")
             for b in result.blockers:
-                lines.append(f"  - {b}")
+                lines.append(f"  • {b}")
 
         if result.warnings:
-            lines.append("Warnings:")
+            lines.append("⚠️ Warnings:")
             for w in result.warnings:
-                lines.append(f"  - {w}")
+                lines.append(f"  • {w}")
 
         return "\n".join(lines)
 
@@ -501,10 +517,10 @@ class MarketMonitor:
                             symbol, exchange, e,
                         )
 
-                    # 3. 텔레그램 알림 (공지 링크 포함)
+                    # 3. 텔레그램 알림 (공지 링크 + 속도 정보 포함)
                     if self._alert:
                         alert_msg = self._format_notice_alert(
-                            symbol, exchange, gate_result, result
+                            symbol, exchange, gate_result, result, duration_ms
                         )
                         await self._alert.send(
                             gate_result.alert_level,
@@ -523,38 +539,51 @@ class MarketMonitor:
         exchange: str,
         result: GateResult,
         notice: NoticeParseResult,
+        duration_ms: float = 0,
     ) -> str:
-        """공지 기반 Gate 결과를 알림 메시지로 포맷."""
+        """공지 기반 Gate 결과를 알림 메시지로 포맷.
+        
+        Args:
+            symbol: 토큰 심볼.
+            exchange: 거래소.
+            result: Gate 분석 결과.
+            notice: 공지 파싱 결과.
+            duration_ms: 감지→분석 완료 시간 (ms).
+        """
         gi = result.gate_input
-        status = "GO" if result.can_proceed else "NO-GO"
+        status = "🚀 *GO*" if result.can_proceed else "🔴 *NO-GO*"
 
         lines = [
             f"📢 *공지 감지* | {status}",
-            f"심볼: {symbol} @ {exchange.upper()}",
+            f"*{symbol}* @ {exchange.upper()}",
         ]
 
         if notice.listing_time:
-            lines.append(f"상장 시간: {notice.listing_time}")
+            lines.append(f"🕐 상장 시간: {notice.listing_time}")
 
         if gi:
             lines.append(
-                f"프리미엄: {gi.premium_pct:+.2f}% | "
-                f"순수익: {gi.cost_result.net_profit_pct:+.2f}%"
+                f"📊 프리미엄: *{gi.premium_pct:+.2f}%* | "
+                f"순수익: *{gi.cost_result.net_profit_pct:+.2f}%*"
             )
-            lines.append(f"FX: {gi.fx_source} ({gi.cost_result.total_cost_pct:.2f}% 비용)")
+            lines.append(f"💱 FX: {gi.fx_source} (비용 {gi.cost_result.total_cost_pct:.2f}%)")
+
+        # 속도 정보 추가
+        if duration_ms > 0:
+            lines.append(f"⚡ 분석 속도: *{duration_ms:.0f}ms* ({duration_ms/1000:.2f}초)")
 
         if result.blockers:
-            lines.append("Blockers:")
+            lines.append("🚫 Blockers:")
             for b in result.blockers[:3]:
-                lines.append(f"  - {b}")
+                lines.append(f"  • {b}")
 
         if result.warnings:
-            lines.append("Warnings:")
+            lines.append("⚠️ Warnings:")
             for w in result.warnings[:3]:
-                lines.append(f"  - {w}")
+                lines.append(f"  • {w}")
 
         if notice.notice_url:
-            lines.append(f"\n공지: {notice.notice_url}")
+            lines.append(f"\n📎 [공지 보기]({notice.notice_url})")
 
         return "\n".join(lines)
 

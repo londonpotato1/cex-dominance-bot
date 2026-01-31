@@ -1,0 +1,41 @@
+{
+  "overall": {
+    "accuracy": 73.1,
+    "count": 67,
+    "correct": 49
+  },
+  "categories": {
+    "heung_big": {
+      "accuracy": 90.5,
+      "count": 21,
+      "correct": 19,
+      "label": "대흥따리"
+    },
+    "heung": {
+      "accuracy": 76.9,
+      "count": 13,
+      "correct": 10,
+      "label": "흥따리"
+    },
+    "neutral": {
+      "accuracy": 46.2,
+      "count": 13,
+      "correct": 6,
+      "label": "보통"
+    },
+    "mang": {
+      "accuracy": 70.0,
+      "count": 20,
+      "correct": 14,
+      "label": "망따리"
+    }
+  },
+  "improvements": [
+    "Turnover Factor 추가 (+9.0%p)",
+    "turnover_ratio 필드 활용 (+4.5%p)",
+    "Threshold 조정 (+4.4%p)"
+  ],
+  "data_source": "data/labeling/listing_data.csv",
+  "updated_at": "2026-01-30",
+  "version": "1.0.0"
+}
