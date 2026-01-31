@@ -855,18 +855,23 @@ def _render_quick_analysis_section() -> None:
     import streamlit as st
     import asyncio
 
-    st.markdown(
-        f'''<div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border:1px solid #3b82f6;border-radius:16px;padding:1.25rem;margin-bottom:1rem;">
-            <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
-                <span style="font-size:1.3rem;">🔍</span>
-                <span style="font-size:1.1rem;font-weight:700;color:#fff;">빠른 분석</span>
-                <span style="font-size:0.75rem;color:#6b7280;margin-left:0.5rem;">현선갭 + DEX 유동성 통합 조회</span>
-            </div>
-        ''',
-        unsafe_allow_html=True,
-    )
+    # 헤더 (완전한 HTML 블록)
+    header_html = '''
+    <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border:1px solid #3b82f6;border-radius:16px 16px 0 0;padding:1rem 1.25rem 0.75rem 1.25rem;">
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+            <span style="font-size:1.3rem;">🔍</span>
+            <span style="font-size:1.1rem;font-weight:700;color:#fff;">빠른 분석</span>
+            <span style="font-size:0.75rem;color:#6b7280;margin-left:0.5rem;">현선갭 + DEX 유동성 통합 조회</span>
+        </div>
+    </div>
+    '''
+    if hasattr(st, 'html'):
+        st.html(header_html)
+    else:
+        st.markdown(header_html, unsafe_allow_html=True)
 
+    # 입력 필드 (Streamlit 컴포넌트)
     col1, col2 = st.columns([4, 1])
     with col1:
         symbol = st.text_input(
@@ -877,8 +882,6 @@ def _render_quick_analysis_section() -> None:
         )
     with col2:
         search_btn = st.button("🚀 분석", key="quick_analysis_btn", use_container_width=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
     if search_btn and symbol:
         symbol = symbol.upper().strip()
@@ -1169,22 +1172,13 @@ def render_live_tab() -> None:
     col_left, col_right = st.columns([1, 1])
 
     with col_left:
-        # 📊 실시간 시장 정보
-        st.markdown(
-            f'''<div style="background:{COLORS["card_bg"]};border:1px solid {COLORS["card_border"]};
-                border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
-                <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;">
-                    📊 실시간 시장 정보
-                </div>
-            ''',
-            unsafe_allow_html=True,
-        )
-        
-        # 통계 요약 (컴팩트)
+        # 📊 실시간 시장 정보 - 전체를 하나의 HTML 블록으로
         stats = fetch_stats_cached(conn_id)
+        
+        # 통계 그리드 HTML
         if stats["total"] > 0:
-            stats_html = f'''
-            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem;margin-bottom:0.75rem;">
+            stats_grid = f'''
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem;">
                 <div style="background:#1f2937;padding:0.6rem;border-radius:8px;text-align:center;">
                     <div style="font-size:1.2rem;font-weight:700;color:#4ade80;">{stats['go_count']}</div>
                     <div style="font-size:0.7rem;color:#6b7280;">GO</div>
@@ -1203,9 +1197,27 @@ def render_live_tab() -> None:
                 </div>
             </div>
             '''
-            st.markdown(stats_html, unsafe_allow_html=True)
+        else:
+            stats_grid = '''
+            <div style="color:#6b7280;font-size:0.85rem;text-align:center;padding:1rem 0;">
+                분석 데이터 없음
+            </div>
+            '''
         
-        st.markdown("</div>", unsafe_allow_html=True)
+        market_info_html = f'''
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
+            border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;">
+                📊 실시간 시장 정보
+            </div>
+            {stats_grid}
+        </div>
+        '''
+        
+        if hasattr(st, 'html'):
+            st.html(market_info_html)
+        else:
+            st.markdown(market_info_html, unsafe_allow_html=True)
         
         # 펀딩비 (컴팩트)
         _render_funding_rate_compact()
@@ -1245,16 +1257,19 @@ def _render_funding_rate_compact() -> None:
     funding_data = fetch_funding_rates_cached()
     
     if funding_data.get("status") in ["error", "no_data"]:
-        st.markdown(
-            f'''<div style="background:{COLORS["card_bg"]};border:1px solid {COLORS["card_border"]};
-                border-radius:12px;padding:1rem;">
-                <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">
-                    💹 펀딩비
-                </div>
-                <div style="color:#6b7280;font-size:0.8rem;">데이터 로딩 중...</div>
-            </div>''',
-            unsafe_allow_html=True,
-        )
+        no_data_html = f'''
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
+            border-radius:12px;padding:1rem;">
+            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">
+                💹 펀딩비
+            </div>
+            <div style="color:#6b7280;font-size:0.8rem;">데이터 로딩 중...</div>
+        </div>
+        '''
+        if hasattr(st, 'html'):
+            st.html(no_data_html)
+        else:
+            st.markdown(no_data_html, unsafe_allow_html=True)
         return
 
     avg_rate = funding_data.get("avg_funding_rate_pct", 0)
@@ -1269,8 +1284,20 @@ def _render_funding_rate_compact() -> None:
     else:
         bias_color, bias_emoji, bias_text = "#9ca3af", "➖", "중립"
 
+    # 심볼별 펀딩비 HTML 생성
+    symbols_html = ""
+    for symbol, data in list(symbols_data.items())[:4]:
+        rate_pct = data.get("rate_pct", 0)
+        sym_color = "#4ade80" if rate_pct > 0 else "#f87171" if rate_pct < 0 else "#9ca3af"
+        symbols_html += f'''
+            <span style="background:#1f2937;padding:4px 8px;border-radius:4px;font-size:0.75rem;display:inline-block;">
+                <span style="color:#9ca3af;">{symbol.replace('USDT', '')}</span>
+                <span style="color:{sym_color};font-weight:600;margin-left:4px;">{rate_pct:+.3f}%</span>
+            </span>
+        '''
+
     funding_html = f'''
-    <div style="background:{COLORS["card_bg"]};border:1px solid {COLORS["card_border"]};
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
         border-radius:12px;padding:1rem;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
             <span style="font-size:0.9rem;font-weight:600;color:#fff;">💹 펀딩비</span>
@@ -1283,18 +1310,12 @@ def _render_funding_rate_compact() -> None:
             {avg_rate:+.4f}%
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
+            {symbols_html}
+        </div>
+    </div>
     '''
     
-    for symbol, data in list(symbols_data.items())[:4]:
-        rate_pct = data.get("rate_pct", 0)
-        sym_color = "#4ade80" if rate_pct > 0 else "#f87171" if rate_pct < 0 else "#9ca3af"
-        funding_html += f'''
-            <span style="background:#1f2937;padding:4px 8px;border-radius:4px;font-size:0.75rem;">
-                <span style="color:#9ca3af;">{symbol.replace('USDT', '')}</span>
-                <span style="color:{sym_color};font-weight:600;margin-left:4px;">{rate_pct:+.3f}%</span>
-            </span>
-        '''
-    
-    funding_html += "</div></div>"
-    
-    st.markdown(funding_html, unsafe_allow_html=True)
+    if hasattr(st, 'html'):
+        st.html(funding_html)
+    else:
+        st.markdown(funding_html, unsafe_allow_html=True)
