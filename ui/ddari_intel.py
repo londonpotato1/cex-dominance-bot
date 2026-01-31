@@ -871,14 +871,17 @@ def _render_go_nogo_section() -> None:
                         "NEUTRAL": COLORS["neutral"],
                     }
                     comp_color = comp_colors.get(c.signal, COLORS["neutral"])
-                    raw_text = f'<br><span style="color:{COLORS["text_muted"]};font-size:0.75rem;">{c.raw_value}</span>' if c.raw_value else ''
+                    raw_text = f'<div style="color:{COLORS["text_muted"]};font-size:0.75rem;margin-top:0.25rem;">{c.raw_value}</div>' if c.raw_value else ''
+                    # 설명(reason) 추가
+                    reason_text = f'<div style="color:{COLORS["text_secondary"]};font-size:0.7rem;margin-top:0.5rem;line-height:1.3;">{c.reason}</div>' if c.reason else ''
                     
                     result_html += f"""
                         <div style="background:{COLORS["bg_card"]};border:1px solid {comp_color};
-                                    border-radius:8px;padding:0.75rem;">
+                                    border-radius:8px;padding:0.75rem;min-height:100px;">
                             <div style="font-size:0.8rem;color:{COLORS["text_muted"]};">{c.name}</div>
                             <div style="font-size:1.1rem;font-weight:600;color:{comp_color};">{c.score:.0f}점</div>
                             {raw_text}
+                            {reason_text}
                         </div>
                     """
 
