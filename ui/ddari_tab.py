@@ -16,6 +16,7 @@ def render_ddari_tab() -> None:
     from ui.ddari_live import render_live_tab
     from ui.ddari_analysis_center import render_analysis_center_tab
     from ui.ddari_learning_guide import render_learning_guide_tab
+    from ui.ddari_common import render_html
 
     # 3개 서브탭 생성
     dashboard_tab, analysis_tab, guide_tab = st.tabs([
@@ -26,20 +27,19 @@ def render_ddari_tab() -> None:
 
     with dashboard_tab:
         # 탭 설명
-        st.markdown(
+        render_html(
             '''<div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
                 border:1px solid #3b82f6;border-radius:12px;padding:1rem;margin-bottom:1rem;">
                 <div style="font-size:0.9rem;color:#60a5fa;font-weight:600;">📊 대시보드</div>
                 <div style="font-size:0.8rem;color:#9ca3af;margin-top:0.25rem;">
                     실시간 GO/NO-GO 현황, 프리미엄 차트, 시장 분위기를 한눈에 확인하세요.
                 </div>
-            </div>''',
-            unsafe_allow_html=True
+            </div>'''
         )
         
         # 대시보드 사용법 가이드 (접이식)
         with st.expander("💡 대시보드 사용법", expanded=False):
-            st.markdown(
+            render_html(
                 '''
                 <div style="font-size:0.85rem;color:#d1d5db;line-height:1.7;">
                     <p><b>🟢 GO 카드</b>: 진입 검토 가능한 상장 건. GO 스코어가 높을수록 유리한 조건입니다.</p>
@@ -48,36 +48,33 @@ def render_ddari_tab() -> None:
                     <p><b>📊 현선갭 모니터</b>: 현물-선물 가격 차이. 헷징 비용 판단에 활용합니다.</p>
                     <p><b>🔍 빠른 분석</b>: 심볼 입력 후 현선갭 + DEX 유동성을 즉시 조회합니다.</p>
                 </div>
-                ''',
-                unsafe_allow_html=True
+                '''
             )
         
         render_live_tab()
 
     with analysis_tab:
         # 탭 설명
-        st.markdown(
+        render_html(
             '''<div style="background:linear-gradient(135deg, #1a2e1a 0%, #163e16 100%);
                 border:1px solid #4ade80;border-radius:12px;padding:1rem;margin-bottom:1rem;">
                 <div style="font-size:0.9rem;color:#4ade80;font-weight:600;">🎯 분석센터</div>
                 <div style="font-size:0.8rem;color:#9ca3af;margin-top:0.25rem;">
                     전략 분석기, 갭 모니터링, 상장 히스토리, 시나리오 예측, VC/MM 정보를 통합 제공합니다.
                 </div>
-            </div>''',
-            unsafe_allow_html=True
+            </div>'''
         )
         render_analysis_center_tab()
 
     with guide_tab:
         # 탭 설명
-        st.markdown(
+        render_html(
             '''<div style="background:linear-gradient(135deg, #2e1a2e 0%, #3e163e 100%);
                 border:1px solid #a78bfa;border-radius:12px;padding:1rem;margin-bottom:1rem;">
                 <div style="font-size:0.9rem;color:#a78bfa;font-weight:600;">📖 학습가이드</div>
                 <div style="font-size:0.8rem;color:#9ca3af;margin-top:0.25rem;">
                     따리 트레이딩의 기초부터 고급 전략까지, 시스템 사용법과 FAQ를 확인하세요.
                 </div>
-            </div>''',
-            unsafe_allow_html=True
+            </div>'''
         )
         render_learning_guide_tab()

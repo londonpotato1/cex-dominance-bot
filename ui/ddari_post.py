@@ -14,6 +14,7 @@ from ui.ddari_common import (
     PHASE8_AVAILABLE,
     badge_style,
     get_read_conn,
+    render_html,
 )
 
 
@@ -138,10 +139,7 @@ def _render_post_listing_section(conn_id: int) -> None:
     if not PHASE8_AVAILABLE:
         return
 
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">🔥 후따리 분석 (2차 펌핑 기회)</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">🔥 후따리 분석 (2차 펌핑 기회)</p>')
 
     # 데이터 조회
     post_listing_data = _fetch_post_listing_data_cached(conn_id, limit=5)
@@ -307,10 +305,7 @@ def _render_exit_timing_section(conn_id: int) -> None:
     if not PHASE8_AVAILABLE:
         return
 
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">⏰ 매도 타이밍</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">⏰ 매도 타이밍</p>')
 
     # 데이터 조회
     exit_data = _fetch_exit_timing_cached(conn_id, limit=5)
@@ -391,11 +386,10 @@ def render_post_tab() -> None:
         st.info("Phase 8 모듈이 설치되지 않았습니다. 후따리 분석 기능을 사용하려면 Phase 8 모듈을 설치하세요.")
         return
 
-    st.markdown(
+    render_html(
         '<p style="font-size:1.2rem;font-weight:700;color:#fff;'
         'margin-bottom:1rem;border-bottom:1px solid #333;'
-        'padding-bottom:0.5rem;">🎯 Phase 8: 후따리 전략</p>',
-        unsafe_allow_html=True,
+        'padding-bottom:0.5rem;">🎯 Phase 8: 후따리 전략</p>'
     )
 
     # 후따리 분석

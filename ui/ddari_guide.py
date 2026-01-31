@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from ui.ddari_common import COLORS, CARD_STYLE
+from ui.ddari_common import COLORS, CARD_STYLE, render_html
 
 
 def _get_guide_html() -> str:
@@ -502,14 +502,8 @@ def render_user_guide() -> None:
 
     with strategy_tab:
         guide_html = _get_guide_html()
-        if hasattr(st, 'html'):
-            st.html(guide_html)
-        else:
-            st.markdown(guide_html, unsafe_allow_html=True)
+        render_html(guide_html)
 
     with system_tab:
         system_html = _get_system_guide_html()
-        if hasattr(st, 'html'):
-            st.html(system_html)
-        else:
-            st.markdown(system_html, unsafe_allow_html=True)
+        render_html(system_html)

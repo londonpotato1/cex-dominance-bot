@@ -30,6 +30,7 @@ def render_analysis_center_tab() -> None:
         SECTION_HEADER_STYLE,
         get_read_conn,
         fetch_listing_history_cached,
+        render_html,
     )
     
     conn = get_read_conn()
@@ -38,14 +39,11 @@ def render_analysis_center_tab() -> None:
     # ========================================
     # 1. 전략 분석기 섹션
     # ========================================
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">🎯 전략 분석기</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">🎯 전략 분석기</p>')
     
     # 전략 분석기 가이드 (접이식)
     with st.expander("📖 전략 분석기 사용 가이드", expanded=False):
-        st.markdown(
+        render_html(
             '''
             <div style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);
                 border-radius:12px;padding:1rem;margin-bottom:1rem;">
@@ -101,8 +99,7 @@ def render_analysis_center_tab() -> None:
                     </p>
                 </div>
             </div>
-            ''',
-            unsafe_allow_html=True
+            '''
         )
     
     render_strategy_analysis_section()
@@ -111,14 +108,11 @@ def render_analysis_center_tab() -> None:
     # 2. 갭 모니터링 섹션
     # ========================================
     st.markdown("---")
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">📊 갭 모니터링</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">📊 갭 모니터링</p>')
     
     # 갭 모니터링 가이드 (접이식)
     with st.expander("📖 갭 모니터링 가이드", expanded=False):
-        st.markdown(
+        render_html(
             '''
             <div style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);
                 border-radius:12px;padding:1rem;">
@@ -143,8 +137,7 @@ def render_analysis_center_tab() -> None:
                     💡 헷지 진입 시 갭이 벌어지면 단계별로 익절하여 수익 확정
                 </p>
             </div>
-            ''',
-            unsafe_allow_html=True
+            '''
         )
     
     render_gap_monitor_section()
@@ -166,14 +159,11 @@ def render_analysis_center_tab() -> None:
             if r.get("result_label") in ("mang", "망따리")
         )
         
-        st.markdown(
-            f'<p style="{SECTION_HEADER_STYLE}">📋 상장 히스토리</p>',
-            unsafe_allow_html=True,
-        )
+        render_html(f'<p style="{SECTION_HEADER_STYLE}">📋 상장 히스토리</p>')
         
         # 상장 히스토리 가이드 (접이식)
         with st.expander("📖 상장 히스토리 활용법", expanded=False):
-            st.markdown(
+            render_html(
                 '''
                 <div style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);
                     border-radius:12px;padding:1rem;">
@@ -183,8 +173,7 @@ def render_analysis_center_tab() -> None:
                         <b>흥/망 라벨</b>을 확인하고 패턴을 파악하세요.
                     </p>
                 </div>
-                ''',
-                unsafe_allow_html=True
+                '''
             )
         
         with st.expander(f"📋 최근 {len(listing_history)}건 | 흥:{heung_count} 망:{mang_count}", expanded=False):
@@ -198,7 +187,7 @@ def render_analysis_center_tab() -> None:
     
     # 시나리오 가이드 (접이식)
     with st.expander("📖 시나리오 예측 가이드", expanded=False):
-        st.markdown(
+        render_html(
             '''
             <div style="background:rgba(168,139,250,0.1);border:1px solid rgba(168,139,250,0.3);
                 border-radius:12px;padding:1rem;">
@@ -209,8 +198,7 @@ def render_analysis_center_tab() -> None:
                     <span style="color:#fbbf24;">⚠️ 예측값이므로 참고용으로 활용하세요.</span>
                 </p>
             </div>
-            ''',
-            unsafe_allow_html=True
+            '''
         )
     
     _render_scenario_section(conn_id)
@@ -222,7 +210,7 @@ def render_analysis_center_tab() -> None:
     
     # VC/MM 가이드 (접이식)
     with st.expander("📖 VC/MM 정보 활용법", expanded=False):
-        st.markdown(
+        render_html(
             '''
             <div style="background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.3);
                 border-radius:12px;padding:1rem;">
@@ -240,8 +228,7 @@ def render_analysis_center_tab() -> None:
                     리스크 점수가 높은 MM (예: DWF Labs)은 워시트레이딩, 펌핑덤핑 가능성이 있으니 주의하세요.
                 </p>
             </div>
-            ''',
-            unsafe_allow_html=True
+            '''
         )
     
     _render_vc_mm_section()
@@ -253,7 +240,7 @@ def render_analysis_center_tab() -> None:
     
     # 토크노믹스 가이드 (접이식)
     with st.expander("📖 TGE 언락 가이드", expanded=False):
-        st.markdown(
+        render_html(
             '''
             <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);
                 border-radius:12px;padding:1rem;">
@@ -278,8 +265,7 @@ def render_analysis_center_tab() -> None:
                     TGE 언락률이 높으면 상장 직후 대량 덤핑 가능성이 있습니다.
                 </p>
             </div>
-            ''',
-            unsafe_allow_html=True
+            '''
         )
     
     _render_tokenomics_section()
@@ -291,7 +277,7 @@ def render_analysis_center_tab() -> None:
     
     # 핫월렛 가이드 (접이식)
     with st.expander("📖 핫월렛 모니터링 가이드", expanded=False):
-        st.markdown(
+        render_html(
             '''
             <div style="background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.3);
                 border-radius:12px;padding:1rem;">
@@ -307,8 +293,7 @@ def render_analysis_center_tab() -> None:
                     • <b>대량 입금 감지</b> → 상장 전 물량 유입 시그널
                 </div>
             </div>
-            ''',
-            unsafe_allow_html=True
+            '''
         )
     
     _render_hot_wallet_section()

@@ -23,6 +23,7 @@ from ui.ddari_common import (
     fetch_listing_history_cached,
     fetch_scenario_data_cached,
     render_result_label_badge,
+    render_html,
 )
 
 
@@ -89,10 +90,7 @@ def _render_listing_history_card(row: dict) -> None:
     </div>
     """
 
-    if hasattr(st, 'html'):
-        st.html(card_html)
-    else:
-        st.markdown(card_html, unsafe_allow_html=True)
+    render_html(card_html)
 
 
 # ------------------------------------------------------------------
@@ -199,19 +197,13 @@ def _render_scenario_section(conn_id: int) -> None:
     """시나리오 예측 섹션 렌더링."""
     import streamlit as st
 
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">🎯 시나리오 예측</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">🎯 시나리오 예측</p>')
 
     # 최근 상장 데이터 조회
     recent_listings = fetch_scenario_data_cached(conn_id, limit=5)
 
     if not recent_listings:
-        st.markdown(
-            f'<p style="color:{COLORS["text_muted"]};font-size:0.85rem;">시나리오 데이터 없음</p>',
-            unsafe_allow_html=True,
-        )
+        render_html(f'<p style="color:{COLORS["text_muted"]};font-size:0.85rem;">시나리오 데이터 없음</p>')
         return
 
     # 각 상장에 대해 시나리오 카드 생성
@@ -271,10 +263,7 @@ def _render_scenario_section(conn_id: int) -> None:
             scenario_type="likely",
         )
 
-        if hasattr(st, 'html'):
-            st.html(card_html)
-        else:
-            st.markdown(card_html, unsafe_allow_html=True)
+        render_html(card_html)
 
 
 # ------------------------------------------------------------------
@@ -286,10 +275,7 @@ def _render_backtest_accuracy_section() -> None:
     """백테스트 정확도 섹션 렌더링."""
     import streamlit as st
 
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">📊 백테스트 정확도</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">📊 백테스트 정확도</p>')
 
     backtest_data = load_backtest_results_cached()
     overall = backtest_data.get("overall", {"accuracy": 0, "count": 0})
@@ -354,10 +340,7 @@ def _render_backtest_accuracy_section() -> None:
     </div>
     """
 
-    if hasattr(st, 'html'):
-        st.html(accuracy_html)
-    else:
-        st.markdown(accuracy_html, unsafe_allow_html=True)
+    render_html(accuracy_html)
 
 
 # ------------------------------------------------------------------
@@ -369,10 +352,7 @@ def _render_vc_mm_section() -> None:
     """VC/MM 정보 섹션 렌더링."""
     import streamlit as st
 
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">💼 VC/MM 인텔리전스</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">💼 VC/MM 인텔리전스</p>')
 
     vc_data = load_vc_tiers_cached()
 
@@ -458,12 +438,8 @@ def _render_vc_mm_section() -> None:
     </div>
     """
 
-    if hasattr(st, 'html'):
-        st.html(vc_html)
-        st.html(mm_html)
-    else:
-        st.markdown(vc_html, unsafe_allow_html=True)
-        st.markdown(mm_html, unsafe_allow_html=True)
+    render_html(vc_html)
+    render_html(mm_html)
 
 
 # ------------------------------------------------------------------
@@ -475,10 +451,7 @@ def _render_tokenomics_section() -> None:
     """토크노믹스 (TGE 언락) 섹션 렌더링."""
     import streamlit as st
 
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">🔓 TGE 언락 분석</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">🔓 TGE 언락 분석</p>')
 
     unlock_data = load_unlock_schedules_cached()
     tokens = unlock_data.get("tokens", {})
@@ -537,10 +510,7 @@ def _render_tokenomics_section() -> None:
             </p>
         </div>
         """
-        if hasattr(st, 'html'):
-            st.html(high_risk_html)
-        else:
-            st.markdown(high_risk_html, unsafe_allow_html=True)
+        render_html(high_risk_html)
 
     with st.expander("📋 전체 토큰 언락 스케줄", expanded=False):
         table_html = f"""
@@ -601,15 +571,9 @@ def _render_tokenomics_section() -> None:
         </div>
         """
 
-        if hasattr(st, 'html'):
-            st.html(table_html)
-        else:
-            st.markdown(table_html, unsafe_allow_html=True)
+        render_html(table_html)
 
-    if hasattr(st, 'html'):
-        st.html(TGE_RISK_GUIDE)
-    else:
-        st.markdown(TGE_RISK_GUIDE, unsafe_allow_html=True)
+    render_html(TGE_RISK_GUIDE)
 
 
 # ------------------------------------------------------------------
@@ -621,10 +585,7 @@ def _render_hot_wallet_section() -> None:
     """핫월렛 모니터링 섹션 렌더링."""
     import streamlit as st
 
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">🔥 핫월렛 모니터링</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">🔥 핫월렛 모니터링</p>')
 
     hw_data = load_hot_wallets_cached()
     exchanges = hw_data.get("exchanges", {})
@@ -654,10 +615,7 @@ def _render_hot_wallet_section() -> None:
     </div>
     """
 
-    if hasattr(st, 'html'):
-        st.html(header_html)
-    else:
-        st.markdown(header_html, unsafe_allow_html=True)
+    render_html(header_html)
 
     with st.expander("📋 등록된 거래소 핫월렛", expanded=False):
         exchange_stats = []
@@ -758,10 +716,7 @@ def _render_go_nogo_section() -> None:
     import streamlit as st
     import asyncio
 
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">🎯 GO/NO-GO 분석기</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">🎯 GO/NO-GO 분석기</p>')
 
     # 심볼 입력
     col1, col2, col3 = st.columns([2, 1, 1])
@@ -961,11 +916,10 @@ def render_intel_tab() -> None:
                 _render_listing_history_card(row)
 
             if labeled_count > 0:
-                st.markdown(
+                render_html(
                     f'<p style="font-size:0.85rem;color:#888;margin-top:0.5rem;">'
                     f'라벨링: {labeled_count}/{len(listing_history)}건 | '
-                    f'흥따리: {heung_count}건 | 망따리: {mang_count}건</p>',
-                    unsafe_allow_html=True,
+                    f'흥따리: {heung_count}건 | 망따리: {mang_count}건</p>'
                 )
 
     # ------------------------------------------------------------------

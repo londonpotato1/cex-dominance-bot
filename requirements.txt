@@ -19,7 +19,7 @@ cloudscraper>=1.2.71
 playwright>=1.40.0
 
 # 웹 대시보드
-streamlit>=1.30.0
+streamlit>=1.33.0
 plotly>=5.18.0
 pandas>=2.0.0
 

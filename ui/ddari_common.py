@@ -697,6 +697,24 @@ def fetch_funding_rates_cached() -> dict:
     return _inner()
 
 
+# ------------------------------------------------------------------
+# HTML 렌더링 헬퍼 (st.html 우선 사용)
+# ------------------------------------------------------------------
+
+
+def render_html(content: str) -> None:
+    """HTML 렌더링 헬퍼 - st.html (1.33+) 우선, fallback으로 st.markdown.
+    
+    Streamlit의 st.markdown(unsafe_allow_html=True)는 복잡한 nested HTML에서
+    가끔 raw 텍스트로 출력되는 버그가 있음. st.html()은 이 문제가 없음.
+    """
+    import streamlit as st
+    if hasattr(st, 'html'):
+        st.html(content)
+    else:
+        st.markdown(content, unsafe_allow_html=True)
+
+
 # Re-export for convenience
 __all__ = [
     # Constants
@@ -727,4 +745,5 @@ __all__ = [
     "render_result_label_badge",
     "get_market_mood_cached",
     "fetch_funding_rates_cached",
+    "render_html",
 ]

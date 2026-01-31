@@ -28,6 +28,7 @@ from ui.ddari_common import (
     render_vcmm_badge,
     get_market_mood_cached,
     fetch_funding_rates_cached,
+    render_html,
 )
 
 
@@ -520,10 +521,7 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
         </div>
         """
         
-        if hasattr(st, 'html'):
-            st.html(card_html)
-        else:
-            st.markdown(card_html, unsafe_allow_html=True)
+        render_html(card_html)
         
         # 상세 정보 접이식 (스코어 breakdown 포함)
         with st.expander(f"📋 {symbol} 상세 정보 & GO 스코어 분석", expanded=False):
@@ -597,10 +595,7 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
     </div>
     """
     
-    if hasattr(st, 'html'):
-        st.html(card_html)
-    else:
-        st.markdown(card_html, unsafe_allow_html=True)
+    render_html(card_html)
 
 
 # ------------------------------------------------------------------
@@ -612,10 +607,7 @@ def _render_premium_chart_section(conn_id: int) -> None:
     """실시간 프리미엄 차트 섹션 (Phase 7 Week 4)."""
     import streamlit as st
 
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">📈 프리미엄 추이 차트</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">📈 프리미엄 추이 차트</p>')
 
     # 최근 24시간 프리미엄 히스토리 조회
     premium_history = fetch_premium_history_cached(conn_id, hours=24)
@@ -685,10 +677,7 @@ def _render_premium_chart_section(conn_id: int) -> None:
                 st.write(f"- 최저: {min(premiums):.2f}%")
 
     # 프리미엄 임계값 안내 (styles.py에서 import)
-    if hasattr(st, 'html'):
-        st.html(PREMIUM_THRESHOLDS)
-    else:
-        st.markdown(PREMIUM_THRESHOLDS, unsafe_allow_html=True)
+    render_html(PREMIUM_THRESHOLDS)
 
 
 # ------------------------------------------------------------------
@@ -804,10 +793,7 @@ def _render_spot_futures_gap_section(conn_id: int) -> None:
     if not PHASE8_AVAILABLE:
         return
 
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">📊 현선갭 모니터</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">📊 현선갭 모니터</p>')
 
     # 데이터 조회
     gap_data = _fetch_spot_futures_gap_cached(conn_id, limit=5)
@@ -837,19 +823,13 @@ def _render_spot_futures_gap_section(conn_id: int) -> None:
             </p>
         </div>
         """
-        if hasattr(st, 'html'):
-            st.html(info_html)
-        else:
-            st.markdown(info_html, unsafe_allow_html=True)
+        render_html(info_html)
         return
 
     # 갭 카드들
     for data in gap_data:
         card_html = _render_spot_futures_gap_card_html(data)
-        if hasattr(st, 'html'):
-            st.html(card_html)
-        else:
-            st.markdown(card_html, unsafe_allow_html=True)
+        render_html(card_html)
 
 
 # ------------------------------------------------------------------
@@ -861,10 +841,7 @@ def _render_funding_rate_section() -> None:
     """펀딩비 섹션 렌더링."""
     import streamlit as st
 
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">💹 펀딩비 (Funding Rate)</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">💹 펀딩비 (Funding Rate)</p>')
 
     funding_data = fetch_funding_rates_cached()
 
@@ -892,10 +869,7 @@ def _render_funding_rate_section() -> None:
             </p>
         </div>
         """
-        if hasattr(st, 'html'):
-            st.html(info_html)
-        else:
-            st.markdown(info_html, unsafe_allow_html=True)
+        render_html(info_html)
         return
 
     # 펀딩비 요약
@@ -972,10 +946,7 @@ def _render_funding_rate_section() -> None:
     </div>
     """
 
-    if hasattr(st, 'html'):
-        st.html(summary_html)
-    else:
-        st.markdown(summary_html, unsafe_allow_html=True)
+    render_html(summary_html)
 
 
 # ------------------------------------------------------------------
@@ -987,10 +958,7 @@ def _render_realtime_gap_section() -> None:
     """실시간 현선갭 조회 섹션."""
     import streamlit as st
 
-    st.markdown(
-        f'<p style="{SECTION_HEADER_STYLE}">📊 실시간 현선갭 조회</p>',
-        unsafe_allow_html=True,
-    )
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">📊 실시간 현선갭 조회</p>')
 
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -1078,10 +1046,7 @@ def _render_realtime_gap_section() -> None:
                     </div>
                     """
                     
-                    if hasattr(st, 'html'):
-                        st.html(result_html)
-                    else:
-                        st.markdown(result_html, unsafe_allow_html=True)
+                    render_html(result_html)
 
             except Exception as e:
                 st.error(f"조회 실패: {e}")
@@ -1097,10 +1062,7 @@ def _render_realtime_gap_section() -> None:
         </p>
     </div>
     """
-    if hasattr(st, 'html'):
-        st.html(info_html)
-    else:
-        st.markdown(info_html, unsafe_allow_html=True)
+    render_html(info_html)
 
 
 # ------------------------------------------------------------------
@@ -1124,10 +1086,7 @@ def _render_quick_analysis_section() -> None:
         </div>
     </div>
     '''
-    if hasattr(st, 'html'):
-        st.html(header_html)
-    else:
-        st.markdown(header_html, unsafe_allow_html=True)
+    render_html(header_html)
 
     # 입력 필드 (Streamlit 컴포넌트)
     col1, col2 = st.columns([4, 1])
@@ -1501,10 +1460,7 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
     </div>
     """
     
-    if hasattr(st, 'html'):
-        st.html(result_html)
-    else:
-        st.markdown(result_html, unsafe_allow_html=True)
+    render_html(result_html)
 
     # 판정 기준 설명 (접이식)
     with st.expander("💡 판정 기준", expanded=False):
@@ -1589,7 +1545,7 @@ def render_live_tab() -> None:
         best_profit = best_go.get("net_profit_pct") or 0
         best_profit_text = f"+{best_profit:.1f}%" if best_profit > 0 else ""
 
-        st.markdown(
+        render_html(
             f'''<div style="background:linear-gradient(135deg, #0d3320 0%, #166534 50%, #15803d 100%);
                 border:2px solid #4ade80;border-radius:12px;padding:0.75rem 1rem;margin-bottom:0.75rem;">
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
@@ -1609,8 +1565,7 @@ def render_live_tab() -> None:
                         </span>
                     </div>
                 </div>
-            </div>''',
-            unsafe_allow_html=True,
+            </div>'''
         )
         
         # GO 카드들 렌더링
@@ -1619,7 +1574,7 @@ def render_live_tab() -> None:
 
     elif not analyses:
         # 데이터 없음 상태
-        st.markdown(
+        render_html(
             f'''<div style="background:linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%);
                 border:1px dashed #374151;border-radius:16px;padding:2.5rem;text-align:center;margin-bottom:1rem;">
                 <div style="font-size:2.5rem;margin-bottom:0.75rem;">⏳</div>
@@ -1627,20 +1582,18 @@ def render_live_tab() -> None:
                 <div style="font-size:0.85rem;color:#6b7280;">
                     수집 데몬이 실행 중이고 새 상장이 감지되면<br>여기에 GO/NO-GO 분석 결과가 표시됩니다.
                 </div>
-            </div>''',
-            unsafe_allow_html=True,
+            </div>'''
         )
 
     else:
         # GO 없음 - 대기 상태
-        st.markdown(
+        render_html(
             f'''<div style="background:linear-gradient(135deg, #1a1a1a 0%, #262626 100%);
                 border:2px dashed #374151;border-radius:16px;padding:1.5rem;text-align:center;margin-bottom:1rem;">
                 <div style="font-size:1.8rem;margin-bottom:0.5rem;">😴</div>
                 <div style="font-size:1.1rem;color:#9ca3af;">현재 GO 기회 없음</div>
                 <div style="font-size:0.8rem;color:#6b7280;">대기 중... 새 상장 감지 시 알림</div>
-            </div>''',
-            unsafe_allow_html=True,
+            </div>'''
         )
 
     # ============================================================
@@ -1691,10 +1644,7 @@ def render_live_tab() -> None:
         </div>
         '''
         
-        if hasattr(st, 'html'):
-            st.html(market_info_html)
-        else:
-            st.markdown(market_info_html, unsafe_allow_html=True)
+        render_html(market_info_html)
         
     with col_right:
         # 🔍 빠른 분석 섹션
@@ -1787,10 +1737,7 @@ def _render_funding_rate_bottom_bar() -> None:
     <div style="height:50px;"></div>
     '''
     
-    if hasattr(st, 'html'):
-        st.html(bottom_bar_html)
-    else:
-        st.markdown(bottom_bar_html, unsafe_allow_html=True)
+    render_html(bottom_bar_html)
 
 
 def _render_funding_rate_compact() -> None:
@@ -1806,10 +1753,7 @@ def _render_funding_rate_compact() -> None:
             <span style="font-size:0.8rem;color:#6b7280;">💹 펀딩비 로딩 중...</span>
         </div>
         '''
-        if hasattr(st, 'html'):
-            st.html(no_data_html)
-        else:
-            st.markdown(no_data_html, unsafe_allow_html=True)
+        render_html(no_data_html)
         return
 
     avg_rate = funding_data.get("avg_funding_rate_pct", 0)
@@ -1862,7 +1806,4 @@ def _render_funding_rate_compact() -> None:
     </div>
     '''
     
-    if hasattr(st, 'html'):
-        st.html(funding_html)
-    else:
-        st.markdown(funding_html, unsafe_allow_html=True)
+    render_html(funding_html)
