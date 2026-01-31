@@ -225,13 +225,253 @@ def _get_guide_html() -> str:
     """
 
 
+def _get_system_guide_html() -> str:
+    """시스템 작동 방식 가이드 HTML 생성."""
+    return f"""
+    <div style="background:{COLORS["card_bg"]};border:1px solid {COLORS["card_border"]};
+                border-radius:12px;padding:1.5rem;margin-top:1rem;">
+
+        <!-- 1. 시스템 개요 -->
+        <div style="margin-bottom:1.5rem;">
+            <h3 style="color:{COLORS["text_primary"]};font-size:1.1rem;margin-bottom:0.75rem;">
+                🤖 시스템 개요
+            </h3>
+            <p style="color:{COLORS["text_secondary"]};font-size:0.85rem;line-height:1.6;">
+                이 봇은 한국 거래소(업비트/빗썸)와 글로벌 거래소의 가격 차이를 실시간으로 모니터링하고,
+                신규 상장 시 자동으로 분석하여 GO/NO-GO 판정을 내립니다.
+            </p>
+            <div style="background:{COLORS["bg_dark"]};padding:1rem;border-radius:8px;margin-top:0.75rem;">
+                <div style="display:flex;flex-wrap:wrap;gap:0.75rem;font-size:0.8rem;">
+                    <span style="background:#1f2937;padding:4px 10px;border-radius:6px;color:#60a5fa;">
+                        📡 실시간 WebSocket
+                    </span>
+                    <span style="background:#1f2937;padding:4px 10px;border-radius:6px;color:#a78bfa;">
+                        🔍 상장 자동 감지
+                    </span>
+                    <span style="background:#1f2937;padding:4px 10px;border-radius:6px;color:#4ade80;">
+                        🚦 GO/NO-GO 판정
+                    </span>
+                    <span style="background:#1f2937;padding:4px 10px;border-radius:6px;color:#fbbf24;">
+                        🔔 텔레그램 알림
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. 데이터 수집 방식 -->
+        <div style="margin-bottom:1.5rem;">
+            <h3 style="color:{COLORS["text_primary"]};font-size:1.1rem;margin-bottom:0.75rem;">
+                📡 데이터 수집 방식
+            </h3>
+            <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+                <thead>
+                    <tr style="background:rgba(255,255,255,0.05);">
+                        <th style="padding:8px;text-align:left;color:{COLORS["text_dim"]};">거래소</th>
+                        <th style="padding:8px;text-align:center;color:{COLORS["text_dim"]};">방식</th>
+                        <th style="padding:8px;text-align:center;color:{COLORS["text_dim"]};">지연</th>
+                        <th style="padding:8px;text-align:left;color:{COLORS["text_dim"]};">수집 데이터</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom:1px solid {COLORS["card_border_hover"]};">
+                        <td style="padding:8px;color:{COLORS["info"]};font-weight:600;">업비트</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["success"]};">WebSocket</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["text_secondary"]};">~100ms</td>
+                        <td style="padding:8px;color:{COLORS["text_secondary"]};">실시간 체결가, 마켓 목록</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid {COLORS["card_border_hover"]};">
+                        <td style="padding:8px;color:{COLORS["info"]};font-weight:600;">빗썸</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["success"]};">WebSocket</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["text_secondary"]};">~200ms</td>
+                        <td style="padding:8px;color:{COLORS["text_secondary"]};">실시간 체결가, 마켓 목록</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid {COLORS["card_border_hover"]};">
+                        <td style="padding:8px;color:{COLORS["warning"]};font-weight:600;">바이낸스</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["info"]};">REST API</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["text_secondary"]};">~500ms</td>
+                        <td style="padding:8px;color:{COLORS["text_secondary"]};">현물/선물 가격, 펀딩비</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid {COLORS["card_border_hover"]};">
+                        <td style="padding:8px;color:{COLORS["warning"]};font-weight:600;">바이빗</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["info"]};">REST API</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["text_secondary"]};">~500ms</td>
+                        <td style="padding:8px;color:{COLORS["text_secondary"]};">현물/선물 가격, 펀딩비</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:8px;color:{COLORS["text_muted"]};font-weight:600;">환율 (FX)</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["neutral"]};">API 캐시</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["text_secondary"]};">5분</td>
+                        <td style="padding:8px;color:{COLORS["text_secondary"]};">USD/KRW 환율</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 3. 상장 감지 로직 -->
+        <div style="margin-bottom:1.5rem;">
+            <h3 style="color:{COLORS["text_primary"]};font-size:1.1rem;margin-bottom:0.75rem;">
+                🔍 상장 감지 로직
+            </h3>
+            <div style="background:{COLORS["bg_dark"]};padding:1rem;border-radius:8px;">
+                <ol style="color:{COLORS["text_secondary"]};font-size:0.85rem;line-height:1.8;padding-left:1.2rem;margin:0;">
+                    <li><span style="color:{COLORS["info"]};">마켓 Diff 모니터링</span> — 30~60초마다 마켓 목록 비교</li>
+                    <li><span style="color:{COLORS["warning"]};">새 심볼 감지</span> — 이전에 없던 마켓이 등장하면 상장으로 판단</li>
+                    <li><span style="color:{COLORS["success"]};">Gate 분석 시작</span> — 글로벌 거래소 가격/입출금 상태 확인</li>
+                    <li><span style="color:{COLORS["danger"]};">텔레그램 알림</span> — GO/NO-GO 결과 즉시 전송</li>
+                </ol>
+            </div>
+            <div style="margin-top:0.75rem;padding:0.75rem;background:rgba(251,191,36,0.1);border-radius:8px;border-left:4px solid {COLORS["warning"]};">
+                <p style="color:{COLORS["warning"]};font-size:0.8rem;margin:0;">
+                    💡 <b>Tip:</b> 공지 크롤링도 함께 실행되어 상장 예정 정보도 미리 파악합니다.
+                </p>
+            </div>
+        </div>
+
+        <!-- 4. GO/NO-GO 판정 기준 -->
+        <div style="margin-bottom:1.5rem;">
+            <h3 style="color:{COLORS["text_primary"]};font-size:1.1rem;margin-bottom:0.75rem;">
+                🚦 GO/NO-GO 판정 기준
+            </h3>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+                <div style="flex:1;min-width:250px;background:{COLORS["bg_dark"]};padding:1rem;border-radius:8px;border:1px solid {COLORS["success"]};">
+                    <p style="font-size:0.9rem;font-weight:600;color:{COLORS["success"]};margin-bottom:0.75rem;">🟢 GO 조건 (모두 충족)</p>
+                    <ul style="color:{COLORS["text_secondary"]};font-size:0.8rem;padding-left:1.2rem;margin:0;line-height:1.8;">
+                        <li>글로벌 거래소에 상장됨</li>
+                        <li>입출금 가능 (Deposit/Withdraw)</li>
+                        <li>순수익 > 0% (프리미엄 - 비용)</li>
+                        <li>가격 데이터 정상 수집</li>
+                    </ul>
+                </div>
+                <div style="flex:1;min-width:250px;background:{COLORS["bg_dark"]};padding:1rem;border-radius:8px;border:1px solid {COLORS["danger"]};">
+                    <p style="font-size:0.9rem;font-weight:600;color:{COLORS["danger"]};margin-bottom:0.75rem;">🔴 NO-GO 조건 (하나라도)</p>
+                    <ul style="color:{COLORS["text_secondary"]};font-size:0.8rem;padding-left:1.2rem;margin:0;line-height:1.8;">
+                        <li>글로벌 거래소 미상장</li>
+                        <li>입출금 중지 (Suspended)</li>
+                        <li>순수익 ≤ 0% (적자)</li>
+                        <li>네트워크 지원 안 함</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. 프리미엄 계산 방식 -->
+        <div style="margin-bottom:1.5rem;">
+            <h3 style="color:{COLORS["text_primary"]};font-size:1.1rem;margin-bottom:0.75rem;">
+                📊 프리미엄 계산 방식
+            </h3>
+            <div style="background:{COLORS["bg_dark"]};padding:1rem;border-radius:8px;font-family:monospace;font-size:0.85rem;">
+                <p style="color:{COLORS["info"]};margin-bottom:0.5rem;">// 기본 공식</p>
+                <p style="color:{COLORS["text_primary"]};margin-bottom:1rem;">
+                    프리미엄(%) = (국내가격 - 글로벌가격×환율) / (글로벌가격×환율) × 100
+                </p>
+                <p style="color:{COLORS["info"]};margin-bottom:0.5rem;">// 순수익 계산</p>
+                <p style="color:{COLORS["text_primary"]};margin-bottom:0.5rem;">
+                    순수익(%) = 프리미엄 - 총비용
+                </p>
+                <p style="color:{COLORS["warning"]};margin-bottom:0;">
+                    총비용 = 출금수수료 + 거래수수료(양쪽) + 슬리피지(예상)
+                </p>
+            </div>
+            <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+                <span style="background:#1f2937;padding:4px 10px;border-radius:6px;font-size:0.75rem;color:{COLORS["text_secondary"]};">
+                    업비트 거래수수료: 0.05%
+                </span>
+                <span style="background:#1f2937;padding:4px 10px;border-radius:6px;font-size:0.75rem;color:{COLORS["text_secondary"]};">
+                    빗썸 거래수수료: 0.04%
+                </span>
+                <span style="background:#1f2937;padding:4px 10px;border-radius:6px;font-size:0.75rem;color:{COLORS["text_secondary"]};">
+                    출금수수료: 코인별 상이
+                </span>
+            </div>
+        </div>
+
+        <!-- 6. 신뢰도 점수 -->
+        <div style="margin-bottom:1.5rem;">
+            <h3 style="color:{COLORS["text_primary"]};font-size:1.1rem;margin-bottom:0.75rem;">
+                📈 신뢰도 점수 (Confidence Score)
+            </h3>
+            <p style="color:{COLORS["text_secondary"]};font-size:0.85rem;margin-bottom:0.75rem;">
+                분석 결과의 신뢰도를 0-100%로 표시합니다. 높을수록 정확한 데이터입니다.
+            </p>
+            <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+                <thead>
+                    <tr style="background:rgba(255,255,255,0.05);">
+                        <th style="padding:8px;text-align:left;color:{COLORS["text_dim"]};">감점 요인</th>
+                        <th style="padding:8px;text-align:center;color:{COLORS["text_dim"]};">감점</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom:1px solid {COLORS["card_border_hover"]};">
+                        <td style="padding:8px;color:{COLORS["text_secondary"]};">환율 기본값 사용 (API 실패)</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["danger"]};">-30점</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid {COLORS["card_border_hover"]};">
+                        <td style="padding:8px;color:{COLORS["text_secondary"]};">순수익 마이너스</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["danger"]};">-20점</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid {COLORS["card_border_hover"]};">
+                        <td style="padding:8px;color:{COLORS["text_secondary"]};">프리미엄 데이터 없음</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["warning"]};">-15점</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid {COLORS["card_border_hover"]};">
+                        <td style="padding:8px;color:{COLORS["text_secondary"]};">환율 캐시 사용 (5분 이상)</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["warning"]};">-10점</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:8px;color:{COLORS["text_secondary"]};">분석 지연 (5초+)</td>
+                        <td style="padding:8px;text-align:center;color:{COLORS["warning"]};">-10점</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 7. 텔레그램 알림 -->
+        <div>
+            <h3 style="color:{COLORS["text_primary"]};font-size:1.1rem;margin-bottom:0.75rem;">
+                🔔 텔레그램 알림 시스템
+            </h3>
+            <div style="background:{COLORS["bg_dark"]};padding:1rem;border-radius:8px;">
+                <p style="color:{COLORS["text_secondary"]};font-size:0.85rem;margin-bottom:0.75rem;">
+                    GO 판정 시 자동으로 텔레그램 알림이 전송됩니다.
+                </p>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;font-size:0.8rem;">
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <span style="color:{COLORS["success"]};">✅</span>
+                        <span style="color:{COLORS["text_secondary"]};">GO 알림: 심볼, 프리미엄, 예상 수익, 거래소 정보</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <span style="color:{COLORS["info"]};">📊</span>
+                        <span style="color:{COLORS["text_secondary"]};">상세 정보: 네트워크, 헤지 가능 여부, VC/MM 정보</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <span style="color:{COLORS["warning"]};">🔗</span>
+                        <span style="color:{COLORS["text_secondary"]};">바로가기 링크: 업비트, 바이낸스 직접 접속</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    """
+
+
 def render_user_guide() -> None:
-    """사용자 가이드 렌더링 (접이식 expander)."""
+    """사용자 가이드 렌더링 (탭 분리 버전)."""
     import streamlit as st
 
-    with st.expander("📖 사용자 가이드 — 따리 전략 완벽 가이드", expanded=False):
+    # 가이드 서브탭
+    strategy_tab, system_tab = st.tabs(["📖 전략 가이드", "🤖 시스템 작동 방식"])
+
+    with strategy_tab:
         guide_html = _get_guide_html()
         if hasattr(st, 'html'):
             st.html(guide_html)
         else:
             st.markdown(guide_html, unsafe_allow_html=True)
+
+    with system_tab:
+        system_html = _get_system_guide_html()
+        if hasattr(st, 'html'):
+            st.html(system_html)
+        else:
+            st.markdown(system_html, unsafe_allow_html=True)
