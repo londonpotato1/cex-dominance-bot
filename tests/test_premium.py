@@ -8,8 +8,11 @@ from analysis.premium import (
     PremiumCalculator,
     PremiumResult,
     VWAPResult,
-    _HARDCODED_FX,
+    _get_fallback_fx,
 )
+
+# 테스트용 fallback 값
+_HARDCODED_FX = _get_fallback_fx()
 
 
 @pytest.fixture
