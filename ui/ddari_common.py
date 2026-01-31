@@ -431,6 +431,84 @@ def render_result_label_badge(label: str | None) -> str:
     return result_label_badge(label)
 
 
+def get_market_mood_cached() -> dict:
+    """시장 분위기 데이터 (1분 캐시).
+
+    Returns:
+        dict: {emoji, text, color, kr_dominance, kr_volume, gl_volume}
+    """
+    import streamlit as st
+    import asyncio
+
+    @st.cache_data(ttl=60)
+    def _inner() -> dict:
+        try:
+            # app.py의 fetch_all_data와 동일한 로직
+            config_path = Path(__file__).resolve().parent.parent / "config.yaml"
+            if not config_path.exists():
+                return _default_mood()
+
+            import yaml
+            with open(config_path, encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+
+            from dominance import DominanceCalculator
+
+            async def _fetch():
+                calc = DominanceCalculator(config)
+                await calc.initialize()
+                total = await calc.calculate_total_market(
+                    ["BTC/USDT", "ETH/USDT", "XRP/USDT", "SOL/USDT"], "24h"
+                )
+                await calc.close()
+                return total
+
+            total = asyncio.run(_fetch())
+            if not total:
+                return _default_mood()
+
+            kr_dom = total.korean_dominance
+            kr_vol = total.korean_volume_usd
+            gl_vol = total.global_volume_usd
+
+            # 분위기 판단
+            if kr_dom > 5:
+                emoji, text, color = "🔥", "활발", "#4ade80"
+            elif kr_dom > 2:
+                emoji, text, color = "✨", "양호", "#60a5fa"
+            elif kr_dom > 0.5:
+                emoji, text, color = "😐", "보통", "#fbbf24"
+            else:
+                emoji, text, color = "😴", "한산", "#94a3b8"
+
+            return {
+                "emoji": emoji,
+                "text": text,
+                "color": color,
+                "kr_dominance": kr_dom,
+                "kr_volume": kr_vol,
+                "gl_volume": gl_vol,
+            }
+
+        except Exception as e:
+            logger.warning(f"Market mood fetch error: {e}")
+            return _default_mood()
+
+    return _inner()
+
+
+def _default_mood() -> dict:
+    """기본 시장 분위기 (데이터 없을 때)."""
+    return {
+        "emoji": "❓",
+        "text": "확인중",
+        "color": "#6b7280",
+        "kr_dominance": None,
+        "kr_volume": None,
+        "gl_volume": None,
+    }
+
+
 # Re-export for convenience
 __all__ = [
     # Constants
@@ -459,4 +537,5 @@ __all__ = [
     "render_vasp_badge",
     "render_vcmm_badge",
     "render_result_label_badge",
+    "get_market_mood_cached",
 ]

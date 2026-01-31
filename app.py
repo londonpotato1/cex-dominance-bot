@@ -472,6 +472,210 @@ st.markdown("""
     .element-container { margin-bottom: 0.5rem !important; }
     .stMarkdown { margin-bottom: 0 !important; }
     div[data-testid="column"] { padding: 0 0.5rem !important; }
+
+    /* Market Status Bar (Fixed Bottom) */
+    .market-status-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, rgba(10, 10, 15, 0.98), rgba(20, 20, 30, 0.98));
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 0.6rem 1.5rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1.5rem;
+        z-index: 1000;
+        backdrop-filter: blur(10px);
+    }
+
+    .status-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .status-emoji {
+        font-size: 1.1rem;
+    }
+
+    .status-label {
+        font-size: 0.7rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .status-value {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #ffffff;
+    }
+
+    .status-divider {
+        width: 1px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Add bottom padding to main content for status bar */
+    .main .block-container {
+        padding-bottom: 4rem !important;
+    }
+
+    /* ============================================
+       MOBILE RESPONSIVE STYLES
+       ============================================ */
+    @media (max-width: 768px) {
+        .main .block-container {
+            padding: 0.5rem 1rem 5rem 1rem !important;
+        }
+
+        /* Status bar mobile */
+        .market-status-bar {
+            padding: 0.5rem 0.75rem;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+
+        .status-item {
+            flex-direction: column;
+            gap: 0.1rem;
+            min-width: 60px;
+        }
+
+        .status-label {
+            font-size: 0.6rem;
+        }
+
+        .status-value {
+            font-size: 0.75rem;
+        }
+
+        .status-divider {
+            display: none;
+        }
+
+        /* Ticker cards stack vertically */
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: column !important;
+        }
+
+        div[data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+            padding: 0 !important;
+        }
+
+        /* Compact cards */
+        .ticker-section {
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .ticker-title {
+            font-size: 0.9rem;
+        }
+
+        .ticker-dominance {
+            font-size: 1.2rem;
+        }
+
+        .mini-stats {
+            gap: 0.5rem;
+        }
+
+        .mini-stat {
+            padding: 0.4rem 0.5rem;
+        }
+
+        .mini-stat-value {
+            font-size: 0.85rem;
+        }
+
+        .mini-stat-label {
+            font-size: 0.55rem;
+        }
+
+        .exchange-mini-row {
+            padding: 0.4rem 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        /* Charts smaller on mobile */
+        .chart-container {
+            padding: 0.75rem;
+        }
+
+        .chart-title {
+            font-size: 0.75rem;
+        }
+
+        /* Market banner compact */
+        .market-banner {
+            padding: 0.75rem 1rem;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .market-banner-left {
+            flex-direction: column;
+            gap: 0.75rem;
+            align-items: flex-start;
+        }
+
+        .market-value {
+            font-size: 1.8rem;
+        }
+
+        .market-stats {
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .market-stat-value {
+            font-size: 0.95rem;
+        }
+
+        /* GO card mobile */
+        [style*="linear-gradient(135deg, #1a3a2a"] {
+            padding: 1rem !important;
+        }
+
+        /* Expander mobile */
+        .streamlit-expanderHeader {
+            font-size: 0.9rem !important;
+        }
+    }
+
+    /* Small phones */
+    @media (max-width: 480px) {
+        .market-status-bar {
+            padding: 0.4rem 0.5rem;
+        }
+
+        .status-item {
+            min-width: 50px;
+        }
+
+        .status-emoji {
+            font-size: 0.9rem;
+        }
+
+        .status-label {
+            font-size: 0.5rem;
+        }
+
+        .status-value {
+            font-size: 0.65rem;
+        }
+
+        .market-value {
+            font-size: 1.5rem;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -622,18 +826,75 @@ def main():
     # Health 배너 (최상단)
     render_health_banner(st)
 
-    # 탭 구조
-    tab1, tab2 = st.tabs(["CEX Dominance", "따리분석"])
+    # 메인 컨텐츠: 따리분석 (탭 없이 바로)
+    render_ddari_tab()
 
-    with tab1:
-        _render_dominance_tab(config)
+    # 하단 시장 상태바 (CEX Dominance 요약)
+    _render_market_status_bar(config)
 
-    with tab2:
-        render_ddari_tab()
+
+def _render_market_status_bar(config):
+    """하단 시장 상태바 (CEX Dominance 요약)."""
+    try:
+        data = fetch_all_data(config, "24h")
+        if not data or not data.get("total"):
+            return
+
+        total = data["total"]
+        kr_dom = total.korean_dominance
+        kr_vol = total.korean_volume_usd
+        gl_vol = total.global_volume_usd
+
+        # 시장 분위기 판단
+        if kr_dom > 5:
+            mood_emoji = "🔥"
+            mood_text = "활발"
+            mood_color = "#4ade80"
+        elif kr_dom > 2:
+            mood_emoji = "✨"
+            mood_text = "양호"
+            mood_color = "#60a5fa"
+        elif kr_dom > 0.5:
+            mood_emoji = "😐"
+            mood_text = "보통"
+            mood_color = "#fbbf24"
+        else:
+            mood_emoji = "😴"
+            mood_text = "한산"
+            mood_color = "#94a3b8"
+
+        status_html = f'''
+        <div class="market-status-bar">
+            <div class="status-item">
+                <span class="status-emoji">{mood_emoji}</span>
+                <span class="status-label">시장</span>
+                <span class="status-value" style="color:{mood_color};">{mood_text}</span>
+            </div>
+            <div class="status-divider"></div>
+            <div class="status-item">
+                <span class="status-label">KR점유율</span>
+                <span class="status-value" style="color:#00d4ff;">{kr_dom:.1f}%</span>
+            </div>
+            <div class="status-divider"></div>
+            <div class="status-item">
+                <span class="status-label">KR거래량</span>
+                <span class="status-value">{format_volume(kr_vol)}</span>
+            </div>
+            <div class="status-divider"></div>
+            <div class="status-item">
+                <span class="status-label">GL거래량</span>
+                <span class="status-value" style="color:#a855f7;">{format_volume(gl_vol)}</span>
+            </div>
+        </div>
+        '''
+        st.markdown(status_html, unsafe_allow_html=True)
+
+    except Exception as e:
+        logger.warning(f"Market status bar error: {e}")
 
 
 def _render_dominance_tab(config):
-    """CEX Dominance 탭 (기존 기능 100% 보존)."""
+    """CEX Dominance 탭 (기존 기능 100% 보존) - 백업용."""
 
     # Header with period selector
     header_col1, header_col2 = st.columns([4, 1])

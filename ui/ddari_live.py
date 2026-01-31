@@ -25,6 +25,7 @@ from ui.ddari_common import (
     render_degradation_badges,
     render_vasp_badge,
     render_vcmm_badge,
+    get_market_mood_cached,
 )
 
 
@@ -454,14 +455,31 @@ def render_live_tab() -> None:
     go_analyses = [r for r in analyses if r.get("can_proceed", 0)]
     nogo_analyses = [r for r in analyses if not r.get("can_proceed", 0)]
 
-    # 🚀 GO 섹션 (상단 강조)
+    # 🚀 GO 섹션 (상단 강조) + 시장 분위기 뱃지
     if go_analyses:
+        # 시장 분위기 가져오기
+        mood = get_market_mood_cached()
+        mood_badge = ""
+        if mood.get("kr_dominance") is not None:
+            mood_badge = f'''
+                <span style="background:rgba(0,0,0,0.3);border:1px solid {mood["color"]};
+                    padding:4px 10px;border-radius:8px;font-size:0.85rem;margin-left:1rem;">
+                    {mood["emoji"]} 시장: <b style="color:{mood["color"]};">{mood["text"]}</b>
+                    <span style="color:#888;font-size:0.75rem;margin-left:0.5rem;">
+                        KR {mood["kr_dominance"]:.1f}%
+                    </span>
+                </span>
+            '''
+
         st.markdown(
             f'''<div style="background:linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%);
                 border:2px solid #4ade80;border-radius:16px;padding:1.5rem;margin-bottom:1.5rem;">
-                <p style="font-size:1.4rem;font-weight:700;color:#4ade80;margin-bottom:1rem;">
-                    🚀 GO! 따리 기회 ({len(go_analyses)}건)
-                </p>
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+                    <span style="font-size:1.4rem;font-weight:700;color:#4ade80;">
+                        🚀 GO! 따리 기회 ({len(go_analyses)}건)
+                    </span>
+                    {mood_badge}
+                </div>
             </div>''',
             unsafe_allow_html=True,
         )
