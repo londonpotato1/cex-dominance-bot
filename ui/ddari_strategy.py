@@ -224,15 +224,8 @@ def render_gap_monitor_section():
     import streamlit as st
     
     # 활성 모니터링 상태 표시
-    st.markdown(
-        '''<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
-            border-radius:12px;padding:1rem;">
-            
-            <div style="color:#6b7280;font-size:0.85rem;text-align:center;padding:0.75rem;
-                background:#1f2937;border-radius:8px;">
-                🔄 활성 모니터링 없음<br>
-                <span style="font-size:0.75rem;color:#4b5563;">상장 공지 감지 시 자동 시작됩니다</span>
-            </div>
-        </div>''',
-        unsafe_allow_html=True
-    )
+    html = '''<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1rem;"><div style="color:#6b7280;font-size:0.85rem;text-align:center;padding:0.75rem;background:#1f2937;border-radius:8px;">🔄 활성 모니터링 없음<br><span style="font-size:0.75rem;color:#4b5563;">상장 공지 감지 시 자동 시작됩니다</span></div></div>'''
+    if hasattr(st, 'html'):
+        st.html(html)
+    else:
+        st.markdown(html, unsafe_allow_html=True)
