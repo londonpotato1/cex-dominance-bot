@@ -146,6 +146,10 @@ class TelegramBot:
             response = self._cmd_record(args)
         elif command == "/stats":
             response = self._cmd_stats(args)
+        elif command == "/learn":
+            response = self._cmd_learn(args)
+        elif command == "/patterns":
+            response = self._cmd_patterns()
         elif command == "/help":
             response = self._cmd_help()
         else:
@@ -594,6 +598,119 @@ class TelegramBot:
             logger.error("[TelegramBot] stats 에러: %s", e)
             return f"❌ 통계 조회 실패: {e}"
 
+    def _cmd_learn(self, args: str) -> str:
+        """학습 케이스 추가 (Phase 4.1+ 데이터 플라이휠).
+        
+        사용법: /learn SYMBOL 결과 [수익%] [메모]
+        예: /learn PYTH heung_big 8.5 "TGE 직후, VC 물량 적음"
+        """
+        parts = args.strip().split(maxsplit=3)
+        
+        if len(parts) < 2:
+            return (
+                "📚 *학습 케이스 추가*\n\n"
+                "사용법:\n"
+                "`/learn SYMBOL 결과 [수익%] [메모]`\n\n"
+                "결과 종류:\n"
+                "• heung\\_big — 대흥따리 (+5% 이상) 🔥🔥\n"
+                "• heung — 흥따리 (+2~5%) 🔥\n"
+                "• neutral — 보통 (0~2%) 😐\n"
+                "• mang — 망따리 (마이너스) 💀\n\n"
+                "예시:\n"
+                "`/learn PYTH heung_big 8.5`\n"
+                "`/learn SENT heung 3.2 \"직상장, 바이낸스 선물 있음\"`\n"
+                "`/learn ABC mang -2.1 \"TGE, 에어드랍 물량 폭탄\"`"
+            )
+        
+        symbol = parts[0].upper()
+        result_label = parts[1].lower()
+        
+        valid_labels = ["heung_big", "heung", "neutral", "mang"]
+        if result_label not in valid_labels:
+            return f"❌ 결과 형식 오류: {result_label}\n허용: {', '.join(valid_labels)}"
+        
+        # 수익률 (선택)
+        profit_pct = None
+        if len(parts) >= 3:
+            try:
+                profit_pct = float(parts[2])
+            except ValueError:
+                pass
+        
+        # 메모 (선택)
+        notes = parts[3] if len(parts) >= 4 else None
+        
+        try:
+            from store.learning import LearningDataManager, get_label_info
+            manager = LearningDataManager(self._writer, self._read_conn)
+            
+            success = manager.add_simple_case(
+                symbol=symbol,
+                result_label=result_label,
+                profit_pct=profit_pct,
+                notes=notes,
+            )
+            
+            if success:
+                info = get_label_info(result_label)
+                profit_text = f" ({profit_pct:+.1f}%)" if profit_pct else ""
+                return (
+                    f"{info['emoji']} *학습 케이스 추가됨*\n\n"
+                    f"심볼: {symbol}\n"
+                    f"결과: {info['name']}{profit_text}"
+                    + (f"\n메모: {notes}" if notes else "")
+                    + f"\n\n_패턴 분석: /patterns_"
+                )
+            else:
+                return "❌ 저장 실패 (DB 오류)"
+                
+        except Exception as e:
+            logger.error("[TelegramBot] learn 에러: %s", e)
+            return f"❌ 저장 실패: {e}"
+    
+    def _cmd_patterns(self) -> str:
+        """학습 데이터 패턴 분석."""
+        try:
+            from store.learning import LearningDataManager, RESULT_LABELS
+            manager = LearningDataManager(self._writer, self._read_conn)
+            
+            stats = manager.get_statistics()
+            
+            if not stats:
+                return (
+                    "📊 *패턴 분석*\n\n"
+                    "학습 데이터가 없습니다.\n"
+                    "`/learn`으로 케이스를 추가하세요."
+                )
+            
+            lines = ["📊 *학습 데이터 패턴*", ""]
+            
+            total = sum(s["count"] for s in stats.values())
+            lines.append(f"총 {total}건의 학습 데이터")
+            lines.append("")
+            
+            for label in ["heung_big", "heung", "neutral", "mang"]:
+                if label in stats:
+                    s = stats[label]
+                    pct = s["count"] / total * 100
+                    avg = f"(평균 {s['avg_profit']:+.1f}%)" if s["avg_profit"] else ""
+                    lines.append(f"{s['emoji']} {s['name']}: {s['count']}건 ({pct:.0f}%) {avg}")
+            
+            # 인사이트
+            insights = manager.get_pattern_insights()
+            if insights:
+                lines.append("")
+                lines.append("*패턴 인사이트:*")
+                for insight in insights:
+                    info = RESULT_LABELS.get(insight["label"], {})
+                    lines.append(f"  {info.get('emoji', '')} {insight['pattern']}")
+            
+            return "\n".join(lines)
+            
+        except Exception as e:
+            logger.error("[TelegramBot] patterns 에러: %s", e)
+            return f"❌ 패턴 분석 실패: {e}"
+
     @staticmethod
     def _cmd_help() -> str:
         """도움말."""
@@ -605,13 +722,15 @@ class TelegramBot:
             "  /gate <SYMBOL> — 수동 분석 (업비트)\n"
             "  /analyze <SYMBOL> <EXCHANGE> — 거래소 지정\n"
             "  /notice <URL> — 공지 URL 자동 분석\n\n"
-            "*성과 기록* (Phase 4)\n"
-            "  /record <SYMBOL> <EX> <수익%> <결과>\n"
+            "*성과 기록*\n"
+            "  /record <SYM> <EX> <수익%> <결과>\n"
             "  /stats [일수] — 성과 통계\n\n"
+            "*학습 데이터* 📚\n"
+            "  /learn <SYM> <결과> [수익%] [메모]\n"
+            "  /patterns — 패턴 분석\n\n"
             "예시:\n"
-            "  `/analyze SENT bithumb`\n"
-            "  `/record PYTH bithumb 2.5 WIN`\n"
-            "  `/stats 7`"
+            "  `/learn PYTH heung_big 8.5`\n"
+            "  `/patterns`"
         )
 
     async def _send_message(
