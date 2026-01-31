@@ -307,6 +307,11 @@ class MarketMonitor:
         self, exchange: str, symbol: str, listing_time: Optional[str] = None
     ) -> None:
         """신규 상장 감지 시 처리 (마켓 API Diff)."""
+        # Phase 4.2: 지연 시간 측정 시작
+        from metrics.latency import LatencyTracker
+        tracker = LatencyTracker(symbol=symbol, exchange=exchange, event_type="listing")
+        tracker.mark_detect()  # 감지 시점 기록
+
         # 이미 공지로 감지된 심볼이면 Gate 분석 스킵 (중복 방지)
         key = f"{symbol}@{exchange}"
         if key in self._notice_detected_symbols:
@@ -332,14 +337,17 @@ class MarketMonitor:
         # 3. Gate 파이프라인 (Phase 3) + 관측성 (Phase 4)
         if self._gate_checker:
             try:
-                t0 = time.monotonic()
+                tracker.mark_analyze_start()  # 분석 시작 시점
                 result = await self._gate_checker.analyze_listing(symbol, exchange)
-                duration_ms = (time.monotonic() - t0) * 1000
+                tracker.mark_analyze_end()  # 분석 완료 시점
+                tracker.set_result(result.alert_level.value, result.can_proceed)
 
                 # Gate 분석 로그 DB 기록 (Phase 4)
                 try:
                     from metrics.observability import log_gate_analysis
-                    await log_gate_analysis(self._writer, result, duration_ms)
+                    await log_gate_analysis(
+                        self._writer, result, tracker.analyze_duration_ms or 0
+                    )
                 except Exception as e:
                     logger.warning(
                         "[MarketMonitor] Gate 로그 기록 실패 (%s@%s): %s",
@@ -377,7 +385,9 @@ class MarketMonitor:
                 # 5. 텔레그램 알림 (속도 정보 + AI 결과 + 인라인 버튼)
                 if self._alert:
                     alert_msg, buttons = self._format_alert(
-                        symbol, exchange, result, duration_ms, ai_result=ai_result
+                        symbol, exchange, result, 
+                        latency_tracker=tracker, 
+                        ai_result=ai_result
                     )
                     await self._alert.send(
                         result.alert_level,
@@ -385,6 +395,17 @@ class MarketMonitor:
                         key=f"listing:{symbol}",
                         buttons=buttons,
                     )
+                    tracker.mark_alert_sent()  # 알림 전송 완료 시점
+
+                # Phase 4.2: 지연 시간 DB 저장
+                try:
+                    await tracker.save(self._writer)
+                except Exception as e:
+                    logger.warning(
+                        "[MarketMonitor] Latency 로그 기록 실패 (%s@%s): %s",
+                        symbol, exchange, e,
+                    )
+
             except Exception as e:
                 logger.error(
                     "[MarketMonitor] Gate 파이프라인 에러 (%s@%s): %s",
@@ -408,21 +429,25 @@ class MarketMonitor:
         symbol: str, 
         exchange: str, 
         result: GateResult,
-        duration_ms: float = 0,
+        latency_tracker: "LatencyTracker | None" = None,
         ai_result: "AIAnalysisResult | None" = None,
+        duration_ms: float = 0,  # 하위 호환성 (deprecated)
     ) -> tuple[str, list[list[dict]] | None]:
-        """Gate 결과를 알림 메시지로 포맷 (Phase 1.1 + Phase 3 AI).
+        """Gate 결과를 알림 메시지로 포맷 (Phase 1.1 + Phase 3 AI + Phase 4.2 속도).
         
         Args:
             symbol: 토큰 심볼.
             exchange: 거래소.
             result: Gate 분석 결과.
-            duration_ms: 감지→분석 완료 시간 (ms).
+            latency_tracker: Phase 4.2 지연 시간 트래커 (optional).
             ai_result: AI 분석 결과 (optional).
+            duration_ms: [deprecated] 분석 시간 (ms). latency_tracker 우선.
             
         Returns:
             tuple: (메시지 텍스트, 인라인 버튼 배열 또는 None)
         """
+        # LatencyTracker import (TYPE_CHECKING에서 사용)
+        from metrics.latency import LatencyTracker
         gi = result.gate_input
         is_go = result.can_proceed
         
@@ -468,8 +493,15 @@ class MarketMonitor:
             
             lines.append(f"{supply_emoji} {supply_text} (점수: {confidence:.1f})")
         
-        # ===== 속도 정보 =====
-        if duration_ms > 0:
+        # ===== 속도 정보 (Phase 4.2) =====
+        if latency_tracker and latency_tracker.analyze_duration_ms:
+            analyze_ms = latency_tracker.analyze_duration_ms
+            if analyze_ms >= 1000:
+                lines.append(f"⚡ 분석: *{analyze_ms/1000:.1f}s*")
+            else:
+                lines.append(f"⚡ 분석: *{analyze_ms:.0f}ms*")
+        elif duration_ms > 0:
+            # 하위 호환성
             lines.append(f"⚡ 감지 → 분석: *{duration_ms:.0f}ms*")
         
         # ===== 경고사항 (간결하게) =====
@@ -581,6 +613,13 @@ class MarketMonitor:
         symbols = result.symbols
 
         for symbol in symbols:
+            # Phase 4.2: 지연 시간 측정 시작
+            from metrics.latency import LatencyTracker
+            tracker = LatencyTracker(
+                symbol=symbol, exchange=exchange, event_type="notice"
+            )
+            tracker.mark_detect()  # 공지 감지 시점 기록
+
             # 이미 처리한 심볼이면 스킵
             key = f"{symbol}@{exchange}"
             if key in self._notice_detected_symbols:
@@ -600,16 +639,19 @@ class MarketMonitor:
             # 2. Gate 파이프라인 (Phase 3) + 관측성 (Phase 4)
             if self._gate_checker:
                 try:
-                    t0 = time.monotonic()
+                    tracker.mark_analyze_start()  # 분석 시작 시점
                     gate_result = await self._gate_checker.analyze_listing(
                         symbol, exchange
                     )
-                    duration_ms = (time.monotonic() - t0) * 1000
+                    tracker.mark_analyze_end()  # 분석 완료 시점
+                    tracker.set_result(gate_result.alert_level.value, gate_result.can_proceed)
 
                     # Gate 분석 로그 DB 기록 (Phase 4)
                     try:
                         from metrics.observability import log_gate_analysis
-                        await log_gate_analysis(self._writer, gate_result, duration_ms)
+                        await log_gate_analysis(
+                            self._writer, gate_result, tracker.analyze_duration_ms or 0
+                        )
                     except Exception as e:
                         logger.warning(
                             "[MarketMonitor] Gate 로그 기록 실패 (%s@%s): %s",
@@ -651,7 +693,8 @@ class MarketMonitor:
                     # 4. 텔레그램 알림 (공지 링크 + 속도 정보 + AI 결과 + 인라인 버튼)
                     if self._alert:
                         alert_msg, buttons = self._format_notice_alert(
-                            symbol, exchange, gate_result, result, duration_ms,
+                            symbol, exchange, gate_result, result,
+                            latency_tracker=tracker,
                             ai_result=ai_result
                         )
                         await self._alert.send(
@@ -660,6 +703,17 @@ class MarketMonitor:
                             key=f"notice_listing:{symbol}",
                             buttons=buttons,
                         )
+                        tracker.mark_alert_sent()  # 알림 전송 완료 시점
+
+                    # Phase 4.2: 지연 시간 DB 저장
+                    try:
+                        await tracker.save(self._writer)
+                    except Exception as e:
+                        logger.warning(
+                            "[MarketMonitor] Latency 로그 기록 실패 (%s@%s): %s",
+                            symbol, exchange, e,
+                        )
+
                 except Exception as e:
                     logger.error(
                         "[MarketMonitor] Gate 파이프라인 에러 (%s@%s): %s",
@@ -672,22 +726,25 @@ class MarketMonitor:
         exchange: str,
         result: GateResult,
         notice: NoticeParseResult,
-        duration_ms: float = 0,
+        latency_tracker: "LatencyTracker | None" = None,
         ai_result: "AIAnalysisResult | None" = None,
+        duration_ms: float = 0,  # 하위 호환성 (deprecated)
     ) -> tuple[str, list[list[dict]] | None]:
-        """공지 기반 Gate 결과를 알림 메시지로 포맷 (Phase 1.1 + Phase 3 AI).
+        """공지 기반 Gate 결과를 알림 메시지로 포맷 (Phase 1.1 + Phase 3 AI + Phase 4.2 속도).
         
         Args:
             symbol: 토큰 심볼.
             exchange: 거래소.
             result: Gate 분석 결과.
             notice: 공지 파싱 결과.
-            duration_ms: 감지→분석 완료 시간 (ms).
+            latency_tracker: Phase 4.2 지연 시간 트래커 (optional).
             ai_result: AI 분석 결과 (optional).
+            duration_ms: [deprecated] 분석 시간 (ms). latency_tracker 우선.
             
         Returns:
             tuple: (메시지 텍스트, 인라인 버튼 배열 또는 None)
         """
+        from metrics.latency import LatencyTracker
         gi = result.gate_input
         is_go = result.can_proceed
         
@@ -737,8 +794,15 @@ class MarketMonitor:
             
             lines.append(f"{supply_emoji} {supply_text} (점수: {confidence:.1f})")
         
-        # ===== 속도 정보 =====
-        if duration_ms > 0:
+        # ===== 속도 정보 (Phase 4.2) =====
+        if latency_tracker and latency_tracker.analyze_duration_ms:
+            analyze_ms = latency_tracker.analyze_duration_ms
+            if analyze_ms >= 1000:
+                lines.append(f"⚡ 분석: *{analyze_ms/1000:.1f}s*")
+            else:
+                lines.append(f"⚡ 분석: *{analyze_ms:.0f}ms*")
+        elif duration_ms > 0:
+            # 하위 호환성
             lines.append(f"⚡ 공지 → 분석: *{duration_ms:.0f}ms*")
         
         # ===== 경고사항 =====
