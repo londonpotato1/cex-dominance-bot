@@ -16,3 +16,34 @@
 | #402 | " | ✅ | Added Supply and Listing Type Classification Imports to Gate Analysis | ~574 |
 | #396 | 1:26 AM | 🔵 | Gate Analysis System Architecture and Decision Logic | ~671 |
 </claude-mem-context>
+
+## listing_review.py - 상장 복기 자동화 모듈
+
+상장 후 데이터를 자동 수집하고 흥/망 판정.
+
+### 흥/망 판정 기준 (DDARI_FUNDAMENTALS.md)
+- **손바뀜 비율** = 거래량 / 입금액
+- 5배 이상 → 대흥따리
+- 3~5배 → 흥따리
+- 1~3배 → 보통
+- 1배 미만 → 망따리
+
+### 주요 클래스
+- `ListingResultClassifier`: 손바뀜 비율 기반 흥/망 분류
+- `ListingReviewCollector`: 상장 데이터 수집 + 분류
+- `ListingDataStore`: listing_data.csv CRUD
+
+### 사용법
+```python
+from analysis.listing_review import review
+
+# 간편 복기 (수집 + 분류 + 저장)
+print(review(
+    symbol="ERA",
+    exchange="Upbit",
+    deposit=20.5e9,      # 205억
+    volume_5m=91e9,      # 910억
+    max_premium_pct=50,
+    listing_type="TGE",
+))
+```
