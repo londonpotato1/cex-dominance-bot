@@ -17,97 +17,7 @@ def render_strategy_analysis_section():
     """전략 분석 섹션 렌더링 (빠른 분석용)"""
     import streamlit as st
     
-    # ========================================
-    # 전략 분석기 가이드 (접이식)
-    # ========================================
-    with st.expander("📖 전략 분석기 사용 가이드", expanded=False):
-        st.markdown(
-            '''
-            <div style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);
-                border-radius:12px;padding:1rem;margin-bottom:1rem;">
-                <div style="font-size:1rem;font-weight:700;color:#60a5fa;margin-bottom:0.75rem;">
-                    🎯 전략 분석기란?
-                </div>
-                <p style="font-size:0.85rem;color:#d1d5db;line-height:1.6;">
-                    <b>상장 예정 또는 신규 코인</b>의 최적 진입 전략을 자동 분석합니다.<br>
-                    현선갭, 론 가능 여부, DEX 유동성, 네트워크 속도 등을 종합해서<br>
-                    <b>GO/NO-GO 점수</b>와 <b>추천 전략</b>을 제시합니다.
-                </p>
-            </div>
-            
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
-                <div style="background:#1f2937;border-radius:8px;padding:0.75rem;">
-                    <div style="font-size:0.85rem;font-weight:600;color:#4ade80;margin-bottom:0.5rem;">
-                        🟢 헷지 갭익절 전략
-                    </div>
-                    <p style="font-size:0.75rem;color:#9ca3af;margin:0;">
-                        갭 1-2% + 론 가능<br>
-                        → 현물 매수 + 선물 숏 헷지<br>
-                        → 갭 벌어지면 단계별 익절
-                    </p>
-                </div>
-                <div style="background:#1f2937;border-radius:8px;padding:0.75rem;">
-                    <div style="font-size:0.85rem;font-weight:600;color:#fbbf24;margin-bottom:0.5rem;">
-                        🟡 현물 선따리
-                    </div>
-                    <p style="font-size:0.75rem;color:#9ca3af;margin:0;">
-                        갭 낮음 + 론 불가<br>
-                        → 현물만 매수 (헷지 없이)<br>
-                        → 가격 변동 리스크 있음
-                    </p>
-                </div>
-                <div style="background:#1f2937;border-radius:8px;padding:0.75rem;">
-                    <div style="font-size:0.85rem;font-weight:600;color:#60a5fa;margin-bottom:0.5rem;">
-                        🔵 후따리 대기
-                    </div>
-                    <p style="font-size:0.75rem;color:#9ca3af;margin:0;">
-                        갭 높음 + DEX 유동성 충분<br>
-                        → 상장 후 김프 확인<br>
-                        → 유지되면 후따리 진입
-                    </p>
-                </div>
-                <div style="background:#1f2937;border-radius:8px;padding:0.75rem;">
-                    <div style="font-size:0.85rem;font-weight:600;color:#a78bfa;margin-bottom:0.5rem;">
-                        🔄 역따리 전략
-                    </div>
-                    <p style="font-size:0.75rem;color:#9ca3af;margin:0;">
-                        역프 발생 시<br>
-                        → 국내 매수 + 해외 숏<br>
-                        → 해외로 전송 후 청산
-                    </p>
-                </div>
-            </div>
-            
-            <div style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);
-                border-radius:8px;padding:0.75rem;">
-                <div style="font-size:0.85rem;font-weight:600;color:#fbbf24;margin-bottom:0.5rem;">
-                    📊 분석 항목
-                </div>
-                <div style="display:flex;flex-wrap:wrap;gap:0.5rem;font-size:0.75rem;">
-                    <span style="background:#374151;padding:4px 8px;border-radius:4px;color:#d1d5db;">
-                        📈 현선갭 (선물 vs 현물)
-                    </span>
-                    <span style="background:#374151;padding:4px 8px;border-radius:4px;color:#d1d5db;">
-                        💰 론 가능 거래소
-                    </span>
-                    <span style="background:#374151;padding:4px 8px;border-radius:4px;color:#d1d5db;">
-                        💧 DEX 유동성
-                    </span>
-                    <span style="background:#374151;padding:4px 8px;border-radius:4px;color:#d1d5db;">
-                        ⚡ 네트워크 속도
-                    </span>
-                    <span style="background:#374151;padding:4px 8px;border-radius:4px;color:#d1d5db;">
-                        🔥 핫월렛 물량
-                    </span>
-                </div>
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
-    
-    # ========================================
-    # 전략 분석기 메인
-    # ========================================
+    # 전략 분석기 메인 (가이드는 ddari_analysis_center.py에서 통합 제공)
     st.markdown(
         '''<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
             border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
@@ -310,46 +220,18 @@ def _render_strategy_result(rec):
 
 
 def render_gap_monitor_section():
-    """갭 모니터링 섹션 렌더링"""
+    """갭 모니터링 섹션 렌더링 (가이드는 ddari_analysis_center.py에서 통합 제공)"""
     import streamlit as st
     
+    # 활성 모니터링 상태 표시
     st.markdown(
         '''<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
-            border-radius:12px;padding:1rem;margin-top:1rem;">
-            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;">
-                📊 갭 모니터링
-            </div>
+            border-radius:12px;padding:1rem;">
             
-            <div style="background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);
-                border-radius:8px;padding:0.75rem;margin-bottom:0.75rem;">
-                <div style="font-size:0.8rem;color:#60a5fa;font-weight:600;margin-bottom:0.5rem;">
-                    💡 갭 모니터링이란?
-                </div>
-                <p style="font-size:0.75rem;color:#9ca3af;margin:0;line-height:1.5;">
-                    상장 공지 감지 후 <b>실시간 갭(김프) 변화</b>를 추적합니다.<br>
-                    갭이 단계별 임계값을 넘으면 텔레그램으로 알림을 보냅니다.
-                </p>
-            </div>
-            
-            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;">
-                <span style="background:#4ade8020;color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.75rem;">
-                    5% → 모니터링
-                </span>
-                <span style="background:#fbbf2420;color:#fbbf24;padding:4px 10px;border-radius:6px;font-size:0.75rem;">
-                    10% → 1/3 익절
-                </span>
-                <span style="background:#f8717120;color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.75rem;">
-                    20% → 2/3 익절
-                </span>
-                <span style="background:#a78bfa20;color:#a78bfa;padding:4px 10px;border-radius:6px;font-size:0.75rem;">
-                    30%+ → 전량 익절
-                </span>
-            </div>
-            
-            <div style="color:#6b7280;font-size:0.8rem;text-align:center;padding:0.75rem;
+            <div style="color:#6b7280;font-size:0.85rem;text-align:center;padding:0.75rem;
                 background:#1f2937;border-radius:8px;">
                 🔄 활성 모니터링 없음<br>
-                <span style="font-size:0.7rem;color:#4b5563;">상장 공지 감지 시 자동 시작됩니다</span>
+                <span style="font-size:0.75rem;color:#4b5563;">상장 공지 감지 시 자동 시작됩니다</span>
             </div>
         </div>''',
         unsafe_allow_html=True
