@@ -32,6 +32,15 @@ from analysis.spot_futures_gap import (
     SpotFuturesGapResult,
     HedgeType,
 )
+from analysis.market_condition import (
+    MarketConditionAnalyzer,
+    MarketCondition,
+    MarketConditionResult,
+)
+from analysis.hot_wallet_analyzer import (
+    HotWalletAnalyzer,
+    HotWalletAnalysisResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +116,11 @@ class SupplyPressureFactors:
     circulating_ratio: Optional[float] = None
     supply_score: float = 0
     
+    # 핫월렛 물량 (Phase 2 추가)
+    hot_wallet_holdings_usd: Optional[float] = None
+    hot_wallet_tier: str = "unknown"  # very_low / low / medium / high / very_high
+    hot_wallet_score: float = 0  # -10 ~ +10 (높을수록 물량 많음 = 망따리)
+    
     # 총 공급 점수 (높을수록 흥따리 = 입금 적음)
     total_supply_score: float = 0
 
@@ -156,6 +170,12 @@ class PreListingPrediction:
     
     # 토크노믹스 상세
     tokenomics: Optional[TokenomicsData] = None
+    
+    # 시황 상세 (Phase 1 추가)
+    market_condition_result: Optional["MarketConditionResult"] = None
+    
+    # 핫월렛 상세 (Phase 2 추가)
+    hot_wallet_result: Optional["HotWalletAnalysisResult"] = None
     
     # 경고/권장사항
     warnings: List[str] = field(default_factory=list)
@@ -218,7 +238,7 @@ class PreListingPredictor:
         symbol: str,
         exchange: str = "upbit",
         listing_type: ListingType = ListingType.UNKNOWN,
-        market_condition: str = "neutral",
+        market_condition: str = "auto",
     ) -> PreListingPrediction:
         """상장 전 예측 실행 (메인 함수)
         
@@ -226,7 +246,7 @@ class PreListingPredictor:
             symbol: 토큰 심볼
             exchange: 상장 예정 거래소 (upbit/bithumb)
             listing_type: 상장 유형 (TGE/직상장/옆상장)
-            market_condition: 시황 (bull/neutral/bear)
+            market_condition: 시황 ("auto"면 자동 판단, 또는 bull/neutral/bear)
             
         Returns:
             PreListingPrediction
@@ -240,6 +260,25 @@ class PreListingPredictor:
             listing_type=listing_type,
             timestamp=time.time(),
         )
+        
+        # 0. 시황 자동 판단 (market_condition="auto"인 경우)
+        market_condition_result: Optional[MarketConditionResult] = None
+        if market_condition == "auto":
+            try:
+                mc_analyzer = MarketConditionAnalyzer()
+                market_condition_result = await mc_analyzer.analyze()
+                await mc_analyzer.close()
+                
+                # MarketCondition enum → string 변환
+                market_condition = market_condition_result.condition.value
+                
+                logger.info(
+                    "[PreListingPredictor] 시황 자동 판단: %s (score: %d)",
+                    market_condition, market_condition_result.market_score
+                )
+            except Exception as e:
+                logger.warning(f"[PreListingPredictor] 시황 자동 판단 실패: {e}")
+                market_condition = "neutral"
         
         # 1. 병렬 데이터 조회
         tasks = [
@@ -272,9 +311,30 @@ class PreListingPredictor:
             result.warnings.append("토크노믹스 조회 실패")
             tokenomics = TokenomicsData(symbol=symbol)
         
+        # 시황 결과 저장 (Phase 1)
+        if market_condition_result:
+            result.market_condition_result = market_condition_result
+        
+        # 1.5 핫월렛 분석 (Phase 2) - 선택적 (API 키 필요)
+        hot_wallet_result: Optional[HotWalletAnalysisResult] = None
+        try:
+            hw_analyzer = HotWalletAnalyzer(config_dir=str(self._config_dir))
+            hot_wallet_result = await hw_analyzer.analyze_token(symbol)
+            await hw_analyzer.close()
+            
+            if hot_wallet_result.has_data:
+                result.hot_wallet_result = hot_wallet_result
+                logger.info(
+                    "[PreListingPredictor] 핫월렛 분석: $%.0f (%s)",
+                    hot_wallet_result.total_exchange_holdings_usd,
+                    hot_wallet_result.supply_pressure_tier
+                )
+        except Exception as e:
+            logger.debug(f"[PreListingPredictor] 핫월렛 분석 스킵: {e}")
+        
         # 2. 공급 요인 분석 (입금액 예측)
         supply_factors = self._analyze_supply_factors(
-            gap_result, tokenomics, symbol
+            gap_result, tokenomics, symbol, hot_wallet_result
         )
         result.supply_factors = supply_factors
         
@@ -378,6 +438,7 @@ class PreListingPredictor:
         gap_result: SpotFuturesGapResult,
         tokenomics: TokenomicsData,
         symbol: str,
+        hot_wallet_result: Optional[HotWalletAnalysisResult] = None,
     ) -> SupplyPressureFactors:
         """공급(입금액) 압력 요인 분석
         
@@ -468,13 +529,21 @@ class PreListingPredictor:
             else:
                 factors.supply_score = -3  # 60%+ = 물량 많음
         
+        # 6. 핫월렛 물량 점수 (Phase 2) - 물량 적으면 흥따리
+        if hot_wallet_result and hot_wallet_result.has_data:
+            factors.hot_wallet_holdings_usd = hot_wallet_result.total_exchange_holdings_usd
+            factors.hot_wallet_tier = hot_wallet_result.supply_pressure_tier
+            # 핫월렛 점수는 반대로 적용 (물량 많으면 망따리 → 점수 낮춤)
+            factors.hot_wallet_score = -hot_wallet_result.supply_pressure_score
+        
         # 총 공급 점수 (높을수록 흥따리 유리)
         factors.total_supply_score = (
             factors.gap_score +
             factors.funding_score +
             factors.hedge_score +
             factors.network_score +
-            factors.supply_score
+            factors.supply_score +
+            factors.hot_wallet_score  # Phase 2 추가
         )
         
         return factors
@@ -709,6 +778,36 @@ class PreListingPredictor:
                 lines.append(f"📊 24H 거래량: {vol_str}")
         lines.append("")
         
+        # 시황 정보 (Phase 1)
+        if result.market_condition_result:
+            mc = result.market_condition_result
+            mc_emoji = {"bull": "🔥", "neutral": "😐", "bear": "❄️"}
+            mc_label = {"bull": "불장", "neutral": "보통", "bear": "망장"}
+            emoji = mc_emoji.get(mc.condition.value, "❓")
+            label = mc_label.get(mc.condition.value, "알수없음")
+            lines.append(f"{emoji} 시황: *{label}* (점수: {mc.market_score:+.0f})")
+            if mc.upbit_volume_24h_krw:
+                lines.append(f"  📊 업비트 24H: {mc.upbit_volume_24h_krw/1e12:.1f}조원")
+            if mc.btc_change_24h_pct is not None:
+                lines.append(f"  ₿ BTC 24H: {mc.btc_change_24h_pct:+.1f}%")
+        lines.append("")
+        
+        # 핫월렛 정보 (Phase 2)
+        if result.hot_wallet_result and result.hot_wallet_result.has_data:
+            hw = result.hot_wallet_result
+            hw_emoji = {
+                "very_low": "🟢", "low": "🟡", "medium": "🟠",
+                "high": "🔴", "very_high": "🚨"
+            }
+            hw_label = {
+                "very_low": "매우 적음", "low": "적음", "medium": "보통",
+                "high": "많음", "very_high": "매우 많음"
+            }
+            emoji = hw_emoji.get(hw.supply_pressure_tier, "❓")
+            label = hw_label.get(hw.supply_pressure_tier, "알수없음")
+            lines.append(f"{emoji} 거래소 보유량: *${hw.total_exchange_holdings_usd:,.0f}* ({label})")
+        lines.append("")
+        
         # 권장사항
         if result.recommendations:
             lines.append("*💡 권장사항:*")
@@ -722,9 +821,15 @@ class PreListingPredictor:
 async def predict_listing(
     symbol: str,
     exchange: str = "upbit",
-    market_condition: str = "neutral",
+    market_condition: str = "auto",
 ) -> PreListingPrediction:
-    """상장 전 예측 (편의 함수)"""
+    """상장 전 예측 (편의 함수)
+    
+    Args:
+        symbol: 토큰 심볼
+        exchange: 상장 예정 거래소
+        market_condition: "auto"면 자동 판단, 또는 bull/neutral/bear
+    """
     predictor = PreListingPredictor()
     try:
         return await predictor.predict(
@@ -744,7 +849,7 @@ if __name__ == "__main__":
         
         predictor = PreListingPredictor()
         try:
-            result = await predictor.predict(symbol, exchange, market_condition="neutral")
+            result = await predictor.predict(symbol, exchange, market_condition="auto")
             
             # 콘솔용 출력 (이모지 제외)
             print(f"\n=== {symbol} Pre-Listing Prediction @{exchange} ===")
