@@ -1,4 +1,4 @@
-"""Health 판정 + Streamlit 배너.
+"""Health 판정 + Streamlit 배너 + 텔레그램 테스트.
 
 판정 규칙:
   RED:    heartbeat > 60초 (수집기 중단)
@@ -15,8 +15,12 @@ import json
 import logging
 import os
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+import aiohttp
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +149,18 @@ def render_health_banner(st_module) -> None:
 
             st_module.json(data)
 
+        # 텔레그램 알림 테스트
+        st_module.markdown("---")
+        st_module.markdown("**📱 텔레그램 알림 테스트**")
+        
+        col1, col2 = st_module.columns([1, 2])
+        with col1:
+            if st_module.button("🧪 테스트 알림 전송", key="test_telegram"):
+                _send_test_telegram_alert(st_module)
+        with col2:
+            if st_module.button("🚀 GO 알림 테스트", key="test_go_alert"):
+                _send_test_go_alert(st_module)
+        
         # 로그 파일 표시
         st_module.markdown("---")
         st_module.markdown("**📋 데몬 로그 (최근 50줄)**")
@@ -159,3 +175,131 @@ def render_health_banner(st_module) -> None:
                 st_module.info(f"로그 파일 없음: {log_path}")
         except Exception as e:
             st_module.error(f"로그 읽기 실패: {e}")
+
+
+# ============================================================
+# 텔레그램 알림 테스트 함수
+# ============================================================
+
+def _send_test_telegram_alert(st_module) -> None:
+    """간단한 테스트 알림 전송."""
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    
+    if not bot_token or not chat_id:
+        st_module.error("❌ 텔레그램 환경변수 미설정 (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)")
+        return
+    
+    async def _send():
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        message = f"""🧪 *CEX Dominance Bot 테스트 알림*
+
+이 메시지가 보이면 텔레그램 알림이 정상 작동합니다!
+
+⏱️ 테스트 시간: {now_str}"""
+        
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "Markdown",
+        }
+        
+        start = time.time()
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=10) as resp:
+                    elapsed = time.time() - start
+                    if resp.status == 200:
+                        return True, f"✅ 전송 성공! (응답시간: {elapsed:.2f}초)"
+                    else:
+                        error = await resp.text()
+                        return False, f"❌ 전송 실패: HTTP {resp.status}\n{error[:100]}"
+        except asyncio.TimeoutError:
+            return False, "❌ 타임아웃 (10초 초과)"
+        except Exception as e:
+            return False, f"❌ 에러: {e}"
+    
+    try:
+        loop = asyncio.new_event_loop()
+        success, msg = loop.run_until_complete(_send())
+        loop.close()
+        
+        if success:
+            st_module.success(msg)
+        else:
+            st_module.error(msg)
+    except Exception as e:
+        st_module.error(f"❌ 알림 전송 실패: {e}")
+
+
+def _send_test_go_alert(st_module) -> None:
+    """GO 알림 포맷 테스트."""
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    
+    if not bot_token or not chat_id:
+        st_module.error("❌ 텔레그램 환경변수 미설정")
+        return
+    
+    async def _send():
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        now_str = datetime.now().strftime("%H:%M:%S")
+        
+        # 실제 GO 알림 포맷
+        message = f"""🚀 *GO! 따리 기회 감지 (테스트)*
+
+*TESTCOIN* @upbit → binance
+
+📊 *분석 결과*
+• 프리미엄: +8.5%
+• 예상 비용: -1.2%
+• *순수익: +7.3%*
+
+⏱️ *전송 정보*
+• 네트워크: Ethereum (ERC-20)
+• 예상 시간: ~5분
+• 가스비: $2.50
+
+⚠️ *주의사항*
+• 헤지: Binance 선물 가능
+• VC: Tier 1 (a16z, Paradigm)
+• TGE 언락: 5% (LOW 리스크)
+
+🕐 감지 시간: {now_str}
+
+_이것은 테스트 알림입니다_"""
+        
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "Markdown",
+        }
+        
+        start = time.time()
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=10) as resp:
+                    elapsed = time.time() - start
+                    if resp.status == 200:
+                        return True, f"✅ GO 알림 전송 성공! (응답시간: {elapsed:.2f}초)"
+                    else:
+                        error = await resp.text()
+                        return False, f"❌ 전송 실패: HTTP {resp.status}\n{error[:100]}"
+        except asyncio.TimeoutError:
+            return False, "❌ 타임아웃"
+        except Exception as e:
+            return False, f"❌ 에러: {e}"
+    
+    try:
+        loop = asyncio.new_event_loop()
+        success, msg = loop.run_until_complete(_send())
+        loop.close()
+        
+        if success:
+            st_module.success(msg)
+        else:
+            st_module.error(msg)
+    except Exception as e:
+        st_module.error(f"❌ GO 알림 전송 실패: {e}")
