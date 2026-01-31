@@ -101,6 +101,7 @@ class GoNoGoScorer:
         network_chain: Optional[str] = None,
         hot_wallet_usd: Optional[float] = None,
         market_volume_krw: Optional[float] = None,
+        use_ai: bool = True,  # AI 보완 사용 여부
     ) -> GoNoGoResult:
         """GO/NO-GO 스코어 계산.
         
@@ -113,11 +114,23 @@ class GoNoGoScorer:
             network_chain: 네트워크/체인 이름
             hot_wallet_usd: 핫월렛 물량 (USD)
             market_volume_krw: 시장 1분 거래량 (KRW)
+            use_ai: AI 데이터 보완 사용 여부
         
         Returns:
             GoNoGoResult
         """
         self._components = []
+        
+        # AI 데이터 보완 (빈 데이터가 있고 use_ai=True일 때)
+        if use_ai and network_chain is None:
+            try:
+                from analysis.ai_enricher import enrich_token
+                token_info = await enrich_token(symbol)
+                if token_info:
+                    network_chain = token_info.network_chain
+                    logger.info(f"AI 보완: {symbol} 체인={network_chain}")
+            except Exception as e:
+                logger.warning(f"AI 보완 실패: {e}")
         
         # 1. DEX 유동성 스코어
         self._score_dex_liquidity(dex_liquidity_usd)
