@@ -33,8 +33,14 @@ from ui.ddari_common import (
 # ------------------------------------------------------------------
 
 
-def _render_analysis_card(row: dict, vasp_matrix: dict) -> None:
-    """개별 분석 결과 카드 렌더링."""
+def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False) -> None:
+    """개별 분석 결과 카드 렌더링.
+    
+    Args:
+        row: 분석 결과 데이터.
+        vasp_matrix: VASP 매트릭스.
+        highlight: True면 GO 강조 스타일 적용.
+    """
     import streamlit as st
 
     symbol = row.get("symbol", "?")
@@ -123,12 +129,24 @@ def _render_analysis_card(row: dict, vasp_matrix: dict) -> None:
         </div>
         """
 
+    # GO 강조 스타일
+    if highlight and can_proceed:
+        card_style = f"""background:linear-gradient(135deg, #1a3a2a 0%, #1f4a35 100%);
+            border:2px solid #4ade80;border-radius:16px;padding:1.25rem;margin-bottom:1rem;
+            box-shadow:0 4px 20px rgba(74,222,128,0.15);"""
+        symbol_style = f"font-size:1.4rem;font-weight:700;color:#4ade80;"
+        metric_style = "font-size:1rem;"
+    else:
+        card_style = CARD_STYLE
+        symbol_style = f"font-size:1.1rem;font-weight:600;color:{COLORS['text_primary']};"
+        metric_style = "font-size:0.85rem;"
+
     card_html = f"""
-    <div style="{CARD_STYLE}">
+    <div style="{card_style}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
             <div>
-                <span style="font-size:1.1rem;font-weight:600;color:{COLORS["text_primary"]};">{symbol}</span>
-                <span style="color:{COLORS["text_tertiary"]};font-size:0.8rem;margin-left:0.5rem;">@{exchange}</span>
+                <span style="{symbol_style}">{symbol}</span>
+                <span style="color:{COLORS["text_tertiary"]};font-size:0.9rem;margin-left:0.5rem;">@{exchange}</span>
                 <span style="color:{COLORS["text_muted"]};font-size:0.75rem;margin-left:0.5rem;">[{alert_level}]</span>
             </div>
             <div>
@@ -136,7 +154,7 @@ def _render_analysis_card(row: dict, vasp_matrix: dict) -> None:
                 <span style="color:{COLORS["text_muted"]};font-size:0.75rem;margin-left:0.5rem;">{time_str}</span>
             </div>
         </div>
-        <div style="display:flex;gap:1.5rem;font-size:0.85rem;color:{COLORS["text_secondary"]};margin-bottom:0.3rem;">
+        <div style="display:flex;gap:1.5rem;{metric_style};color:{COLORS["text_secondary"]};margin-bottom:0.3rem;">
             <span>프리미엄: <b style="color:{COLORS["text_accent"]};">{premium_text}</b></span>
             <span>순수익: <b style="color:{COLORS["text_profit"]};">{profit_text}</b></span>
             <span>비용: <b style="color:{COLORS["warning"]};">{cost_text}</b></span>
@@ -432,16 +450,32 @@ def render_live_tab() -> None:
         )
         return
 
-    # 헤더
-    st.markdown(
-        '<p style="font-size:1rem;font-weight:600;color:#fff;margin-bottom:0.75rem;">'
-        'Gate 분석 결과 (최근 20건)</p>',
-        unsafe_allow_html=True,
-    )
+    # GO와 NO-GO 분리
+    go_analyses = [r for r in analyses if r.get("can_proceed", 0)]
+    nogo_analyses = [r for r in analyses if not r.get("can_proceed", 0)]
 
-    # 분석 카드 목록
-    for row in analyses:
-        _render_analysis_card(row, vasp_matrix)
+    # 🚀 GO 섹션 (상단 강조)
+    if go_analyses:
+        st.markdown(
+            f'''<div style="background:linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%);
+                border:2px solid #4ade80;border-radius:16px;padding:1.5rem;margin-bottom:1.5rem;">
+                <p style="font-size:1.4rem;font-weight:700;color:#4ade80;margin-bottom:1rem;">
+                    🚀 GO! 따리 기회 ({len(go_analyses)}건)
+                </p>
+            </div>''',
+            unsafe_allow_html=True,
+        )
+        for row in go_analyses:
+            _render_analysis_card(row, vasp_matrix, highlight=True)
+
+    # 📋 NO-GO 섹션 (접기 가능)
+    nogo_header = f"🔴 NO-GO ({len(nogo_analyses)}건)" if nogo_analyses else "분석 기록 없음"
+    with st.expander(nogo_header, expanded=False):
+        if nogo_analyses:
+            for row in nogo_analyses:
+                _render_analysis_card(row, vasp_matrix, highlight=False)
+        else:
+            st.info("NO-GO 분석 기록이 없습니다.")
 
     # 통계 요약
     stats = fetch_stats_cached(conn_id)
