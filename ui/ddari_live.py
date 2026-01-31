@@ -761,6 +761,139 @@ def _render_realtime_gap_section() -> None:
 
 
 # ------------------------------------------------------------------
+# DEX 유동성 조회 섹션
+# ------------------------------------------------------------------
+
+
+def _render_dex_liquidity_section() -> None:
+    """DEX 유동성 조회 섹션."""
+    import streamlit as st
+    import asyncio
+
+    st.markdown(
+        f'<p style="{SECTION_HEADER_STYLE}">💧 DEX 유동성 조회</p>',
+        unsafe_allow_html=True,
+    )
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        symbol = st.text_input(
+            "심볼",
+            placeholder="예: AVAIL, ME, NXPC",
+            key="dex_symbol",
+            label_visibility="collapsed",
+        )
+    with col2:
+        search_btn = st.button("🔍 조회", key="dex_search", use_container_width=True)
+
+    if search_btn and symbol:
+        symbol = symbol.upper().strip()
+        
+        with st.spinner(f"{symbol} DEX 유동성 조회 중..."):
+            try:
+                from collectors.dex_liquidity import get_dex_liquidity
+
+                result = asyncio.run(get_dex_liquidity(symbol))
+                
+                if not result:
+                    st.warning(f"{symbol}: DEX에서 찾을 수 없습니다.")
+                else:
+                    # GO/NO-GO 색상
+                    signal_colors = {
+                        "STRONG_GO": COLORS["success"],
+                        "GO": COLORS["success"],
+                        "CAUTION": COLORS["warning"],
+                        "NO_GO": COLORS["danger"],
+                    }
+                    signal_color = signal_colors.get(result.go_signal, COLORS["neutral"])
+
+                    result_html = f"""
+                    <div style="background:{COLORS["card_bg"]};border:2px solid {signal_color};
+                                border-radius:12px;padding:1rem;margin-top:0.75rem;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                            <div>
+                                <span style="font-size:1.3rem;font-weight:700;color:{COLORS["text_primary"]};">
+                                    {result.go_emoji} {result.symbol}
+                                </span>
+                            </div>
+                            <div style="background:{signal_color};color:#fff;padding:6px 14px;
+                                        border-radius:8px;font-weight:600;">
+                                {result.go_signal}
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;">
+                            <div style="background:{COLORS["bg_card"]};padding:0.75rem;border-radius:8px;text-align:center;">
+                                <div style="font-size:0.75rem;color:{COLORS["text_muted"]};">총 유동성</div>
+                                <div style="font-size:1.1rem;font-weight:600;color:{signal_color};">
+                                    ${result.total_liquidity_usd:,.0f}
+                                </div>
+                            </div>
+                            <div style="background:{COLORS["bg_card"]};padding:0.75rem;border-radius:8px;text-align:center;">
+                                <div style="font-size:0.75rem;color:{COLORS["text_muted"]};">24h 거래량</div>
+                                <div style="font-size:1.1rem;font-weight:600;color:{COLORS["text_primary"]};">
+                                    ${result.total_volume_24h:,.0f}
+                                </div>
+                            </div>
+                            <div style="background:{COLORS["bg_card"]};padding:0.75rem;border-radius:8px;text-align:center;">
+                                <div style="font-size:0.75rem;color:{COLORS["text_muted"]};">페어 수</div>
+                                <div style="font-size:1.1rem;font-weight:600;color:{COLORS["text_primary"]};">
+                                    {result.pair_count}개
+                                </div>
+                            </div>
+                        </div>
+                    """
+
+                    # 최고 유동성 페어
+                    if result.best_pair:
+                        bp = result.best_pair
+                        result_html += f"""
+                        <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid {COLORS["border_gray"]};">
+                            <p style="font-size:0.8rem;color:{COLORS["text_muted"]};margin-bottom:0.5rem;">🏆 최고 유동성 페어</p>
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <span style="color:{COLORS["text_secondary"]};">
+                                    {bp.dex} ({bp.chain}) - {bp.base_token}/{bp.quote_token}
+                                </span>
+                                <span style="color:{COLORS["success"]};font-weight:600;">
+                                    ${bp.liquidity_usd:,.0f}
+                                </span>
+                            </div>
+                        </div>
+                        """
+
+                    result_html += "</div>"
+
+                    if hasattr(st, 'html'):
+                        st.html(result_html)
+                    else:
+                        st.markdown(result_html, unsafe_allow_html=True)
+
+            except Exception as e:
+                st.error(f"조회 실패: {e}")
+
+    # 기준 설명
+    info_html = f"""
+    <div style="{CARD_STYLE}margin-top:0.75rem;">
+        <p style="font-size:0.85rem;font-weight:600;color:{COLORS["info"]};margin-bottom:0.5rem;">
+            💡 DEX 유동성 기준
+        </p>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.8rem;color:{COLORS["text_secondary"]};">
+            <span>🟢🟢 200k↓: STRONG_GO</span>
+            <span>🟢 500k↓: GO</span>
+            <span>🟡 1M↓: CAUTION</span>
+            <span>🔴 1M↑: NO_GO</span>
+        </div>
+        <p style="font-size:0.75rem;color:{COLORS["text_muted"]};margin-top:0.5rem;">
+            유동성 낮음 → 후따리 어려움 → 공급 제약 → 흥따리 가능성 ↑
+        </p>
+    </div>
+    """
+    if hasattr(st, 'html'):
+        st.html(info_html)
+    else:
+        st.markdown(info_html, unsafe_allow_html=True)
+
+
+# ------------------------------------------------------------------
 # 메인 렌더 함수
 # ------------------------------------------------------------------
 
@@ -930,3 +1063,8 @@ def render_live_tab() -> None:
     # 실시간 현선갭 조회 섹션
     # ------------------------------------------------------------------
     _render_realtime_gap_section()
+
+    # ------------------------------------------------------------------
+    # DEX 유동성 조회 섹션
+    # ------------------------------------------------------------------
+    _render_dex_liquidity_section()
