@@ -41,8 +41,8 @@ try:
         PostListingAnalysis,
     )
     from analysis.spot_futures_gap import (
-        HedgeStrategy,
-        SpotFuturesGap,
+        HedgeType,
+        SpotFuturesGapResult,
     )
     from analysis.exit_timing import (
         ExitTriggerType,
