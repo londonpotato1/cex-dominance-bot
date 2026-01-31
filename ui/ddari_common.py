@@ -265,11 +265,27 @@ def fetch_premium_history_cached(conn_id: int, hours: int = 24) -> list[dict]:
 
 
 def fetch_listing_history_cached(conn_id: int, limit: int = 20) -> list[dict]:
-    """상장 히스토리 조회 (5분 캐시)."""
+    """상장 히스토리 조회 (5분 캐시) - CSV 파일에서 로드."""
     import streamlit as st
+    import pandas as pd
 
     @st.cache_data(ttl=300)
     def _inner(_conn_id: int, _limit: int) -> list[dict]:
+        # CSV 파일에서 로드 (DB보다 CSV가 더 풍부한 데이터)
+        csv_path = _DATA_DIR / "labeling" / "listing_data.csv"
+        if csv_path.exists():
+            try:
+                df = pd.read_csv(csv_path)
+                # date 컬럼을 listing_time으로 매핑
+                if 'date' in df.columns:
+                    df['listing_time'] = df['date']
+                # 최신순 정렬
+                df = df.sort_values('date', ascending=False).head(_limit)
+                return df.to_dict('records')
+            except Exception as e:
+                logger.warning(f"CSV 로드 실패: {e}")
+        
+        # CSV 없으면 DB 시도
         conn = get_read_conn()
         try:
             rows = conn.execute(
