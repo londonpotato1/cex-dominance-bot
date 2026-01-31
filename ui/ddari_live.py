@@ -1593,19 +1593,16 @@ def render_live_tab() -> None:
 
 
 def _render_funding_rate_compact() -> None:
-    """펀딩비 컴팩트 버전."""
+    """펀딩비 상단 바 형태 (컴팩트)."""
     import streamlit as st
 
     funding_data = fetch_funding_rates_cached()
     
     if funding_data.get("status") in ["error", "no_data"]:
-        no_data_html = f'''
-        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
-            border-radius:12px;padding:1rem;">
-            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">
-                💹 펀딩비
-            </div>
-            <div style="color:#6b7280;font-size:0.8rem;">데이터 로딩 중...</div>
+        no_data_html = '''
+        <div style="background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.06);
+            padding:8px 12px;display:flex;align-items:center;gap:12px;">
+            <span style="font-size:0.8rem;color:#6b7280;">💹 펀딩비 로딩 중...</span>
         </div>
         '''
         if hasattr(st, 'html'):
@@ -1618,41 +1615,48 @@ def _render_funding_rate_compact() -> None:
     position_bias = funding_data.get("position_bias", "neutral")
     symbols_data = funding_data.get("symbols", {})
 
-    # 쏠림 방향
+    # 쏠림 방향 & 설명
     if position_bias == "long_heavy":
-        bias_color, bias_emoji, bias_text = "#4ade80", "📈", "롱 과다"
+        bias_color = "#4ade80"
+        bias_text = "롱↑"
+        meaning = "롱 과열 → 선물가 > 현물가"
     elif position_bias == "short_heavy":
-        bias_color, bias_emoji, bias_text = "#f87171", "📉", "숏 과다"
+        bias_color = "#f87171"
+        bias_text = "숏↑"
+        meaning = "숏 과열 → 선물가 < 현물가"
     else:
-        bias_color, bias_emoji, bias_text = "#9ca3af", "➖", "중립"
+        bias_color = "#9ca3af"
+        bias_text = "중립"
+        meaning = "롱/숏 균형"
 
-    # 심볼별 펀딩비 HTML 생성
-    symbols_html = ""
-    for symbol, data in list(symbols_data.items())[:4]:
+    # 심볼별 펀딩비 (한 줄에)
+    symbols_parts = []
+    for symbol, data in list(symbols_data.items())[:3]:
         rate_pct = data.get("rate_pct", 0)
         sym_color = "#4ade80" if rate_pct > 0 else "#f87171" if rate_pct < 0 else "#9ca3af"
-        symbols_html += f'''
-            <span style="background:#1f2937;padding:4px 8px;border-radius:4px;font-size:0.75rem;display:inline-block;">
-                <span style="color:#9ca3af;">{symbol.replace('USDT', '')}</span>
-                <span style="color:{sym_color};font-weight:600;margin-left:4px;">{rate_pct:+.3f}%</span>
-            </span>
-        '''
+        sym_name = symbol.replace('USDT', '')
+        symbols_parts.append(
+            f'<span style="color:#9ca3af;">{sym_name}</span>'
+            f'<span style="color:{sym_color};margin-left:2px;">{rate_pct:+.3f}%</span>'
+        )
+    symbols_html = " &nbsp;│&nbsp; ".join(symbols_parts)
+
+    # 평균 색상
+    avg_color = "#4ade80" if avg_rate > 0 else "#f87171" if avg_rate < 0 else "#9ca3af"
 
     funding_html = f'''
-    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
-        border-radius:12px;padding:1rem;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
-            <span style="font-size:0.9rem;font-weight:600;color:#fff;">💹 펀딩비</span>
-            <span style="background:{bias_color}22;color:{bias_color};padding:3px 8px;
-                border-radius:6px;font-size:0.75rem;font-weight:600;">
-                {bias_emoji} {bias_text}
-            </span>
+    <div style="background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.06);
+        padding:8px 12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:0.8rem;color:#9ca3af;">💹</span>
+            <span style="font-size:0.95rem;font-weight:700;color:{avg_color};">{avg_rate:+.4f}%</span>
+            <span style="font-size:0.75rem;color:{bias_color};background:{bias_color}15;
+                padding:2px 6px;border-radius:4px;">{bias_text}</span>
+            <span style="font-size:0.75rem;color:#6b7280;">│</span>
+            <span style="font-size:0.75rem;">{symbols_html}</span>
         </div>
-        <div style="font-size:1.3rem;font-weight:700;color:{bias_color};margin-bottom:0.5rem;">
-            {avg_rate:+.4f}%
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
-            {symbols_html}
+        <div style="font-size:0.7rem;color:#6b7280;font-style:italic;">
+            {meaning}
         </div>
     </div>
     '''
