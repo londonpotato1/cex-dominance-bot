@@ -636,6 +636,131 @@ def _render_funding_rate_section() -> None:
 
 
 # ------------------------------------------------------------------
+# 실시간 현선갭 조회 섹션
+# ------------------------------------------------------------------
+
+
+def _render_realtime_gap_section() -> None:
+    """실시간 현선갭 조회 섹션."""
+    import streamlit as st
+
+    st.markdown(
+        f'<p style="{SECTION_HEADER_STYLE}">📊 실시간 현선갭 조회</p>',
+        unsafe_allow_html=True,
+    )
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        symbol = st.text_input(
+            "심볼",
+            placeholder="예: BTC, ETH, SOL",
+            key="gap_symbol",
+            label_visibility="collapsed",
+        )
+    with col2:
+        search_btn = st.button("🔍 조회", key="gap_search", use_container_width=True)
+
+    if search_btn and symbol:
+        symbol = symbol.upper().strip()
+        
+        with st.spinner(f"{symbol} 현선갭 조회 중..."):
+            try:
+                from collectors.exchange_service import ExchangeService
+                from collectors.gap_calculator import GapCalculator
+
+                service = ExchangeService()
+                
+                # 모든 거래소에서 가격 조회
+                spot_exchanges = ['binance', 'bybit', 'okx', 'upbit', 'bithumb']
+                futures_exchanges = ['binance', 'bybit', 'okx', 'hyperliquid']
+                
+                prices = service.fetch_all_prices(symbol, spot_exchanges, futures_exchanges)
+                
+                # 현선갭 계산
+                gaps = GapCalculator.calculate_all_gaps(prices, symbol)
+                
+                if not gaps:
+                    st.warning(f"{symbol}: 데이터를 찾을 수 없습니다.")
+                else:
+                    # 결과 표시
+                    result_html = f"""
+                    <div style="background:{COLORS["card_bg"]};border:1px solid {COLORS["card_border"]};
+                                border-radius:12px;padding:1rem;margin-top:0.75rem;">
+                        <p style="font-size:1rem;font-weight:600;color:{COLORS["text_primary"]};margin-bottom:0.75rem;">
+                            {symbol} 현선갭 (상위 5개)
+                        </p>
+                        <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    """
+                    
+                    for gap in gaps[:5]:
+                        gap_color = COLORS["success"] if gap.gap_percent > 0 else COLORS["danger"]
+                        funding_text = f" | 펀딩: {gap.funding_rate*100:.4f}%" if gap.funding_rate else ""
+                        krw_text = f" (₩{gap.spot_krw_price:,.0f})" if gap.spot_krw_price else ""
+                        
+                        result_html += f"""
+                            <div style="display:flex;justify-content:space-between;align-items:center;
+                                        background:{COLORS["bg_card"]};padding:0.5rem 0.75rem;border-radius:6px;">
+                                <div>
+                                    <span style="color:{COLORS["text_secondary"]};">{gap.spot_exchange}</span>
+                                    <span style="color:{COLORS["text_muted"]};"> → </span>
+                                    <span style="color:{COLORS["text_secondary"]};">{gap.futures_exchange}</span>
+                                    {krw_text}
+                                </div>
+                                <div>
+                                    <span style="font-weight:600;color:{gap_color};">{gap.gap_percent:+.3f}%</span>
+                                    <span style="color:{COLORS["text_muted"]};font-size:0.8rem;">{funding_text}</span>
+                                </div>
+                            </div>
+                        """
+                    
+                    # 가격 정보
+                    spot_prices = prices.get('spot', {})
+                    futures_prices = prices.get('futures', {})
+                    
+                    if spot_prices or futures_prices:
+                        result_html += f"""
+                            <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid {COLORS["border_gray"]};">
+                                <p style="font-size:0.8rem;color:{COLORS["text_muted"]};margin-bottom:0.5rem;">가격 정보</p>
+                                <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.85rem;">
+                        """
+                        for ex, data in spot_prices.items():
+                            krw = f" (₩{data.krw_price:,.0f})" if data.krw_price else ""
+                            result_html += f'<span style="color:{COLORS["text_secondary"]};">{ex}: ${data.price:.4f}{krw}</span>'
+                        for ex, data in futures_prices.items():
+                            result_html += f'<span style="color:{COLORS["info"]};">{ex}(F): ${data.price:.4f}</span>'
+                        result_html += "</div></div>"
+                    
+                    result_html += """
+                        </div>
+                    </div>
+                    """
+                    
+                    if hasattr(st, 'html'):
+                        st.html(result_html)
+                    else:
+                        st.markdown(result_html, unsafe_allow_html=True)
+
+            except Exception as e:
+                st.error(f"조회 실패: {e}")
+
+    # 설명
+    info_html = f"""
+    <div style="{CARD_STYLE}margin-top:0.75rem;">
+        <p style="font-size:0.8rem;color:{COLORS["text_secondary"]};">
+            💡 <b>현선갭</b> = (선물가격 - 현물가격) / 현물가격 × 100
+        </p>
+        <p style="font-size:0.75rem;color:{COLORS["text_muted"]};margin-top:0.25rem;">
+            양수: 선물 프리미엄 | 음수: 선물 디스카운트 | 갭이 클수록 헷징 어려움 → GO 신호
+        </p>
+    </div>
+    """
+    if hasattr(st, 'html'):
+        st.html(info_html)
+    else:
+        st.markdown(info_html, unsafe_allow_html=True)
+
+
+# ------------------------------------------------------------------
 # 메인 렌더 함수
 # ------------------------------------------------------------------
 
@@ -800,3 +925,8 @@ def render_live_tab() -> None:
     # 펀딩비 섹션
     # ------------------------------------------------------------------
     _render_funding_rate_section()
+
+    # ------------------------------------------------------------------
+    # 실시간 현선갭 조회 섹션
+    # ------------------------------------------------------------------
+    _render_realtime_gap_section()
