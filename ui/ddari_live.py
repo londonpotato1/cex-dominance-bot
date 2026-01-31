@@ -30,12 +30,99 @@ from ui.ddari_common import (
 
 
 # ------------------------------------------------------------------
-# Gate 분석 카드
+# Gate 분석 카드 (Phase 2.1: 신호등 시스템)
 # ------------------------------------------------------------------
 
 
+def _calculate_confidence_score(row: dict) -> tuple[int, str]:
+    """신뢰도 점수 계산 (0-100).
+    
+    Returns:
+        tuple: (점수, 주요 감점 사유)
+    """
+    score = 100
+    reasons = []
+    
+    # 1. FX 소스 신뢰도 (-20점)
+    fx_source = row.get("fx_source", "")
+    if fx_source == "hardcoded_fallback":
+        score -= 30
+        reasons.append("FX 기본값")
+    elif fx_source == "cache":
+        score -= 10
+        reasons.append("캐시 FX")
+    
+    # 2. 프리미엄 정보 유무 (-15점)
+    if row.get("premium_pct") is None:
+        score -= 15
+        reasons.append("프리미엄 없음")
+    
+    # 3. 순수익 마진 (마이너스면 감점)
+    net_profit = row.get("net_profit_pct")
+    if net_profit is not None:
+        if net_profit < 0:
+            score -= 20
+            reasons.append("순수익 마이너스")
+        elif net_profit < 1:
+            score -= 10
+            reasons.append("순수익 낮음")
+    
+    # 4. Blockers/Warnings 개수
+    blockers = json.loads(row.get("blockers_json", "[]") or "[]")
+    warnings = json.loads(row.get("warnings_json", "[]") or "[]")
+    
+    if blockers:
+        score -= len(blockers) * 10
+        reasons.append(f"차단 {len(blockers)}건")
+    if warnings:
+        score -= len(warnings) * 5
+    
+    # 5. 분석 속도 (느리면 감점)
+    duration_ms = row.get("gate_duration_ms")
+    if duration_ms and duration_ms > 5000:
+        score -= 10
+        reasons.append("분석 지연")
+    
+    score = max(0, min(100, score))
+    reason = reasons[0] if reasons else ""
+    
+    return score, reason
+
+
+def _render_confidence_bar(score: int) -> str:
+    """신뢰도 바 HTML 생성."""
+    filled = score // 10
+    empty = 10 - filled
+    
+    if score >= 70:
+        color = "#4ade80"  # 녹색
+    elif score >= 40:
+        color = "#fbbf24"  # 노랑
+    else:
+        color = "#f87171"  # 빨강
+    
+    bar = f'<span style="color:{color};">{"█" * filled}</span>'
+    bar += f'<span style="color:#374151;">{"░" * empty}</span>'
+    
+    return f'{bar} <span style="color:{color};font-weight:600;">{score}%</span>'
+
+
+def _render_traffic_light(can_proceed: bool, score: int, has_warnings: bool) -> str:
+    """신호등 HTML 생성."""
+    if can_proceed:
+        if score >= 70 and not has_warnings:
+            # 🟢 GO - 높은 신뢰도
+            return '<span style="font-size:1.8rem;">🟢</span> <span style="font-size:1.4rem;font-weight:700;color:#4ade80;">GO</span>'
+        else:
+            # 🟡 GO - 주의 필요
+            return '<span style="font-size:1.8rem;">🟡</span> <span style="font-size:1.4rem;font-weight:700;color:#fbbf24;">GO</span>'
+    else:
+        # 🔴 NO-GO
+        return '<span style="font-size:1.8rem;">🔴</span> <span style="font-size:1.4rem;font-weight:700;color:#f87171;">NO-GO</span>'
+
+
 def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False) -> None:
-    """개별 분석 결과 카드 렌더링.
+    """개별 분석 결과 카드 렌더링 (Phase 2.1: 신호등 시스템).
     
     Args:
         row: 분석 결과 데이터.
@@ -47,129 +134,125 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
     symbol = row.get("symbol", "?")
     exchange = row.get("exchange", "?")
     can_proceed = row.get("can_proceed", 0)
-    alert_level = row.get("alert_level", "INFO")
     premium = row.get("premium_pct")
     net_profit = row.get("net_profit_pct")
     total_cost = row.get("total_cost_pct")
-    fx_source = row.get("fx_source", "")
     duration_ms = row.get("gate_duration_ms")
     ts = row.get("timestamp", 0)
-    domestic_price = row.get("domestic_price_krw")
-    global_price = row.get("global_price_usd")
-
-    # GO/NO-GO 배지
-    if can_proceed:
-        status_badge = (
-            f'<span style="background:{COLORS["success_dark"]};color:{COLORS["text_primary"]};padding:3px 10px;'
-            'border-radius:6px;font-weight:600;">GO</span>'
-        )
-    else:
-        status_badge = (
-            f'<span style="background:{COLORS["danger_dark"]};color:{COLORS["text_primary"]};padding:3px 10px;'
-            'border-radius:6px;font-weight:600;">NO-GO</span>'
-        )
-
-    # 시간 포맷
-    time_str = datetime.fromtimestamp(ts).strftime("%m/%d %H:%M:%S") if ts else "?"
-
-    # 메트릭 텍스트
-    premium_text = f"{premium:.2f}%" if premium is not None else "N/A"
-    profit_text = f"{net_profit:.2f}%" if net_profit is not None else "N/A"
-    cost_text = f"{total_cost:.2f}%" if total_cost is not None else "N/A"
-    duration_text = f"{duration_ms:.0f}ms" if duration_ms is not None else "N/A"
-
-    # 가격 텍스트 (Phase 8: 직관적 가격 비교)
-    if domestic_price and domestic_price > 0:
-        domestic_text = f"₩{domestic_price:,.0f}"
-    else:
-        domestic_text = None
-    if global_price and global_price > 0:
-        global_text = f"${global_price:,.4f}" if global_price < 1 else f"${global_price:,.2f}"
-    else:
-        global_text = None
 
     # Blockers/Warnings
     blockers = json.loads(row.get("blockers_json", "[]") or "[]")
     warnings = json.loads(row.get("warnings_json", "[]") or "[]")
+    
+    # 신뢰도 계산
+    confidence_score, confidence_reason = _calculate_confidence_score(row)
+    
+    # 신호등 + 신뢰도 바
+    traffic_light = _render_traffic_light(can_proceed, confidence_score, len(warnings) > 0)
+    confidence_bar = _render_confidence_bar(confidence_score)
 
-    blockers_html = ""
-    if blockers:
-        items = "".join(
-            f'<li style="color:{COLORS["danger"]};font-size:0.8rem;">{b}</li>'
-            for b in blockers
-        )
-        blockers_html = f'<ul style="margin:0.3rem 0;padding-left:1.2rem;">{items}</ul>'
-
-    warnings_html = ""
-    if warnings:
-        items = "".join(
-            f'<li style="color:{COLORS["warning"]};font-size:0.8rem;">{w}</li>'
-            for w in warnings
-        )
-        warnings_html = f'<ul style="margin:0.3rem 0;padding-left:1.2rem;">{items}</ul>'
-
-    # 열화 배지
-    degradation = render_degradation_badges(row)
-    degradation_html = f'<div style="margin-top:0.3rem;">{degradation}</div>' if degradation else ""
-
-    # VASP 배지
-    vasp = render_vasp_badge(exchange, vasp_matrix)
-    vasp_html = f'<div style="margin-top:0.3rem;">{vasp}</div>' if vasp else ""
-
-    # VC/MM 배지 (Phase 7)
-    vcmm = render_vcmm_badge(row)
-    vcmm_html = f'<div style="margin-top:0.4rem;display:flex;gap:0.4rem;flex-wrap:wrap;">{vcmm}</div>' if vcmm else ""
-
-    # 가격 비교 HTML (Phase 8)
-    price_html = ""
-    if domestic_text and global_text:
-        price_html = f"""
-        <div style="font-size:0.85rem;color:{COLORS["text_secondary"]};margin-bottom:0.3rem;">
-            <span>🇰🇷 국내: <b style="color:{COLORS["text_accent"]};">{domestic_text}</b></span>
-            <span style="margin-left:1rem;">🌍 글로벌: <b style="color:{COLORS["text_profit"]};">{global_text}</b></span>
-        </div>
-        """
-
-    # GO 강조 스타일
-    if highlight and can_proceed:
-        card_style = f"""background:linear-gradient(135deg, #1a3a2a 0%, #1f4a35 100%);
-            border:2px solid #4ade80;border-radius:16px;padding:1.25rem;margin-bottom:1rem;
-            box-shadow:0 4px 20px rgba(74,222,128,0.15);"""
-        symbol_style = f"font-size:1.4rem;font-weight:700;color:#4ade80;"
-        metric_style = "font-size:1rem;"
+    # 시간 포맷
+    time_str = datetime.fromtimestamp(ts).strftime("%H:%M:%S") if ts else "?"
+    
+    # 예상 수익 계산 (50만원 기준)
+    base_krw = 500_000
+    if net_profit is not None:
+        profit_krw = int(base_krw * net_profit / 100)
+        if net_profit > 0:
+            profit_display = f'<span style="font-size:1.6rem;font-weight:700;color:#4ade80;">+{net_profit:.2f}%</span>'
+            profit_krw_display = f'<span style="color:#4ade80;">(≈₩{profit_krw:,})</span>'
+        else:
+            profit_display = f'<span style="font-size:1.6rem;font-weight:700;color:#f87171;">{net_profit:.2f}%</span>'
+            profit_krw_display = f'<span style="color:#f87171;">(≈₩{profit_krw:,})</span>'
     else:
-        card_style = CARD_STYLE
-        symbol_style = f"font-size:1.1rem;font-weight:600;color:{COLORS['text_primary']};"
-        metric_style = "font-size:0.85rem;"
+        profit_display = '<span style="font-size:1.6rem;color:#6b7280;">N/A</span>'
+        profit_krw_display = ""
+    
+    # 김프/비용/속도 한 줄
+    premium_text = f"{premium:+.2f}%" if premium is not None else "N/A"
+    cost_text = f"{total_cost:.2f}%" if total_cost is not None else "N/A"
+    duration_text = f"{duration_ms:.0f}ms" if duration_ms is not None else "N/A"
+    
+    # 흥/망따리 분류 (supply_score 기반 또는 순수익 기반)
+    supply_score = row.get("supply_score")
+    if supply_score is not None:
+        if supply_score > 6:
+            supply_badge = '<span style="background:#166534;color:#4ade80;padding:2px 8px;border-radius:4px;font-size:0.8rem;">🔥 흥따리</span>'
+        elif supply_score < 3:
+            supply_badge = '<span style="background:#7f1d1d;color:#fca5a5;padding:2px 8px;border-radius:4px;font-size:0.8rem;">💀 망따리</span>'
+        else:
+            supply_badge = '<span style="background:#374151;color:#9ca3af;padding:2px 8px;border-radius:4px;font-size:0.8rem;">😐 보통</span>'
+    elif net_profit is not None:
+        if net_profit > 3:
+            supply_badge = '<span style="background:#166534;color:#4ade80;padding:2px 8px;border-radius:4px;font-size:0.8rem;">🔥 흥따리</span>'
+        elif net_profit < 0:
+            supply_badge = '<span style="background:#7f1d1d;color:#fca5a5;padding:2px 8px;border-radius:4px;font-size:0.8rem;">💀 망따리</span>'
+        else:
+            supply_badge = '<span style="background:#374151;color:#9ca3af;padding:2px 8px;border-radius:4px;font-size:0.8rem;">😐 보통</span>'
+    else:
+        supply_badge = ""
+
+    # 경고사항 (간결하게)
+    alerts_html = ""
+    if blockers:
+        items = "".join(f'<div style="color:#f87171;font-size:0.75rem;">🚫 {b[:35]}</div>' for b in blockers[:2])
+        alerts_html += items
+    if warnings and can_proceed:
+        items = "".join(f'<div style="color:#fbbf24;font-size:0.75rem;">⚠️ {w[:35]}</div>' for w in warnings[:2])
+        alerts_html += items
+    
+    # 신뢰도 감점 사유
+    if confidence_reason:
+        alerts_html += f'<div style="color:#6b7280;font-size:0.7rem;margin-top:0.2rem;">📉 {confidence_reason}</div>'
+
+    # 카드 스타일
+    if highlight and can_proceed:
+        card_style = """background:linear-gradient(135deg, #1a3a2a 0%, #1f4a35 100%);
+            border:2px solid #4ade80;border-radius:16px;padding:1rem;margin-bottom:0.75rem;
+            box-shadow:0 4px 20px rgba(74,222,128,0.15);"""
+    elif can_proceed:
+        card_style = """background:linear-gradient(135deg, #1a2e1a 0%, #1f3d25 100%);
+            border:1px solid #166534;border-radius:16px;padding:1rem;margin-bottom:0.75rem;"""
+    else:
+        card_style = """background:linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%);
+            border:1px solid #374151;border-radius:16px;padding:1rem;margin-bottom:0.75rem;"""
 
     card_html = f"""
     <div style="{card_style}">
+        <!-- 1행: 신호등 + 신뢰도 바 -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-            <div>
-                <span style="{symbol_style}">{symbol}</span>
-                <span style="color:{COLORS["text_tertiary"]};font-size:0.9rem;margin-left:0.5rem;">@{exchange}</span>
-                <span style="color:{COLORS["text_muted"]};font-size:0.75rem;margin-left:0.5rem;">[{alert_level}]</span>
-            </div>
-            <div>
-                {status_badge}
-                <span style="color:{COLORS["text_muted"]};font-size:0.75rem;margin-left:0.5rem;">{time_str}</span>
-            </div>
+            <div>{traffic_light}</div>
+            <div style="font-size:0.85rem;font-family:monospace;">{confidence_bar}</div>
         </div>
-        <div style="display:flex;gap:1.5rem;{metric_style};color:{COLORS["text_secondary"]};margin-bottom:0.3rem;">
-            <span>프리미엄: <b style="color:{COLORS["text_accent"]};">{premium_text}</b></span>
-            <span>순수익: <b style="color:{COLORS["text_profit"]};">{profit_text}</b></span>
-            <span>비용: <b style="color:{COLORS["warning"]};">{cost_text}</b></span>
-            <span>FX: <b>{fx_source or 'N/A'}</b></span>
-            <span>소요: <b>{duration_text}</b></span>
+        
+        <!-- 2행: 심볼 + 시간 -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;">
+            <div>
+                <span style="font-size:1.2rem;font-weight:600;color:#fff;">{symbol}</span>
+                <span style="color:#9ca3af;font-size:0.9rem;margin-left:0.4rem;">@{exchange}</span>
+                <span style="margin-left:0.5rem;">{supply_badge}</span>
+            </div>
+            <span style="color:#6b7280;font-size:0.8rem;">{time_str}</span>
         </div>
-        {price_html}
-        {vcmm_html}
-        {blockers_html}
-        {warnings_html}
-        {degradation_html}
-        {vasp_html}
+        
+        <!-- 3행: 예상 수익 (크게) -->
+        <div style="margin-bottom:0.5rem;">
+            <span style="color:#9ca3af;font-size:0.8rem;">예상 수익: </span>
+            {profit_display} {profit_krw_display}
+        </div>
+        
+        <!-- 4행: 김프/비용/속도 -->
+        <div style="display:flex;gap:1rem;font-size:0.8rem;color:#9ca3af;margin-bottom:0.4rem;">
+            <span>📈 김프 <b style="color:#60a5fa;">{premium_text}</b></span>
+            <span>💸 비용 <b style="color:#fbbf24;">{cost_text}</b></span>
+            <span>⚡ <b>{duration_text}</b></span>
+        </div>
+        
+        <!-- 5행: 경고사항 -->
+        {f'<div style="margin-top:0.4rem;border-top:1px solid #374151;padding-top:0.4rem;">{alerts_html}</div>' if alerts_html else ''}
     </div>
     """
+    
     if hasattr(st, 'html'):
         st.html(card_html)
     else:
@@ -463,22 +546,35 @@ def render_live_tab() -> None:
         if mood.get("kr_dominance") is not None:
             mood_badge = f'''
                 <span style="background:rgba(0,0,0,0.3);border:1px solid {mood["color"]};
-                    padding:4px 10px;border-radius:8px;font-size:0.85rem;margin-left:1rem;">
+                    padding:4px 10px;border-radius:8px;font-size:0.8rem;">
                     {mood["emoji"]} 시장: <b style="color:{mood["color"]};">{mood["text"]}</b>
-                    <span style="color:#888;font-size:0.75rem;margin-left:0.5rem;">
+                    <span style="color:#6b7280;font-size:0.7rem;margin-left:0.3rem;">
                         KR {mood["kr_dominance"]:.1f}%
                     </span>
                 </span>
             '''
+        
+        # 최고 수익 GO 찾기
+        best_go = max(go_analyses, key=lambda x: x.get("net_profit_pct") or -999)
+        best_profit = best_go.get("net_profit_pct")
+        best_profit_text = f"+{best_profit:.1f}%" if best_profit and best_profit > 0 else ""
 
         st.markdown(
             f'''<div style="background:linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%);
-                border:2px solid #4ade80;border-radius:16px;padding:1.5rem;margin-bottom:1.5rem;">
-                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;">
-                    <span style="font-size:1.4rem;font-weight:700;color:#4ade80;">
-                        🚀 GO! 따리 기회 ({len(go_analyses)}건)
-                    </span>
-                    {mood_badge}
+                border:2px solid #4ade80;border-radius:16px;padding:1.25rem;margin-bottom:1rem;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+                    <div style="display:flex;align-items:center;gap:0.75rem;">
+                        <span style="font-size:2rem;">🟢</span>
+                        <div>
+                            <div style="font-size:1.3rem;font-weight:700;color:#4ade80;">
+                                GO! {len(go_analyses)}건
+                            </div>
+                            <div style="font-size:0.85rem;color:#86efac;">
+                                최고 수익 {best_profit_text}
+                            </div>
+                        </div>
+                    </div>
+                    <div>{mood_badge}</div>
                 </div>
             </div>''',
             unsafe_allow_html=True,
@@ -486,10 +582,24 @@ def render_live_tab() -> None:
         for row in go_analyses:
             _render_analysis_card(row, vasp_matrix, highlight=True)
 
-    # 📋 NO-GO 섹션 (접기 가능)
-    nogo_header = f"🔴 NO-GO ({len(nogo_analyses)}건)" if nogo_analyses else "분석 기록 없음"
+    # 📋 NO-GO 섹션 (접기 가능) - 신호등 스타일
+    if nogo_analyses:
+        nogo_header = f"🔴 NO-GO ({len(nogo_analyses)}건) - 클릭하여 펼치기"
+    else:
+        nogo_header = "분석 기록 없음"
+    
     with st.expander(nogo_header, expanded=False):
         if nogo_analyses:
+            # NO-GO 요약 통계
+            avg_profit = sum(r.get("net_profit_pct") or 0 for r in nogo_analyses) / len(nogo_analyses)
+            st.markdown(
+                f'''<div style="background:#1f1f1f;border-radius:8px;padding:0.75rem;margin-bottom:0.75rem;
+                    font-size:0.85rem;color:#9ca3af;">
+                    평균 순수익: <span style="color:#f87171;">{avg_profit:.2f}%</span> | 
+                    주요 차단 사유: 순수익 부족, 입출금 제한
+                </div>''',
+                unsafe_allow_html=True,
+            )
             for row in nogo_analyses:
                 _render_analysis_card(row, vasp_matrix, highlight=False)
         else:
