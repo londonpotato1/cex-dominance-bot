@@ -943,31 +943,30 @@ def render_intel_tab() -> None:
     # ------------------------------------------------------------------
     listing_history = fetch_listing_history_cached(conn_id, limit=10)
     if listing_history:
-        st.markdown(
-            '<p style="font-size:1rem;font-weight:600;color:#fff;'
-            'margin-bottom:0.75rem;">📋 상장 히스토리 (최근 10건)</p>',
-            unsafe_allow_html=True,
-        )
-
-        for row in listing_history:
-            _render_listing_history_card(row)
-
+        # 라벨링 통계 미리 계산 (expander 제목에 표시)
         labeled_count = sum(1 for r in listing_history if r.get("result_label"))
-        if labeled_count > 0:
-            heung_count = sum(
-                1 for r in listing_history
-                if r.get("result_label") in ("heung", "heung_big")
-            )
-            mang_count = sum(
-                1 for r in listing_history
-                if r.get("result_label") == "mang"
-            )
-            st.markdown(
-                f'<p style="font-size:0.85rem;color:#888;margin-top:0.5rem;">'
-                f'라벨링: {labeled_count}/{len(listing_history)}건 | '
-                f'흥따리: {heung_count}건 | 망따리: {mang_count}건</p>',
-                unsafe_allow_html=True,
-            )
+        heung_count = sum(
+            1 for r in listing_history
+            if r.get("result_label") in ("heung", "heung_big", "대흥따리", "흥따리")
+        )
+        mang_count = sum(
+            1 for r in listing_history
+            if r.get("result_label") in ("mang", "망따리")
+        )
+        
+        # 접을 수 있는 expander로 변경
+        expander_title = f"📋 상장 히스토리 (최근 {len(listing_history)}건) | 흥:{heung_count} 망:{mang_count}"
+        with st.expander(expander_title, expanded=False):
+            for row in listing_history:
+                _render_listing_history_card(row)
+
+            if labeled_count > 0:
+                st.markdown(
+                    f'<p style="font-size:0.85rem;color:#888;margin-top:0.5rem;">'
+                    f'라벨링: {labeled_count}/{len(listing_history)}건 | '
+                    f'흥따리: {heung_count}건 | 망따리: {mang_count}건</p>',
+                    unsafe_allow_html=True,
+                )
 
     # ------------------------------------------------------------------
     # 시나리오 예측 섹션

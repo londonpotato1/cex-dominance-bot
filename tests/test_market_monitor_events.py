@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from collectors.market_monitor import MarketMonitor
 from collectors.notice_parser import NoticeParseResult, EventSeverity, EventAction
-from analysis.event_strategy import EventStrategyExecutor, StrategyRecommendation
+from analysis.event_strategy import EventStrategyExecutor, StrategyRecommendation, StrategyType
 from analysis.gate import AlertLevel
 from store.token_registry import TokenRegistry
 from store.writer import DatabaseWriter
@@ -74,15 +74,17 @@ class TestNonListingEvents:
 
         # 전략 반환 설정
         strategy = StrategyRecommendation(
+            strategy_type=StrategyType.BUY_OPPORTUNITY,
             symbol="BTC",
             exchange="upbit",
             event_type="warning",
             severity=EventSeverity.MEDIUM,
+            action=EventAction.TRADE,
             recommended_action="BUY",
             reason="출금 중단으로 프리미엄 상승 예상",
             expected_roi=2.5,
             confidence=0.7,
-            max_hold_time_hours=3,
+            max_hold_time=180,  # 3시간 = 180분
             risk_level="medium",
             alert_sound=False,
         )
@@ -118,15 +120,17 @@ class TestNonListingEvents:
         )
 
         strategy = StrategyRecommendation(
+            strategy_type=StrategyType.MONITOR_RESUME,
             symbol="LUNA",
             exchange="bithumb",
             event_type="halt",
             severity=EventSeverity.HIGH,
+            action=EventAction.MONITOR,
             recommended_action="MONITOR",
             reason="거래 중단, 재개 모니터링",
             expected_roi=0.0,
             confidence=0.5,
-            max_hold_time_hours=0,
+            max_hold_time=0,
             risk_level="high",
             alert_sound=True,
         )
@@ -155,15 +159,17 @@ class TestNonListingEvents:
         )
 
         strategy = StrategyRecommendation(
+            strategy_type=StrategyType.SAFETY_CHECK,
             symbol="USDT",
             exchange="upbit",
             event_type="depeg",
             severity=EventSeverity.CRITICAL,
+            action=EventAction.ALERT,
             recommended_action="SELL",
             reason="스테이블코인 디페깅 감지",
             expected_roi=-5.0,
             confidence=0.9,
-            max_hold_time_hours=0,
+            max_hold_time=0,
             risk_level="critical",
             alert_sound=True,
         )
@@ -194,15 +200,17 @@ class TestNonListingEvents:
         )
 
         strategy = StrategyRecommendation(
+            strategy_type=StrategyType.SWAP_OPPORTUNITY,
             symbol="MATIC",
             exchange="bithumb",
             event_type="migration",
             severity=EventSeverity.MEDIUM,
+            action=EventAction.ALERT,
             recommended_action="HOLD",
             reason="POL 전환, 1:1 스왑 대기",
             expected_roi=0.0,
             confidence=0.8,
-            max_hold_time_hours=24,
+            max_hold_time=1440,  # 24시간 = 1440분
             risk_level="medium",
             alert_sound=False,
         )

@@ -137,22 +137,54 @@ class ListingStrategyAnalyzer:
         )
     
     async def _get_gap_info(self, symbol: str) -> Optional[GapInfo]:
-        """현선갭 조회"""
+        """현선갭 조회 - 실제 API 연동"""
         try:
+            from collectors.exchange_service import exchange_service
             from collectors.gap_calculator import GapCalculator
-            from collectors.exchange_service import ExchangeService
             
-            # 여러 거래소에서 가격 조회
-            exchanges = ["binance", "bybit", "okx"]
+            # 현물/선물 거래소 목록
+            spot_exchanges = ["binance", "bybit", "okx"]
+            futures_exchanges = ["binance", "bybit", "okx"]
+            
+            # 병렬로 가격 조회
+            prices = exchange_service.fetch_all_prices(
+                symbol=symbol,
+                spot_exchanges=spot_exchanges,
+                futures_exchanges=futures_exchanges
+            )
+            
+            spot_prices = prices.get('spot', {})
+            futures_prices = prices.get('futures', {})
+            
+            if not spot_prices or not futures_prices:
+                logger.warning(f"{symbol}: 가격 데이터 없음 (spot={len(spot_prices)}, futures={len(futures_prices)})")
+                return None
+            
+            # 모든 조합의 갭 계산
             best_gap = None
+            best_gap_percent = float('inf')
             
-            for exchange in exchanges:
-                try:
-                    # 실제 구현에서는 ExchangeService 사용
-                    # 여기서는 간단히 None 반환
-                    pass
-                except:
-                    continue
+            for futures_ex, futures_data in futures_prices.items():
+                for spot_ex, spot_data in spot_prices.items():
+                    if spot_data.price <= 0 or futures_data.price <= 0:
+                        continue
+                    
+                    gap_percent = ((futures_data.price - spot_data.price) / spot_data.price) * 100
+                    is_reverse = gap_percent < 0
+                    
+                    # 갭이 낮을수록(또는 역프일수록) 좋음 - 절대값이 작은 것 선호
+                    if abs(gap_percent) < abs(best_gap_percent):
+                        best_gap_percent = gap_percent
+                        best_gap = GapInfo(
+                            exchange=f"{spot_ex}/{futures_ex}",
+                            spot_price=spot_data.price,
+                            futures_price=futures_data.price,
+                            gap_percent=gap_percent,
+                            is_reverse=is_reverse
+                        )
+            
+            if best_gap:
+                logger.info(f"{symbol} 갭: {best_gap.gap_percent:.2f}% ({best_gap.exchange})")
             
             return best_gap
             
@@ -188,11 +220,14 @@ class ListingStrategyAnalyzer:
             
             result = await get_dex_liquidity(symbol)
             if result:
-                # DexLiquidityResult 객체인 경우
-                if hasattr(result, 'liquidity_usd'):
+                # DexLiquidityResult 객체인 경우 - total_liquidity_usd 사용
+                if hasattr(result, 'total_liquidity_usd'):
+                    return result.total_liquidity_usd
+                # 기존 호환성
+                elif hasattr(result, 'liquidity_usd'):
                     return result.liquidity_usd
                 elif isinstance(result, dict):
-                    return result.get("liquidity_usd")
+                    return result.get("total_liquidity_usd") or result.get("liquidity_usd")
             return None
             
         except Exception as e:
@@ -228,22 +263,27 @@ class ListingStrategyAnalyzer:
     async def _get_network_info(self, symbol: str) -> Dict:
         """네트워크 정보 조회"""
         try:
-            from collectors.network_speed import get_network_info, NetworkInfo
+            from collectors.network_speed import get_network_info, get_network_by_symbol, NetworkInfo
             
-            result = get_network_info(symbol)
+            # 먼저 심볼로 네트워크 추론 시도
+            result = get_network_by_symbol(symbol)
+            
+            # 추론 실패 시 심볼을 네트워크명으로 직접 시도
+            if not result:
+                result = get_network_info(symbol)
             
             if result:
                 # NetworkInfo 객체인 경우 dict로 변환
                 if isinstance(result, NetworkInfo):
                     return {
                         "speed": result.speed,
-                        "time": result.time,
+                        "time": result.estimated_time,  # estimated_time 사용
                         "go_signal": result.go_signal
                     }
                 elif hasattr(result, 'speed'):
                     return {
                         "speed": result.speed,
-                        "time": getattr(result, 'time', 'N/A'),
+                        "time": getattr(result, 'estimated_time', getattr(result, 'time', 'N/A')),
                         "go_signal": getattr(result, 'go_signal', 'N/A')
                     }
                 elif isinstance(result, dict):
@@ -281,9 +321,11 @@ class ListingStrategyAnalyzer:
         gap_percent = gap_info.gap_percent if gap_info else None
         is_reverse = gap_info.is_reverse if gap_info else False
         
-        # 임시: gap_info가 없으면 기본값 사용 (실제로는 API에서 조회)
+        # 갭 정보 없으면 중간값으로 가정 (보수적 접근)
         if gap_percent is None:
-            gap_percent = 1.5  # 테스트용 기본값
+            # 경고 추가
+            warnings.append("⚠️ 현선갭 조회 실패 - 선물 미상장일 수 있음")
+            gap_percent = 3.0  # 보수적 기본값 (중간 영역)
         
         # === 론 정보 처리 ===
         has_loan = loan_info.get("available", False)

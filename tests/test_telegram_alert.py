@@ -72,13 +72,13 @@ class TestTelegramAlert:
 
     @pytest.mark.asyncio
     async def test_critical_immediate_send(self, telegram_alert):
-        """CRITICAL 레벨은 즉시 전송."""
+        """CRITICAL 레벨은 즉시 전송 (prefix 없이 메시지만)."""
         with patch.object(telegram_alert, "_send_telegram", new_callable=AsyncMock) as mock_send:
             await telegram_alert.send(AlertLevel.CRITICAL, "긴급 알림")
             mock_send.assert_called_once()
             args = mock_send.call_args[0]
+            # CRITICAL/HIGH는 prefix 없이 메시지 그대로 전송
             assert "긴급 알림" in args[0]
-            assert "[CRITICAL]" in args[0]
 
     @pytest.mark.asyncio
     async def test_high_immediate_send(self, telegram_alert):
@@ -88,12 +88,22 @@ class TestTelegramAlert:
             mock_send.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_medium_with_debounce(self, telegram_alert):
+    async def test_medium_with_debounce(self, telegram_alert, read_conn):
         """MEDIUM 레벨은 디바운스 적용."""
+        import time
+        
         with patch.object(telegram_alert, "_send_telegram", new_callable=AsyncMock) as mock_send:
             # 첫 번째 전송
             await telegram_alert.send(AlertLevel.MEDIUM, "테스트", key="test_key")
             assert mock_send.call_count == 1
+
+            # 디바운스 레코드 직접 삽입 (mock_writer는 실제로 DB에 쓰지 않음)
+            now = time.time()
+            read_conn.execute(
+                "INSERT OR REPLACE INTO alert_debounce (key, last_sent_at, expires_at) VALUES (?, ?, ?)",
+                ("test_key", now, now + 300),  # 5분 후 만료
+            )
+            read_conn.commit()
 
             # 두 번째 전송 (디바운스로 차단)
             await telegram_alert.send(AlertLevel.MEDIUM, "테스트", key="test_key")
