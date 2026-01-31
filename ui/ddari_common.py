@@ -50,7 +50,8 @@ try:
         ExitDecision,
     )
     PHASE8_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    logger.warning(f"Phase 8 모듈 로드 실패: {e}")
     PHASE8_AVAILABLE = False
 
 
