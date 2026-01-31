@@ -247,7 +247,7 @@ def _send_test_go_alert(st_module) -> None:
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         now_str = datetime.now().strftime("%H:%M:%S")
         
-        # 실제 GO 알림 포맷
+        # 실제 GO 알림 포맷 (바로가기 링크 포함)
         message = f"""🚀 *GO! 따리 기회 감지 (테스트)*
 
 *TESTCOIN* @upbit → binance
@@ -266,6 +266,11 @@ def _send_test_go_alert(st_module) -> None:
 • 헤지: Binance 선물 가능
 • VC: Tier 1 (a16z, Paradigm)
 • TGE 언락: 5% (LOW 리스크)
+
+👉 *바로가기*
+• [업비트 입금](https://upbit.com/exchange?code=CRIX.UPBIT.KRW-BTC)
+• [바이낸스 선물](https://www.binance.com/en/futures/BTCUSDT)
+• [빗썸 입금](https://www.bithumb.com/trade/order/BTC_KRW)
 
 🕐 감지 시간: {now_str}
 
