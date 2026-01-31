@@ -215,16 +215,23 @@ def fetch_stats_cached(conn_id: int) -> dict:
                 "WHERE fx_source IS NOT NULL GROUP BY fx_source ORDER BY cnt DESC"
             ).fetchall()
 
+            # 마지막 분석 시간
+            last_analysis = conn.execute(
+                "SELECT MAX(created_at) as last_at FROM gate_analysis_log"
+            ).fetchone()["last_at"]
+
             return {
                 "total": total,
                 "go_count": go_count,
                 "nogo_count": total - go_count,
                 "avg_premium": avg_premium or 0.0,
                 "fx_distribution": {r["fx_source"]: r["cnt"] for r in fx_dist},
+                "last_analysis_at": last_analysis,
             }
         except sqlite3.OperationalError:
             return {"total": 0, "go_count": 0, "nogo_count": 0,
-                    "avg_premium": 0.0, "fx_distribution": {}}
+                    "avg_premium": 0.0, "fx_distribution": {},
+                    "last_analysis_at": None}
 
     return _inner(conn_id)
 

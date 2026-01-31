@@ -618,7 +618,9 @@ def render_live_tab() -> None:
         with col1:
             st.metric("전체 분석", f"{stats['total']}건")
         with col2:
-            st.metric("GO", f"{stats['go_count']}건")
+            go_label = "GO" if stats['go_count'] > 0 else "GO ⏳"
+            go_help = None if stats['go_count'] > 0 else "현재 진입 가능한 기회 없음 - 대기 중"
+            st.metric(go_label, f"{stats['go_count']}건", help=go_help)
         with col3:
             st.metric("NO-GO", f"{stats['nogo_count']}건")
         with col4:
@@ -642,6 +644,20 @@ def render_live_tab() -> None:
                 " &nbsp;|&nbsp; ".join(dist_items),
                 unsafe_allow_html=True,
             )
+
+        # 마지막 업데이트 시간
+        if stats.get("last_analysis_at"):
+            from datetime import datetime
+            try:
+                last_dt = datetime.fromisoformat(stats["last_analysis_at"].replace("Z", "+00:00"))
+                time_str = last_dt.strftime("%Y-%m-%d %H:%M:%S")
+                st.markdown(
+                    f'<p style="font-size:0.75rem;color:{COLORS["text_muted"]};'
+                    f'margin-top:0.5rem;">🕐 마지막 분석: {time_str}</p>',
+                    unsafe_allow_html=True,
+                )
+            except (ValueError, AttributeError):
+                pass
 
     # ------------------------------------------------------------------
     # 프리미엄 차트 섹션
