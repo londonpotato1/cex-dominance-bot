@@ -142,6 +142,10 @@ class TelegramBot:
             response = await self._cmd_analyze(args)
         elif command == "/notice":
             response = await self._cmd_notice(args, session)
+        elif command == "/record":
+            response = self._cmd_record(args)
+        elif command == "/stats":
+            response = self._cmd_stats(args)
         elif command == "/help":
             response = self._cmd_help()
         else:
@@ -452,20 +456,162 @@ class TelegramBot:
 
         return "\n".join(lines)
 
+    def _cmd_record(self, args: str) -> str:
+        """거래 결과 기록 (Phase 4.1).
+        
+        사용법: /record SYMBOL EXCHANGE 수익률 결과
+        예: /record PYTH bithumb 2.5 WIN
+            /record SENT upbit -1.2 LOSS
+            /record ABC bithumb 0 SKIP "안 탔음"
+        """
+        parts = args.strip().split()
+        
+        if len(parts) < 4:
+            return (
+                "📝 *거래 결과 기록*\n\n"
+                "사용법:\n"
+                "`/record SYMBOL EXCHANGE 수익률 결과`\n\n"
+                "결과 종류:\n"
+                "• WIN — 수익\n"
+                "• LOSS — 손실\n"
+                "• BREAKEVEN — 본전\n"
+                "• SKIP — 미참여\n\n"
+                "예시:\n"
+                "`/record PYTH bithumb 2.5 WIN`\n"
+                "`/record SENT upbit -1.2 LOSS`\n"
+                "`/record ABC bithumb 0 SKIP`"
+            )
+        
+        symbol = parts[0].upper()
+        exchange = parts[1].lower()
+        
+        try:
+            profit_pct = float(parts[2])
+        except ValueError:
+            return f"❌ 수익률 형식 오류: {parts[2]} (숫자로 입력)"
+        
+        result_label = parts[3].upper()
+        if result_label not in ("WIN", "LOSS", "BREAKEVEN", "SKIP"):
+            return f"❌ 결과 형식 오류: {result_label}\n허용: WIN, LOSS, BREAKEVEN, SKIP"
+        
+        # 메모 (선택)
+        user_note = " ".join(parts[4:]) if len(parts) > 4 else None
+        
+        try:
+            from store.performance import PerformanceTracker
+            tracker = PerformanceTracker(self._writer, self._read_conn)
+            
+            import time
+            success = tracker.record_trade_sync(
+                symbol=symbol,
+                exchange=exchange,
+                signal_timestamp=time.time(),
+                actual_profit_pct=profit_pct,
+                result_label=result_label,
+                user_note=user_note,
+            )
+            
+            if success:
+                emoji = {"WIN": "🎉", "LOSS": "😢", "BREAKEVEN": "😐", "SKIP": "⏭️"}.get(result_label, "✅")
+                return (
+                    f"{emoji} *거래 기록 완료*\n\n"
+                    f"심볼: {symbol}@{exchange.upper()}\n"
+                    f"수익률: {profit_pct:+.2f}%\n"
+                    f"결과: {result_label}"
+                    + (f"\n메모: {user_note}" if user_note else "")
+                )
+            else:
+                return "❌ 기록 실패 (DB 오류)"
+                
+        except Exception as e:
+            logger.error("[TelegramBot] record 에러: %s", e)
+            return f"❌ 기록 실패: {e}"
+    
+    def _cmd_stats(self, args: str) -> str:
+        """성과 통계 조회 (Phase 4.1).
+        
+        사용법: /stats [일수]
+        예: /stats (기본 30일)
+            /stats 7 (최근 7일)
+        """
+        # 기간 파싱
+        days = 30
+        if args.strip():
+            try:
+                days = int(args.strip())
+                days = max(1, min(365, days))  # 1~365일
+            except ValueError:
+                pass
+        
+        try:
+            from store.performance import PerformanceTracker
+            tracker = PerformanceTracker(self._writer, self._read_conn)
+            stats = tracker.get_stats(days=days)
+            
+            if stats.total_trades == 0:
+                return (
+                    f"📊 *성과 통계* (최근 {days}일)\n\n"
+                    "기록된 거래가 없습니다.\n"
+                    "`/record`로 거래 결과를 기록하세요."
+                )
+            
+            # 승률 색상
+            if stats.win_rate >= 60:
+                win_emoji = "🟢"
+            elif stats.win_rate >= 40:
+                win_emoji = "🟡"
+            else:
+                win_emoji = "🔴"
+            
+            # 수익 색상
+            if stats.total_profit_pct > 0:
+                profit_emoji = "📈"
+            elif stats.total_profit_pct < 0:
+                profit_emoji = "📉"
+            else:
+                profit_emoji = "➖"
+            
+            lines = [
+                f"📊 *성과 통계* (최근 {days}일)",
+                "",
+                f"*거래 현황*",
+                f"  총 {stats.total_trades}건 | ✅ {stats.wins} | ❌ {stats.losses} | ⏭️ {stats.skips}",
+                f"  {win_emoji} 승률: *{stats.win_rate:.1f}%*",
+                "",
+                f"*수익 현황*",
+                f"  {profit_emoji} 총 수익: *{stats.total_profit_pct:+.2f}%*",
+                f"  평균: {stats.avg_profit_pct:+.2f}%",
+                f"  최고: {stats.best_trade_pct:+.2f}% | 최저: {stats.worst_trade_pct:+.2f}%",
+                "",
+                f"*예측 정확도*",
+                f"  🎯 {stats.prediction_accuracy:.1f}%",
+                f"  예측 평균: {stats.avg_predicted_pct:+.2f}%",
+            ]
+            
+            return "\n".join(lines)
+            
+        except Exception as e:
+            logger.error("[TelegramBot] stats 에러: %s", e)
+            return f"❌ 통계 조회 실패: {e}"
+
     @staticmethod
     def _cmd_help() -> str:
         """도움말."""
         return (
-            "📊 따리봇 명령어:\n"
+            "📊 *따리봇 명령어*\n\n"
+            "*분석*\n"
             "  /status — 시스템 상태\n"
             "  /recent — 최근 분석 5건\n"
-            "  /gate <SYMBOL> — 수동 Gate 분석 (업비트)\n"
-            "  /analyze <SYMBOL> <EXCHANGE> — 거래소 지정 분석\n"
-            "  /notice <URL> — 공지 URL 자동 파싱/분석\n"
-            "  /help — 이 도움말\n\n"
+            "  /gate <SYMBOL> — 수동 분석 (업비트)\n"
+            "  /analyze <SYMBOL> <EXCHANGE> — 거래소 지정\n"
+            "  /notice <URL> — 공지 URL 자동 분석\n\n"
+            "*성과 기록* (Phase 4)\n"
+            "  /record <SYMBOL> <EX> <수익%> <결과>\n"
+            "  /stats [일수] — 성과 통계\n\n"
             "예시:\n"
-            "  /analyze SENT bithumb\n"
-            "  /notice https://feed.bithumb.com/notice/..."
+            "  `/analyze SENT bithumb`\n"
+            "  `/record PYTH bithumb 2.5 WIN`\n"
+            "  `/stats 7`"
         )
 
     async def _send_message(
