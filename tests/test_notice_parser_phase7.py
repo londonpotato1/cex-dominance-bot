@@ -138,7 +138,8 @@ class TestDEPEGDetection:
 
     def test_price_crash_bithumb(self, bithumb_parser):
         """빗썸 가격 급락 감지."""
-        title = "[긴급] USDT 가격 급락 안내"
+        # 심볼 패턴이 "(USDT)"를 감지하도록 제목 수정
+        title = "[긴급] 테더(USDT) 가격 급락 안내"
         content = "USDT 시세가 급락하여 거래 주의가 필요합니다."
         result = bithumb_parser.parse(title, content)
 
@@ -188,13 +189,13 @@ class TestEventPriority:
 
     def test_depeg_over_migration(self, bithumb_parser):
         """DEPEG > MIGRATION 우선순위 (Phase 7 수정)."""
-        title = "[긴급] USDT 가격 급락 및 스왑 안내"
+        # 심볼 패턴이 "(USDT)"를 감지하도록 제목 수정
+        title = "[긴급] 테더(USDT) 가격 급락 및 스왑 안내"
         result = bithumb_parser.parse(title)
 
         # Phase 7 수정: 가격 급락(DEPEG)이 스왑(MIGRATION)보다 우선
         assert result.notice_type == "depeg"
         assert result.event_severity == EventSeverity.CRITICAL
-        # Phase 7 수정: USDT도 심볼 추출 가능
         assert "USDT" in result.symbols
 
 

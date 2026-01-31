@@ -222,6 +222,10 @@ class VCTierClassifier:
         Returns:
             1, 2, 3 (티어) 또는 0 (알 수 없음)
         """
+        # 빈 문자열/공백만 있는 경우 Tier 3
+        if not vc_name or not vc_name.strip():
+            return 3
+
         # 정확한 매칭
         if vc_name in self._tier1_vcs or vc_name in self.TIER1_VCS:
             return 1

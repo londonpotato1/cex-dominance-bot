@@ -420,7 +420,8 @@ class TestSupplyResult:
         assert len(result.factors) > 0
         for factor in result.factors:
             assert isinstance(factor, SupplyFactor)
-            assert factor.name in ["hot_wallet", "dex_liquidity", "withdrawal", "airdrop", "network"]
+            # turnover 팩터도 포함 가능
+            assert factor.name in ["hot_wallet", "dex_liquidity", "withdrawal", "airdrop", "network", "turnover"]
             assert -1.0 <= factor.score <= 1.0
             assert factor.weight >= 0
 

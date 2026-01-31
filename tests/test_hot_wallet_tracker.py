@@ -549,7 +549,7 @@ class TestDepositDetection:
         mock_client.post.return_value = {
             "jsonrpc": "2.0",
             "id": 1,
-            "result": "0x41A99E200"  # 1,100,000,000
+            "result": "0x4190ab00"  # 1,100,000,000 (hex corrected)
         }
 
         event = await tracker._check_balance_change(
