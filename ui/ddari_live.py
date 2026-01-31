@@ -1588,10 +1588,7 @@ def render_live_tab() -> None:
         else:
             st.info("NO-GO 분석 기록이 없습니다.")
 
-    # ============================================================
-    # 하단 고정 바: 펀딩비
-    # ============================================================
-    _render_funding_rate_bottom_bar()
+    # 펀딩비 하단 바는 app.py의 _render_market_status_bar에서 통합 렌더링
 
 
 def _render_funding_rate_bottom_bar() -> None:

@@ -866,7 +866,7 @@ def main():
 
 
 def _render_market_status_bar(config):
-    """하단 시장 상태바 (CEX Dominance 요약)."""
+    """하단 시장 상태바 (CEX Dominance + 펀딩비 통합)."""
     try:
         data = fetch_all_data(config, "24h")
         if not data or not data.get("total"):
@@ -895,6 +895,42 @@ def _render_market_status_bar(config):
             mood_text = "한산"
             mood_color = "#94a3b8"
 
+        # 펀딩비 데이터 가져오기
+        funding_html = ""
+        try:
+            from ui.ddari_common import fetch_funding_rates_cached
+            funding_data = fetch_funding_rates_cached()
+            
+            if funding_data.get("status") not in ["error", "no_data"]:
+                avg_rate = funding_data.get("avg_funding_rate_pct", 0)
+                position_bias = funding_data.get("position_bias", "neutral")
+                
+                # 펀딩비 색상 & 의미
+                if position_bias == "long_heavy":
+                    funding_color = "#4ade80"
+                    funding_text = "롱↑"
+                elif position_bias == "short_heavy":
+                    funding_color = "#f87171"
+                    funding_text = "숏↑"
+                else:
+                    funding_color = "#9ca3af"
+                    funding_text = "중립"
+                
+                avg_color = "#4ade80" if avg_rate > 0 else "#f87171" if avg_rate < 0 else "#9ca3af"
+                
+                funding_html = f'''
+            <div class="status-divider"></div>
+            <div class="status-item">
+                <span class="status-label">💹펀딩비</span>
+                <span class="status-value" style="color:{avg_color};">{avg_rate:+.4f}%</span>
+            </div>
+            <div class="status-item">
+                <span class="status-value" style="color:{funding_color};font-size:0.75rem;background:{funding_color}15;padding:2px 6px;border-radius:4px;">{funding_text}</span>
+            </div>
+                '''
+        except Exception as fe:
+            logger.debug(f"Funding rate fetch skipped: {fe}")
+
         status_html = f'''
         <div class="market-status-bar">
             <div class="status-item">
@@ -917,6 +953,7 @@ def _render_market_status_bar(config):
                 <span class="status-label">GL거래량</span>
                 <span class="status-value" style="color:#a855f7;">{format_volume(gl_vol)}</span>
             </div>
+            {funding_html}
         </div>
         '''
         st.markdown(status_html, unsafe_allow_html=True)
