@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from analysis.gate import GateChecker, GateResult
     from alerts.telegram import TelegramAlert
     from analysis.event_strategy import EventStrategyExecutor
+    from metrics.latency import LatencyTracker
 
 logger = logging.getLogger(__name__)
 
@@ -342,75 +343,187 @@ class MarketMonitor:
                 tracker.mark_analyze_end()  # 분석 완료 시점
                 tracker.set_result(result.alert_level.value, result.can_proceed)
 
-                # Gate 분석 로그 DB 기록 (Phase 4)
-                try:
-                    from metrics.observability import log_gate_analysis
-                    await log_gate_analysis(
-                        self._writer, result, tracker.analyze_duration_ms or 0
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "[MarketMonitor] Gate 로그 기록 실패 (%s@%s): %s",
-                        symbol, exchange, e,
-                    )
+                # 가격 조회 실패 시 → 상장 전 예측으로 fallback
+                use_pre_listing = False
+                if not result.can_proceed:
+                    blockers_str = " ".join(result.blockers)
+                    if "가격 조회 실패" in blockers_str or "코인마켓 없음" in blockers_str:
+                        use_pre_listing = True
+                        logger.info(
+                            "[MarketMonitor] 가격 없음 → 상장 전 예측 모드: %s@%s",
+                            symbol, exchange,
+                        )
 
-                # Listing History 기록 (Phase 5a)
-                try:
-                    from metrics.observability import record_listing_history
-                    await record_listing_history(
-                        self._writer,
-                        result,
-                        listing_time=listing_time,
+                if use_pre_listing:
+                    # 상장 전 예측 실행
+                    await self._send_pre_listing_prediction(
+                        symbol, exchange, tracker, listing_time
                     )
-                except Exception as e:
-                    logger.warning(
-                        "[MarketMonitor] Listing history 기록 실패 (%s@%s): %s",
-                        symbol, exchange, e,
-                    )
-
-                # 4. AI 분석 (Phase 3) - 비동기로 실행
-                ai_result = None
-                if AI_ANALYZER_AVAILABLE and result.can_proceed:
+                else:
+                    # 기존 Gate 결과 처리
+                    # Gate 분석 로그 DB 기록 (Phase 4)
                     try:
-                        analyzer = get_ai_analyzer()
-                        if analyzer.is_available:
-                            # 간단한 텍스트로 AI 분석 요청
-                            ai_text = f"신규 상장: {symbol} @ {exchange.upper()}"
-                            ai_result = await analyzer.analyze_announcement(
-                                ai_text, exchange, symbol, use_smart_model=False
-                            )
+                        from metrics.observability import log_gate_analysis
+                        await log_gate_analysis(
+                            self._writer, result, tracker.analyze_duration_ms or 0
+                        )
                     except Exception as e:
-                        logger.warning("[MarketMonitor] AI 분석 실패: %s", e)
-                
-                # 5. 텔레그램 알림 (속도 정보 + AI 결과 + 인라인 버튼)
-                if self._alert:
-                    alert_msg, buttons = self._format_alert(
-                        symbol, exchange, result, 
-                        latency_tracker=tracker, 
-                        ai_result=ai_result
-                    )
-                    await self._alert.send(
-                        result.alert_level,
-                        alert_msg,
-                        key=f"listing:{symbol}",
-                        buttons=buttons,
-                    )
-                    tracker.mark_alert_sent()  # 알림 전송 완료 시점
+                        logger.warning(
+                            "[MarketMonitor] Gate 로그 기록 실패 (%s@%s): %s",
+                            symbol, exchange, e,
+                        )
 
-                # Phase 4.2: 지연 시간 DB 저장
-                try:
-                    await tracker.save(self._writer)
-                except Exception as e:
-                    logger.warning(
-                        "[MarketMonitor] Latency 로그 기록 실패 (%s@%s): %s",
-                        symbol, exchange, e,
-                    )
+                    # Listing History 기록 (Phase 5a)
+                    try:
+                        from metrics.observability import record_listing_history
+                        await record_listing_history(
+                            self._writer,
+                            result,
+                            listing_time=listing_time,
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "[MarketMonitor] Listing history 기록 실패 (%s@%s): %s",
+                            symbol, exchange, e,
+                        )
+
+                    # 4. AI 분석 (Phase 3) - 비동기로 실행
+                    ai_result = None
+                    if AI_ANALYZER_AVAILABLE and result.can_proceed:
+                        try:
+                            analyzer = get_ai_analyzer()
+                            if analyzer.is_available:
+                                # 간단한 텍스트로 AI 분석 요청
+                                ai_text = f"신규 상장: {symbol} @ {exchange.upper()}"
+                                ai_result = await analyzer.analyze_announcement(
+                                    ai_text, exchange, symbol, use_smart_model=False
+                                )
+                        except Exception as e:
+                            logger.warning("[MarketMonitor] AI 분석 실패: %s", e)
+                    
+                    # 5. 텔레그램 알림 (속도 정보 + AI 결과 + 인라인 버튼)
+                    if self._alert:
+                        alert_msg, buttons = self._format_alert(
+                            symbol, exchange, result, 
+                            latency_tracker=tracker, 
+                            ai_result=ai_result
+                        )
+                        await self._alert.send(
+                            result.alert_level,
+                            alert_msg,
+                            key=f"listing:{symbol}",
+                            buttons=buttons,
+                        )
+                        tracker.mark_alert_sent()  # 알림 전송 완료 시점
+
+                    # Phase 4.2: 지연 시간 DB 저장
+                    try:
+                        await tracker.save(self._writer)
+                    except Exception as e:
+                        logger.warning(
+                            "[MarketMonitor] Latency 로그 기록 실패 (%s@%s): %s",
+                            symbol, exchange, e,
+                        )
 
             except Exception as e:
                 logger.error(
                     "[MarketMonitor] Gate 파이프라인 에러 (%s@%s): %s",
                     symbol, exchange, e,
                 )
+                # Gate 에러 시에도 상장 전 예측 시도
+                try:
+                    await self._send_pre_listing_prediction(
+                        symbol, exchange, tracker, listing_time
+                    )
+                except Exception as pred_e:
+                    logger.error(
+                        "[MarketMonitor] 상장 전 예측도 실패 (%s@%s): %s",
+                        symbol, exchange, pred_e,
+                    )
+
+    async def _send_pre_listing_prediction(
+        self,
+        symbol: str,
+        exchange: str,
+        tracker: "LatencyTracker",
+        listing_time: Optional[str] = None,
+    ) -> None:
+        """상장 전 예측 실행 및 알림 전송 (가격 없을 때 fallback).
+        
+        Args:
+            symbol: 토큰 심볼.
+            exchange: 거래소.
+            tracker: 지연 시간 트래커.
+            listing_time: 상장 시간 (공지에서 파싱된 경우).
+        """
+        from analysis.pre_listing_predictor import (
+            PreListingPredictor,
+            PredictionSignal,
+        )
+        from analysis.gate import AlertLevel
+        
+        logger.info("[MarketMonitor] 상장 전 예측 시작: %s@%s", symbol, exchange)
+        
+        predictor = PreListingPredictor()
+        try:
+            # 시황은 기본값 (향후 외부에서 주입 가능)
+            prediction = await predictor.predict(
+                symbol, exchange, market_condition="neutral"
+            )
+            tracker.mark_analyze_end()
+            
+            # 시그널 → AlertLevel 매핑
+            signal_to_level = {
+                PredictionSignal.STRONG_GO: AlertLevel.CRITICAL,
+                PredictionSignal.GO: AlertLevel.HIGH,
+                PredictionSignal.NEUTRAL: AlertLevel.HIGH,
+                PredictionSignal.NO_GO: AlertLevel.MEDIUM,
+                PredictionSignal.STRONG_NO_GO: AlertLevel.LOW,
+            }
+            alert_level = signal_to_level.get(prediction.signal, AlertLevel.HIGH)
+            tracker.set_result(alert_level.value, prediction.signal in [
+                PredictionSignal.STRONG_GO, PredictionSignal.GO
+            ])
+            
+            # 알림 메시지 포맷팅
+            if self._alert:
+                alert_msg = predictor.format_prediction(prediction)
+                
+                # 상장 시간 추가
+                if listing_time:
+                    alert_msg = f"🕐 *상장 시간: {listing_time}*\n\n" + alert_msg
+                
+                # 분석 시간 추가
+                if tracker.analyze_duration_ms:
+                    alert_msg += f"\n\n⚡ 분석: {tracker.analyze_duration_ms:.0f}ms"
+                
+                # 인라인 버튼 (거래소 링크)
+                buttons = self._get_exchange_buttons(symbol, exchange)
+                
+                await self._alert.send(
+                    alert_level,
+                    alert_msg,
+                    key=f"pre_listing:{symbol}",
+                    buttons=buttons,
+                )
+                tracker.mark_alert_sent()
+            
+            # 지연 시간 저장
+            try:
+                await tracker.save(self._writer)
+            except Exception as e:
+                logger.warning(
+                    "[MarketMonitor] Latency 로그 기록 실패 (%s@%s): %s",
+                    symbol, exchange, e,
+                )
+            
+            logger.info(
+                "[MarketMonitor] 상장 전 예측 완료: %s@%s → %s (점수: %.0f)",
+                symbol, exchange, prediction.signal.value, prediction.heung_score,
+            )
+            
+        finally:
+            await predictor.close()
 
     async def _add_market_to_collectors(
         self, exchange: str, symbol: str

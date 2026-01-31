@@ -1,458 +1,505 @@
-"""현선갭 모니터 (Phase 8 Week 7).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""현선갭 조회 모듈 (gap_dashboard_v3 기반 통합).
 
-국내 현물 가격 vs 글로벌 참조 가격 갭 계산.
+상장 전 GO/NO-GO 판단에 필요한 현선갭 정보를 조회.
+- 선물 존재 여부 확인
+- 현선갭 계산
+- 펀딩비 조회
+- 헷지 가능성 판단
 
-핵심 기능:
-  1. 국내 현물 (업비트/빗썸) KRW 가격 조회
-  2. 글로벌 참조 가격 (6단계 폴백 체인 via reference_price.py)
-  3. FX 환율 적용 → KRW 갭 계산
-  4. 헤징 가능 여부 판단
-  5. 실시간 갭 추적 + 알림
-
-헤징 전략:
-  - 갭 > 0 (김프): 국내 매도 + 글로벌 롱
-  - 갭 < 0 (역프): 국내 매수 + 글로벌 숏 (주의!)
-  - |갭| < 2%: 헤지 불가 (비용 > 수익)
-
-v17 개선:
-  - ReferencePriceFetcher 연동 (6단계 폴백)
-  - 신뢰도 기반 의사결정
-  - 갭 히스토리 추적
+gap_dashboard_v3의 ExchangeService, GapCalculator를 경량화하여 통합.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime
+import time
+from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Optional, Protocol
+from typing import Optional, Dict, List, Any
+from concurrent.futures import ThreadPoolExecutor
 
 import aiohttp
-
-from analysis.reference_price import ReferencePriceFetcher, ReferencePrice, ReferenceSource
 
 logger = logging.getLogger(__name__)
 
 
-# FX 환율 기본값 (외부 주입 권장)
-_DEFAULT_FX_RATE = 1350.0
-
-
-class HedgeStrategy(Enum):
-    """헤징 전략."""
-    LONG_GLOBAL_SHORT_DOMESTIC = "long_global"    # 역프: 글로벌 롱 + 국내 숏
-    SHORT_GLOBAL_LONG_DOMESTIC = "short_global"   # 김프: 글로벌 숏 + 국내 롱
-    NO_HEDGE = "no_hedge"                         # 헤지 불가
-
-
 class HedgeType(Enum):
-    """헤지 유형."""
-    CEX_FUTURES = "cex_futures"    # 글로벌 선물로 헤지
-    CEX_SPOT = "cex_spot"          # 글로벌 현물로 헤지
-    DEX_PERP = "dex_perp"          # DEX 무기한 선물
-    NONE = "none"                  # 헤지 불가
+    """헷지 가능성 유형"""
+    CEX_FUTURES = "cex_futures"    # CEX 선물로 헷지 가능
+    DEX_FUTURES = "dex_futures"    # DEX 선물만 가능 (Hyperliquid 등)
+    NO_HEDGE = "no_hedge"          # 헷지 불가
 
 
 @dataclass
-class SpotFuturesGap:
-    """현선갭 결과."""
+class FuturesInfo:
+    """선물 정보"""
+    exchange: str
     symbol: str
-    domestic_exchange: str        # "upbit" or "bithumb"
-
-    # 가격 정보
-    domestic_price_krw: float     # 국내 현물 가격 (KRW)
-    reference_price_usd: float    # 글로벌 참조 가격 (USD)
-    reference_price_krw: float    # 글로벌 참조 가격 (KRW 환산)
-
-    # FX
-    fx_rate: float                # 적용된 환율
-
-    # 갭
-    gap_krw: float                # 갭 (KRW)
-    gap_pct: float                # 갭 (%)
-    is_positive_gap: bool         # True = 김프, False = 역프
-
-    # 참조 가격 메타데이터
-    reference_source: ReferenceSource
-    reference_confidence: float   # 참조 가격 신뢰도 (0.0 ~ 1.0)
-
-    # 헤징 정보
-    hedgeable: bool               # 헤지 가능 여부
-    hedge_strategy: HedgeStrategy
-    hedge_type: HedgeType
-    min_profitable_gap: float     # 수익 가능 최소 갭 (%)
-
-    # 타임스탬프
-    timestamp: datetime = field(default_factory=datetime.now)
-
-    # 경고
-    warnings: list[str] = field(default_factory=list)
+    price: float
+    funding_rate: Optional[float] = None
+    next_funding_time: Optional[float] = None
+    timestamp: float = 0
 
 
 @dataclass
-class GapHistoryEntry:
-    """갭 히스토리 항목."""
-    timestamp: datetime
-    gap_pct: float
-    domestic_price_krw: float
-    reference_price_krw: float
+class SpotFuturesGapResult:
+    """현선갭 분석 결과"""
+    symbol: str
+    
+    # 선물 존재 여부
+    has_cex_futures: bool = False
+    has_dex_futures: bool = False
+    
+    # 최고 거래소 정보
+    top_futures_exchange: Optional[str] = None
+    top_futures_price: Optional[float] = None
+    
+    # 글로벌 현물 가격 (VWAP)
+    global_spot_price: Optional[float] = None
+    
+    # 현선갭 (%)
+    spot_futures_gap_pct: Optional[float] = None
+    
+    # 펀딩비 정보
+    funding_rate: Optional[float] = None
+    funding_rate_8h_pct: Optional[float] = None  # 연환산이 아닌 8시간 기준
+    next_funding_time: Optional[float] = None
+    
+    # 헷지 판단
+    hedge_type: HedgeType = HedgeType.NO_HEDGE
+    hedge_difficulty: str = "unknown"  # easy / medium / hard / impossible
+    
+    # 상세 데이터
+    futures_data: List[FuturesInfo] = None
+    
+    # 타임스탬프
+    timestamp: float = 0
+    
+    def __post_init__(self):
+        if self.futures_data is None:
+            self.futures_data = []
 
 
-class GapAlertCallback(Protocol):
-    """갭 알림 콜백."""
-    async def __call__(self, gap: SpotFuturesGap) -> None:
-        ...
+# CEX 거래소 설정
+CEX_FUTURES_EXCHANGES = {
+    'binance': {
+        'api_url': 'https://fapi.binance.com/fapi/v1/ticker/price',
+        'funding_url': 'https://fapi.binance.com/fapi/v1/premiumIndex',
+        'symbol_format': '{symbol}USDT',
+    },
+    'bybit': {
+        'api_url': 'https://api.bybit.com/v5/market/tickers',
+        'symbol_format': '{symbol}USDT',
+    },
+    'okx': {
+        'api_url': 'https://www.okx.com/api/v5/market/ticker',
+        'funding_url': 'https://www.okx.com/api/v5/public/funding-rate',
+        'symbol_format': '{symbol}-USDT-SWAP',
+    },
+    'gate': {
+        'api_url': 'https://api.gateio.ws/api/v4/futures/usdt/tickers',
+        'symbol_format': '{symbol}_USDT',
+    },
+    'bitget': {
+        'api_url': 'https://api.bitget.com/api/v2/mix/market/ticker',
+        'symbol_format': '{symbol}USDT',
+    },
+}
+
+# DEX 선물 거래소
+DEX_FUTURES_EXCHANGES = {
+    'hyperliquid': {
+        'api_url': 'https://api.hyperliquid.xyz/info',
+    },
+}
+
+# 현물 거래소 (글로벌 VWAP용)
+SPOT_EXCHANGES = {
+    'binance': {
+        'api_url': 'https://api.binance.com/api/v3/ticker/price',
+        'symbol_format': '{symbol}USDT',
+    },
+    'bybit': {
+        'api_url': 'https://api.bybit.com/v5/market/tickers',
+        'symbol_format': '{symbol}USDT',
+    },
+    'okx': {
+        'api_url': 'https://www.okx.com/api/v5/market/ticker',
+        'symbol_format': '{symbol}-USDT',
+    },
+}
 
 
-class SpotFuturesGapMonitor:
-    """현선갭 모니터.
-
-    국내 현물 vs 글로벌 참조 가격 갭을 계산하고 추적.
-
-    사용법:
-        monitor = SpotFuturesGapMonitor(fx_rate=1350.0)
-        gap = await monitor.calculate_gap(
-            symbol="BTC",
-            domestic_exchange="upbit",
-            domestic_price_krw=135_000_000,
-        )
-        if gap.hedgeable:
-            print(f"Gap: {gap.gap_pct:.2f}%, Strategy: {gap.hedge_strategy}")
-    """
-
-    # 헤지 비용 (수수료 + 슬리피지)
-    HEDGE_COST_CEX_FUTURES = 0.15   # 0.15% (maker 0.02% x 2 + 슬리피지)
-    HEDGE_COST_CEX_SPOT = 0.30      # 0.30% (maker 0.1% x 2 + 슬리피지)
-    HEDGE_COST_DEX = 0.50           # 0.50% (DEX 수수료 + 가스)
-
-    # 최소 갭 (수익 가능)
-    MIN_PROFITABLE_GAP_FUTURES = 1.0  # 1%
-    MIN_PROFITABLE_GAP_SPOT = 2.0     # 2%
-
-    def __init__(
-        self,
-        fx_rate: float = _DEFAULT_FX_RATE,
-        ref_fetcher: ReferencePriceFetcher | None = None,
-        session: aiohttp.ClientSession | None = None,
-        alert_callback: GapAlertCallback | None = None,
-        alert_threshold_pct: float = 5.0,
-    ) -> None:
-        """
-        Args:
-            fx_rate: USD/KRW 환율.
-            ref_fetcher: Reference price fetcher (없으면 생성).
-            session: aiohttp 세션.
-            alert_callback: 갭 알림 콜백.
-            alert_threshold_pct: 알림 임계값 (%).
-        """
-        self._fx_rate = fx_rate
-        self._ref_fetcher = ref_fetcher or ReferencePriceFetcher()
-        self._external_session = session  # 외부 주입 세션
-        self._internal_session: aiohttp.ClientSession | None = None  # 내부 생성 세션
-        self._alert_callback = alert_callback
-        self._alert_threshold = alert_threshold_pct
-
-        # 갭 히스토리 {symbol: [GapHistoryEntry]}
-        self._gap_history: dict[str, list[GapHistoryEntry]] = {}
-        self._max_history_size = 100  # 심볼당 최대 100개
-
+class SpotFuturesGapAnalyzer:
+    """현선갭 분석기"""
+    
+    def __init__(self, timeout: float = 10.0):
+        self._timeout = aiohttp.ClientTimeout(total=timeout)
+        self._session: Optional[aiohttp.ClientSession] = None
+    
     async def _get_session(self) -> aiohttp.ClientSession:
-        """세션 반환 (외부 주입 또는 내부 생성)."""
-        if self._external_session is not None:
-            return self._external_session
-        if self._internal_session is None:
-            self._internal_session = aiohttp.ClientSession()
-        return self._internal_session
-
-    async def close(self) -> None:
-        """내부 생성 세션 정리 (외부 주입 세션은 정리 안함)."""
-        if self._internal_session is not None:
-            await self._internal_session.close()
-            self._internal_session = None
-
-    async def __aenter__(self) -> "SpotFuturesGapMonitor":
-        """Async context manager 진입."""
-        return self
-
-    async def __aexit__(self, *args) -> None:
-        """Async context manager 종료."""
-        await self.close()
-
-    async def calculate_gap(
-        self,
-        symbol: str,
-        domestic_exchange: str,
-        domestic_price_krw: float,
-        fx_rate: float | None = None,
-    ) -> SpotFuturesGap | None:
-        """현선갭 계산.
-
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession(timeout=self._timeout)
+        return self._session
+    
+    async def close(self):
+        if self._session and not self._session.closed:
+            await self._session.close()
+    
+    async def analyze(self, symbol: str) -> SpotFuturesGapResult:
+        """심볼의 현선갭 분석 (메인 함수)
+        
         Args:
-            symbol: 토큰 심볼.
-            domestic_exchange: 국내 거래소 ("upbit", "bithumb").
-            domestic_price_krw: 국내 현물 가격 (KRW).
-            fx_rate: 환율 (None이면 기본값).
-
+            symbol: 토큰 심볼 (예: "BTC", "SENT")
+            
         Returns:
-            SpotFuturesGap 또는 참조 가격 조회 실패 시 None.
+            SpotFuturesGapResult: 분석 결과
         """
-        if fx_rate is None:
-            fx_rate = self._fx_rate
-
-        # 세션 획득 (외부 주입 또는 내부 생성)
-        session = await self._get_session()
-
-        # 참조 가격 조회 (6단계 폴백)
-        ref_price = await self._ref_fetcher.get_reference_price(
-            symbol, session,
-        )
-
-        if ref_price is None:
-            logger.warning(
-                "[SpotFuturesGap] %s 참조 가격 조회 실패", symbol,
+        symbol = symbol.upper()
+        result = SpotFuturesGapResult(symbol=symbol, timestamp=time.time())
+        
+        # 병렬로 데이터 조회
+        tasks = [
+            self._fetch_cex_futures(symbol),
+            self._fetch_dex_futures(symbol),
+            self._fetch_global_spot(symbol),
+        ]
+        
+        try:
+            cex_futures, dex_futures, spot_price = await asyncio.gather(
+                *tasks, return_exceptions=True
             )
-            return None
-
-        # KRW 환산
-        ref_price_krw = ref_price.price_usd * fx_rate
-
-        # 갭 계산
-        gap_krw = domestic_price_krw - ref_price_krw
-        gap_pct = (gap_krw / ref_price_krw) * 100 if ref_price_krw > 0 else 0
-        is_positive = gap_pct > 0
-
-        # 헤지 유형 결정
-        hedge_type = self._determine_hedge_type(ref_price.source)
-
-        # 최소 수익 갭
-        min_gap = self._get_min_profitable_gap(hedge_type)
-
-        # 헤지 가능 여부
-        hedgeable = abs(gap_pct) >= min_gap and hedge_type != HedgeType.NONE
-
-        # 헤지 전략
-        if not hedgeable:
-            strategy = HedgeStrategy.NO_HEDGE
-        elif is_positive:
-            strategy = HedgeStrategy.SHORT_GLOBAL_LONG_DOMESTIC
+        except Exception as e:
+            logger.error(f"[SpotFuturesGap] 분석 실패 ({symbol}): {e}")
+            return result
+        
+        # CEX 선물 처리
+        if isinstance(cex_futures, list) and cex_futures:
+            result.has_cex_futures = True
+            result.futures_data.extend(cex_futures)
+            
+            # 최고 거래량/유동성 거래소 선택 (일단 바이낸스 우선)
+            for f in cex_futures:
+                if f.exchange == 'binance':
+                    result.top_futures_exchange = f.exchange
+                    result.top_futures_price = f.price
+                    result.funding_rate = f.funding_rate
+                    result.next_funding_time = f.next_funding_time
+                    break
+            
+            if not result.top_futures_exchange and cex_futures:
+                f = cex_futures[0]
+                result.top_futures_exchange = f.exchange
+                result.top_futures_price = f.price
+                result.funding_rate = f.funding_rate
+                result.next_funding_time = f.next_funding_time
+        
+        # DEX 선물 처리
+        if isinstance(dex_futures, list) and dex_futures:
+            result.has_dex_futures = True
+            result.futures_data.extend(dex_futures)
+            
+            # CEX 선물이 없으면 DEX 사용
+            if not result.has_cex_futures:
+                f = dex_futures[0]
+                result.top_futures_exchange = f.exchange
+                result.top_futures_price = f.price
+                result.funding_rate = f.funding_rate
+        
+        # 글로벌 현물 가격
+        if isinstance(spot_price, float) and spot_price > 0:
+            result.global_spot_price = spot_price
+        
+        # 현선갭 계산
+        if result.top_futures_price and result.global_spot_price:
+            gap = (result.top_futures_price - result.global_spot_price) / result.global_spot_price * 100
+            result.spot_futures_gap_pct = round(gap, 4)
+        
+        # 펀딩비 8시간 환산
+        if result.funding_rate is not None:
+            result.funding_rate_8h_pct = round(result.funding_rate * 100, 4)
+        
+        # 헷지 가능성 판단
+        result.hedge_type, result.hedge_difficulty = self._determine_hedge(result)
+        
+        return result
+    
+    def _determine_hedge(
+        self, result: SpotFuturesGapResult
+    ) -> tuple[HedgeType, str]:
+        """헷지 가능성 판단
+        
+        Returns:
+            (hedge_type, hedge_difficulty)
+        """
+        if result.has_cex_futures:
+            # CEX 선물 존재
+            gap = abs(result.spot_futures_gap_pct or 0)
+            
+            if gap < 0.5:
+                return HedgeType.CEX_FUTURES, "easy"
+            elif gap < 2.0:
+                return HedgeType.CEX_FUTURES, "medium"
+            else:
+                return HedgeType.CEX_FUTURES, "hard"
+        
+        elif result.has_dex_futures:
+            # DEX 선물만 존재
+            return HedgeType.DEX_FUTURES, "hard"
+        
         else:
-            strategy = HedgeStrategy.LONG_GLOBAL_SHORT_DOMESTIC
-
-        # 경고 생성
-        warnings = self._generate_warnings(
-            gap_pct, ref_price.confidence, hedge_type,
-        )
-
-        gap_result = SpotFuturesGap(
-            symbol=symbol,
-            domestic_exchange=domestic_exchange,
-            domestic_price_krw=domestic_price_krw,
-            reference_price_usd=ref_price.price_usd,
-            reference_price_krw=ref_price_krw,
-            fx_rate=fx_rate,
-            gap_krw=gap_krw,
-            gap_pct=gap_pct,
-            is_positive_gap=is_positive,
-            reference_source=ref_price.source,
-            reference_confidence=ref_price.confidence,
-            hedgeable=hedgeable,
-            hedge_strategy=strategy,
-            hedge_type=hedge_type,
-            min_profitable_gap=min_gap,
-            warnings=warnings,
-        )
-
-        # 히스토리 저장
-        self._add_to_history(symbol, gap_result)
-
-        # 알림 체크
-        if self._alert_callback and abs(gap_pct) >= self._alert_threshold:
-            await self._alert_callback(gap_result)
-
-        logger.info(
-            "[SpotFuturesGap] %s@%s: gap=%.2f%%, hedgeable=%s, source=%s",
-            symbol, domestic_exchange, gap_pct, hedgeable, ref_price.source.value,
-        )
-
-        return gap_result
-
-    def _determine_hedge_type(self, source: ReferenceSource) -> HedgeType:
-        """참조 소스에 따른 헤지 유형."""
-        if source in (ReferenceSource.BINANCE_FUTURES, ReferenceSource.BYBIT_FUTURES):
-            return HedgeType.CEX_FUTURES
-        elif source in (ReferenceSource.BINANCE_SPOT, ReferenceSource.OKX_SPOT):
-            return HedgeType.CEX_SPOT
-        elif source == ReferenceSource.COINGECKO:
-            # CoinGecko는 집계 가격 → 헤지 불가 (특정 거래소 아님)
-            return HedgeType.NONE
-        else:
-            return HedgeType.NONE
-
-    def _get_min_profitable_gap(self, hedge_type: HedgeType) -> float:
-        """헤지 유형에 따른 최소 수익 갭."""
-        if hedge_type == HedgeType.CEX_FUTURES:
-            return self.MIN_PROFITABLE_GAP_FUTURES + self.HEDGE_COST_CEX_FUTURES
-        elif hedge_type == HedgeType.CEX_SPOT:
-            return self.MIN_PROFITABLE_GAP_SPOT + self.HEDGE_COST_CEX_SPOT
-        elif hedge_type == HedgeType.DEX_PERP:
-            return self.MIN_PROFITABLE_GAP_SPOT + self.HEDGE_COST_DEX
-        else:
-            return 100.0  # 헤지 불가
-
-    def _generate_warnings(
-        self,
-        gap_pct: float,
-        confidence: float,
-        hedge_type: HedgeType,
-    ) -> list[str]:
-        """경고 생성."""
-        warnings = []
-
-        # 낮은 신뢰도
-        if confidence < 0.6:
-            warnings.append(f"⚠️ 참조 가격 신뢰도 낮음 ({confidence:.0%})")
-        elif confidence < 0.8:
-            warnings.append(f"⚠️ 참조 가격 신뢰도 보통 ({confidence:.0%})")
-
-        # 역프
-        if gap_pct < -2:
-            warnings.append(f"🚨 역프리미엄 주의 ({gap_pct:.1f}%)")
-
-        # 헤지 불가
-        if hedge_type == HedgeType.NONE:
-            warnings.append("⚠️ 헤지 불가 (참조 소스가 거래소 아님)")
-
-        # 현물만 가능
-        if hedge_type == HedgeType.CEX_SPOT:
-            warnings.append("ℹ️ 선물 미상장 → 현물 헤지만 가능")
-
-        return warnings
-
-    def _add_to_history(self, symbol: str, gap: SpotFuturesGap) -> None:
-        """히스토리에 추가."""
-        if symbol not in self._gap_history:
-            self._gap_history[symbol] = []
-
-        history = self._gap_history[symbol]
-        history.append(GapHistoryEntry(
-            timestamp=gap.timestamp,
-            gap_pct=gap.gap_pct,
-            domestic_price_krw=gap.domestic_price_krw,
-            reference_price_krw=gap.reference_price_krw,
-        ))
-
-        # 최대 크기 제한
-        if len(history) > self._max_history_size:
-            self._gap_history[symbol] = history[-self._max_history_size:]
-
-    def get_gap_history(
-        self,
-        symbol: str,
-        limit: int = 50,
-    ) -> list[GapHistoryEntry]:
-        """갭 히스토리 조회."""
-        history = self._gap_history.get(symbol, [])
-        return history[-limit:]
-
-    def get_gap_statistics(
-        self,
-        symbol: str,
-    ) -> dict[str, float]:
-        """갭 통계 계산."""
-        history = self._gap_history.get(symbol, [])
-        if not history:
-            return {
-                "count": 0,
-                "avg_gap": 0.0,
-                "max_gap": 0.0,
-                "min_gap": 0.0,
-                "current_gap": 0.0,
-            }
-
-        gaps = [h.gap_pct for h in history]
-        return {
-            "count": len(gaps),
-            "avg_gap": sum(gaps) / len(gaps),
-            "max_gap": max(gaps),
-            "min_gap": min(gaps),
-            "current_gap": gaps[-1] if gaps else 0.0,
-        }
-
-    def update_fx_rate(self, fx_rate: float) -> None:
-        """환율 업데이트."""
-        self._fx_rate = fx_rate
-        logger.info("[SpotFuturesGap] FX rate updated: %.2f", fx_rate)
-
-
-def format_gap_alert(gap: SpotFuturesGap) -> str:
-    """갭 결과를 Telegram 메시지로 포맷."""
-    # 방향 이모지
-    if gap.is_positive_gap:
-        direction = "📈 김프"
-    else:
-        direction = "📉 역프"
-
-    # 헤지 상태
-    if gap.hedgeable:
-        hedge_status = f"✅ 헤지 가능 ({gap.hedge_type.value})"
-    else:
-        hedge_status = "❌ 헤지 불가"
-
-    # 신뢰도 바
-    conf_filled = int(gap.reference_confidence * 5)
-    conf_bar = "█" * conf_filled + "░" * (5 - conf_filled)
-
-    lines = [
-        f"{direction} **현선갭: {gap.symbol}@{gap.domestic_exchange}**",
-        "━━━━━━━━━━━━━━━",
-        f"🇰🇷 국내: ₩{gap.domestic_price_krw:,.0f}",
-        f"🌍 글로벌: ${gap.reference_price_usd:,.4f} (₩{gap.reference_price_krw:,.0f})",
-        f"💱 환율: {gap.fx_rate:,.0f}",
-        "━━━━━━━━━━━━━━━",
-        f"📊 갭: {gap.gap_pct:+.2f}% (₩{gap.gap_krw:+,.0f})",
-        f"🎯 최소 수익 갭: {gap.min_profitable_gap:.2f}%",
-        f"🔗 참조: {gap.reference_source.value}",
-        f"🎯 신뢰도: {conf_bar} {gap.reference_confidence:.0%}",
-        "━━━━━━━━━━━━━━━",
-        hedge_status,
-    ]
-
-    if gap.hedgeable:
-        if gap.hedge_strategy == HedgeStrategy.SHORT_GLOBAL_LONG_DOMESTIC:
-            lines.append("💡 전략: 글로벌 숏 + 국내 매수 후 청산")
-        else:
-            lines.append("💡 전략: 글로벌 롱 + 국내 매도 (주의!)")
-
-    if gap.warnings:
-        lines.append("")
-        lines.extend(gap.warnings)
-
-    return "\n".join(lines)
+            # 선물 없음
+            return HedgeType.NO_HEDGE, "impossible"
+    
+    async def _fetch_cex_futures(self, symbol: str) -> List[FuturesInfo]:
+        """CEX 선물 가격 조회"""
+        results = []
+        session = await self._get_session()
+        
+        tasks = []
+        for exchange, config in CEX_FUTURES_EXCHANGES.items():
+            tasks.append(self._fetch_single_cex_futures(session, exchange, symbol, config))
+        
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for resp in responses:
+            if isinstance(resp, FuturesInfo):
+                results.append(resp)
+        
+        return results
+    
+    async def _fetch_single_cex_futures(
+        self, 
+        session: aiohttp.ClientSession,
+        exchange: str, 
+        symbol: str, 
+        config: dict
+    ) -> Optional[FuturesInfo]:
+        """단일 CEX 선물 가격 조회"""
+        try:
+            formatted_symbol = config['symbol_format'].format(symbol=symbol)
+            
+            if exchange == 'binance':
+                # 가격 + 펀딩비 한번에
+                url = config['funding_url']
+                async with session.get(url, params={'symbol': formatted_symbol}) as resp:
+                    if resp.status != 200:
+                        return None
+                    data = await resp.json()
+                    
+                    return FuturesInfo(
+                        exchange=exchange,
+                        symbol=symbol,
+                        price=float(data.get('markPrice', 0)),
+                        funding_rate=float(data.get('lastFundingRate', 0)),
+                        next_funding_time=data.get('nextFundingTime', 0) / 1000 if data.get('nextFundingTime') else None,
+                        timestamp=time.time()
+                    )
+            
+            elif exchange == 'bybit':
+                url = config['api_url']
+                async with session.get(url, params={'category': 'linear', 'symbol': formatted_symbol}) as resp:
+                    if resp.status != 200:
+                        return None
+                    data = await resp.json()
+                    
+                    if data.get('retCode') != 0:
+                        return None
+                    
+                    items = data.get('result', {}).get('list', [])
+                    if not items:
+                        return None
+                    
+                    item = items[0]
+                    return FuturesInfo(
+                        exchange=exchange,
+                        symbol=symbol,
+                        price=float(item.get('lastPrice', 0)),
+                        funding_rate=float(item.get('fundingRate', 0)) if item.get('fundingRate') else None,
+                        next_funding_time=int(item.get('nextFundingTime', 0)) / 1000 if item.get('nextFundingTime') else None,
+                        timestamp=time.time()
+                    )
+            
+            elif exchange == 'okx':
+                # 가격 조회
+                url = config['api_url']
+                async with session.get(url, params={'instId': formatted_symbol}) as resp:
+                    if resp.status != 200:
+                        return None
+                    data = await resp.json()
+                    
+                    if data.get('code') != '0':
+                        return None
+                    
+                    items = data.get('data', [])
+                    if not items:
+                        return None
+                    
+                    price = float(items[0].get('last', 0))
+                
+                # 펀딩비 조회
+                funding_rate = None
+                next_funding = None
+                try:
+                    funding_url = config['funding_url']
+                    async with session.get(funding_url, params={'instId': formatted_symbol}) as resp:
+                        if resp.status == 200:
+                            fdata = await resp.json()
+                            if fdata.get('code') == '0' and fdata.get('data'):
+                                funding_rate = float(fdata['data'][0].get('fundingRate', 0))
+                                next_funding = int(fdata['data'][0].get('nextFundingTime', 0)) / 1000
+                except:
+                    pass
+                
+                return FuturesInfo(
+                    exchange=exchange,
+                    symbol=symbol,
+                    price=price,
+                    funding_rate=funding_rate,
+                    next_funding_time=next_funding,
+                    timestamp=time.time()
+                )
+            
+            elif exchange == 'gate':
+                url = f"{config['api_url']}"
+                async with session.get(url, params={'contract': formatted_symbol}) as resp:
+                    if resp.status != 200:
+                        return None
+                    data = await resp.json()
+                    
+                    if not data:
+                        return None
+                    
+                    item = data[0] if isinstance(data, list) else data
+                    return FuturesInfo(
+                        exchange=exchange,
+                        symbol=symbol,
+                        price=float(item.get('last', 0)),
+                        funding_rate=float(item.get('funding_rate', 0)) if item.get('funding_rate') else None,
+                        timestamp=time.time()
+                    )
+            
+            elif exchange == 'bitget':
+                url = config['api_url']
+                async with session.get(url, params={'symbol': formatted_symbol, 'productType': 'USDT-FUTURES'}) as resp:
+                    if resp.status != 200:
+                        return None
+                    data = await resp.json()
+                    
+                    if data.get('code') != '00000':
+                        return None
+                    
+                    item = data.get('data', {})
+                    return FuturesInfo(
+                        exchange=exchange,
+                        symbol=symbol,
+                        price=float(item.get('lastPr', 0)),
+                        funding_rate=float(item.get('fundingRate', 0)) if item.get('fundingRate') else None,
+                        timestamp=time.time()
+                    )
+        
+        except Exception as e:
+            logger.debug(f"[SpotFuturesGap] {exchange} 선물 조회 실패 ({symbol}): {e}")
+        
+        return None
+    
+    async def _fetch_dex_futures(self, symbol: str) -> List[FuturesInfo]:
+        """DEX 선물 가격 조회 (Hyperliquid)"""
+        results = []
+        session = await self._get_session()
+        
+        try:
+            # Hyperliquid
+            url = DEX_FUTURES_EXCHANGES['hyperliquid']['api_url']
+            async with session.post(url, json={'type': 'allMids'}) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    price_str = data.get(symbol)
+                    if price_str:
+                        results.append(FuturesInfo(
+                            exchange='hyperliquid',
+                            symbol=symbol,
+                            price=float(price_str),
+                            timestamp=time.time()
+                        ))
+        except Exception as e:
+            logger.debug(f"[SpotFuturesGap] Hyperliquid 조회 실패 ({symbol}): {e}")
+        
+        return results
+    
+    async def _fetch_global_spot(self, symbol: str) -> Optional[float]:
+        """글로벌 현물 가격 조회 (VWAP 대신 바이낸스 우선)"""
+        session = await self._get_session()
+        
+        # 바이낸스 우선
+        try:
+            url = SPOT_EXCHANGES['binance']['api_url']
+            formatted = f"{symbol}USDT"
+            async with session.get(url, params={'symbol': formatted}) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return float(data.get('price', 0))
+        except:
+            pass
+        
+        # 바이비트 폴백
+        try:
+            url = SPOT_EXCHANGES['bybit']['api_url']
+            formatted = f"{symbol}USDT"
+            async with session.get(url, params={'category': 'spot', 'symbol': formatted}) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    items = data.get('result', {}).get('list', [])
+                    if items:
+                        return float(items[0].get('lastPrice', 0))
+        except:
+            pass
+        
+        return None
 
 
 # 편의 함수
-async def quick_gap_check(
-    symbol: str,
-    domestic_price_krw: float,
-    domestic_exchange: str = "upbit",
-    fx_rate: float = 1350.0,
-) -> SpotFuturesGap | None:
-    """빠른 갭 체크 (단발성).
-
+async def get_spot_futures_gap(symbol: str) -> SpotFuturesGapResult:
+    """현선갭 조회 (편의 함수)
+    
     Args:
-        symbol: 토큰 심볼.
-        domestic_price_krw: 국내 현물 가격.
-        domestic_exchange: 국내 거래소.
-        fx_rate: 환율.
-
+        symbol: 토큰 심볼
+        
     Returns:
-        SpotFuturesGap 또는 None.
+        SpotFuturesGapResult
     """
-    monitor = SpotFuturesGapMonitor(fx_rate=fx_rate)
-    return await monitor.calculate_gap(
-        symbol=symbol,
-        domestic_exchange=domestic_exchange,
-        domestic_price_krw=domestic_price_krw,
-    )
+    analyzer = SpotFuturesGapAnalyzer()
+    try:
+        return await analyzer.analyze(symbol)
+    finally:
+        await analyzer.close()
+
+
+def get_spot_futures_gap_sync(symbol: str) -> SpotFuturesGapResult:
+    """현선갭 조회 (동기 버전)"""
+    return asyncio.run(get_spot_futures_gap(symbol))
+
+
+# 테스트용
+if __name__ == "__main__":
+    import sys
+    
+    async def main():
+        symbol = sys.argv[1] if len(sys.argv) > 1 else "BTC"
+        result = await get_spot_futures_gap(symbol)
+        
+        print(f"\n=== {symbol} Spot-Futures Gap ===")
+        print(f"CEX Futures: {'YES' if result.has_cex_futures else 'NO'}")
+        print(f"DEX Futures: {'YES' if result.has_dex_futures else 'NO'}")
+        print(f"Top Exchange: {result.top_futures_exchange}")
+        print(f"Futures Price: ${result.top_futures_price:,.4f}" if result.top_futures_price else "Futures Price: N/A")
+        print(f"Spot Price: ${result.global_spot_price:,.4f}" if result.global_spot_price else "Spot Price: N/A")
+        print(f"Gap: {result.spot_futures_gap_pct:+.4f}%" if result.spot_futures_gap_pct is not None else "Gap: N/A")
+        print(f"Funding (8h): {result.funding_rate_8h_pct:+.4f}%" if result.funding_rate_8h_pct is not None else "Funding: N/A")
+        print(f"Hedge Type: {result.hedge_type.value}")
+        print(f"Hedge Difficulty: {result.hedge_difficulty}")
+    
+    asyncio.run(main())
