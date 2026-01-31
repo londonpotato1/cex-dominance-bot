@@ -83,12 +83,13 @@ Week 4: 고급 기능 + 폴리싱
 
 ## Phase 4: 트래킹 시스템 (Day 11-15) 📊
 
-### 4.1 실전 수익 기록
-- 📍 파일: `store/performance.py` (신규)
-- ⏱️ 예상: 1일
+### 4.1 실전 수익 기록 ✅
+- 📍 파일: `store/performance.py`, `migrations/008_trade_results.sql`
+- ⏱️ 완료: 2026-01-31
 - 📦 결과물:
   - trade_results 테이블
-  - 수익 트래킹
+  - /record 명령어 (거래 기록)
+  - /stats 명령어 (성과 조회)
 
 ### 4.2 알림 속도 측정
 - 📍 파일: `metrics/`
@@ -148,7 +149,7 @@ Phase 3 (Day 6-10)
 └─ [x] 3.3 AI 경고 배지 ✅ (텔레그램 알림에 포함)
 
 Phase 4 (Day 11-15)
-├─ [ ] 4.1 실전 수익 기록
+├─ [x] 4.1 실전 수익 기록 ✅ 2026-01-31
 ├─ [ ] 4.2 알림 속도 측정
 └─ [ ] 4.3 성과 대시보드
 
@@ -171,3 +172,4 @@ Phase 5 (Day 16-21)
 - ✅ Phase 3.1: Claude AI 분석 모듈 통합
 - ✅ Phase 3.2: 룰/AI 크로스체크 시스템
 - ✅ Phase 3.3: AI 인사이트 알림 표시
+- ✅ Phase 4.1: 실전 수익 기록 (/record, /stats)
