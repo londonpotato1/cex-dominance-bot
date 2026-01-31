@@ -229,10 +229,10 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
     symbol = row.get("symbol", "?")
     exchange = row.get("exchange", "?")
     can_proceed = row.get("can_proceed", 0)
-    premium = row.get("premium_pct")
-    net_profit = row.get("net_profit_pct")
-    total_cost = row.get("total_cost_pct")
-    duration_ms = row.get("gate_duration_ms")
+    premium = row.get("premium_pct") or 0
+    net_profit = row.get("net_profit_pct") or 0
+    total_cost = row.get("total_cost_pct") or 0
+    duration_ms = row.get("gate_duration_ms") or 0
     ts = row.get("timestamp", 0)
 
     # Blockers/Warnings
@@ -245,9 +245,9 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
     # 시간 포맷
     time_str = datetime.fromtimestamp(ts).strftime("%H:%M:%S") if ts else "?"
     
-    # 예상 수익 계산 (50만원 기준)
-    base_krw = 500_000
-    profit_krw = int(base_krw * (net_profit or 0) / 100)
+    # 예상 수익 계산 ($1,000 기준)
+    base_usd = 1000
+    profit_usd = base_usd * (net_profit or 0) / 100
     
     # 흥/망따리 분류
     supply_score = row.get("supply_score")
@@ -296,46 +296,34 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
         
         card_html = f"""
         <div style="background:linear-gradient(135deg, #0a2e1a 0%, #1a4a2a 50%, #0d3d1d 100%);
-            border:3px solid #4ade80;border-radius:20px;padding:1.5rem;margin-bottom:1rem;
-            box-shadow:0 8px 32px rgba(74,222,128,0.25), inset 0 1px 0 rgba(255,255,255,0.1);">
+            border:2px solid #4ade80;border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
             
             <!-- 헤더: 심볼 + GO 스코어 -->
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
                 <div>
-                    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.25rem;">
-                        <span style="font-size:2rem;font-weight:800;color:#fff;text-shadow:0 2px 4px rgba(0,0,0,0.3);">
-                            {symbol}
-                        </span>
-                        <span style="background:linear-gradient(135deg, #166534, #15803d);color:#4ade80;
-                            padding:6px 14px;border-radius:20px;font-size:0.85rem;font-weight:700;
-                            border:1px solid #22c55e;box-shadow:0 2px 8px rgba(34,197,94,0.3);">
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <span style="font-size:1.3rem;font-weight:700;color:#fff;">{symbol}</span>
+                        <span style="background:#166534;color:#4ade80;padding:3px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;">
                             {supply_emoji} {supply_text}
                         </span>
                     </div>
-                    <span style="color:#86efac;font-size:0.9rem;">@{exchange} · {time_str}</span>
+                    <span style="color:#86efac;font-size:0.75rem;">@{exchange} · {time_str}</span>
                 </div>
-                <!-- GO 스코어 (원형 게이지 스타일) -->
-                <div style="text-align:center;background:rgba(0,0,0,0.3);padding:0.75rem 1rem;
-                    border-radius:12px;border:2px solid {score_color};">
-                    <div style="font-size:1.8rem;font-weight:800;color:{score_color};line-height:1;">
-                        {go_score}
-                    </div>
-                    <div style="font-size:0.65rem;color:{score_color};font-weight:600;letter-spacing:0.05em;">
-                        {score_label}
-                    </div>
+                <div style="text-align:center;background:rgba(0,0,0,0.3);padding:0.4rem 0.6rem;border-radius:8px;border:1px solid {score_color};">
+                    <div style="font-size:1.2rem;font-weight:700;color:{score_color};line-height:1;">{go_score}</div>
+                    <div style="font-size:0.55rem;color:{score_color};">{score_label}</div>
                 </div>
             </div>
             
             <!-- 메인: 순수익 (초대형) -->
-            <div style="text-align:center;padding:1.25rem 0;border-top:1px solid rgba(74,222,128,0.2);
-                border-bottom:1px solid rgba(74,222,128,0.2);margin-bottom:1rem;">
-                <div style="font-size:0.85rem;color:#86efac;margin-bottom:0.25rem;">예상 순수익</div>
-                <div style="font-size:3rem;font-weight:800;color:#4ade80;line-height:1;
-                    text-shadow:0 0 30px rgba(74,222,128,0.5);">
+            <div style="text-align:center;padding:0.75rem 0;border-top:1px solid rgba(74,222,128,0.2);
+                border-bottom:1px solid rgba(74,222,128,0.2);margin-bottom:0.75rem;">
+                <div style="font-size:0.75rem;color:#86efac;margin-bottom:0.15rem;">예상 순수익</div>
+                <div style="font-size:2rem;font-weight:800;color:#4ade80;line-height:1;">
                     +{net_profit:.2f}%
                 </div>
-                <div style="font-size:1.1rem;color:#86efac;margin-top:0.25rem;">
-                    ≈ ₩{profit_krw:,} <span style="font-size:0.8rem;color:#6b7280;">(50만원 기준)</span>
+                <div style="font-size:0.85rem;color:#86efac;margin-top:0.15rem;">
+                    ≈ ${profit_usd:.1f} <span style="font-size:0.7rem;color:#6b7280;">($1K 기준)</span>
                 </div>
             </div>
             
@@ -1422,56 +1410,43 @@ def render_live_tab() -> None:
     if go_analyses:
         # 시장 분위기 가져오기
         mood = get_market_mood_cached()
-        mood_badge = ""
-        if mood.get("kr_dominance") is not None:
-            mood_badge = f'''
-                <span style="background:rgba(0,0,0,0.3);border:1px solid {mood["color"]};
-                    padding:4px 10px;border-radius:8px;font-size:0.8rem;">
-                    {mood["emoji"]} 시장: <b style="color:{mood["color"]};">{mood["text"]}</b>
-                    <span style="color:#6b7280;font-size:0.7rem;margin-left:0.3rem;">
-                        KR {mood["kr_dominance"]:.1f}%
-                    </span>
-                </span>
-            '''
+        kr_dom = mood.get("kr_dominance") or 0
+        mood_color = mood.get("color", "#9ca3af")
+        mood_emoji = mood.get("emoji", "❓")
+        mood_text = mood.get("text", "확인중")
         
         # 직전 상장 트렌드 가져오기
         trend = fetch_recent_trend_cached(conn_id, count=5)
-        trend_color = "#4ade80" if trend["trend_signal"] == "GO" else "#fbbf24" if trend["trend_signal"] == "CAUTION" else "#f87171"
-        trend_badge = f'''
-            <span style="background:rgba(0,0,0,0.3);border:1px solid {trend_color};
-                padding:4px 10px;border-radius:8px;font-size:0.8rem;">
-                {trend["trend_emoji"]} 직전 {trend["total"]}건: {trend["result_emojis"]}
-                <span style="color:{trend_color};font-weight:600;margin-left:0.3rem;">
-                    {trend["heung_rate"]:.0f}% 흥행
-                </span>
-            </span>
-        '''
+        trend_signal = trend.get("trend_signal", "CAUTION")
+        trend_color = "#4ade80" if trend_signal == "GO" else "#fbbf24" if trend_signal == "CAUTION" else "#f87171"
+        heung_rate = trend.get("heung_rate") or 0
+        trend_emoji = trend.get("trend_emoji", "😐")
+        trend_total = trend.get("total", 0)
+        trend_emojis = trend.get("result_emojis", "")
         
         # 최고 수익 GO 찾기
         best_go = max(go_analyses, key=lambda x: x.get("net_profit_pct") or -999)
-        best_profit = best_go.get("net_profit_pct")
-        best_profit_text = f"+{best_profit:.1f}%" if best_profit and best_profit > 0 else ""
+        best_profit = best_go.get("net_profit_pct") or 0
+        best_profit_text = f"+{best_profit:.1f}%" if best_profit > 0 else ""
 
         st.markdown(
             f'''<div style="background:linear-gradient(135deg, #0d3320 0%, #166534 50%, #15803d 100%);
-                border:3px solid #4ade80;border-radius:20px;padding:1.25rem 1.5rem;margin-bottom:1.25rem;
-                box-shadow:0 8px 32px rgba(74,222,128,0.2);">
+                border:2px solid #4ade80;border-radius:12px;padding:0.75rem 1rem;margin-bottom:0.75rem;">
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
-                    <div style="display:flex;align-items:center;gap:1rem;">
-                        <span style="font-size:2.5rem;filter:drop-shadow(0 0 8px #4ade80);">🚀</span>
+                    <div style="display:flex;align-items:center;gap:0.75rem;">
+                        <span style="font-size:1.5rem;">🚀</span>
                         <div>
-                            <div style="font-size:1.5rem;font-weight:800;color:#4ade80;
-                                text-shadow:0 0 20px rgba(74,222,128,0.5);">
-                                GO! {len(go_analyses)}건
-                            </div>
-                            <div style="font-size:0.9rem;color:#86efac;">
-                                최고 수익 <b>{best_profit_text}</b>
-                            </div>
+                            <span style="font-size:1.2rem;font-weight:700;color:#4ade80;">GO! {len(go_analyses)}건</span>
+                            <span style="font-size:0.8rem;color:#86efac;margin-left:0.5rem;">최고 {best_profit_text}</span>
                         </div>
                     </div>
-                    <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:flex-end;">
-                        {mood_badge}
-                        {trend_badge}
+                    <div style="display:flex;gap:0.5rem;font-size:0.75rem;">
+                        <span style="background:rgba(0,0,0,0.3);border:1px solid {mood_color};padding:3px 8px;border-radius:6px;">
+                            {mood_emoji} {mood_text} <span style="color:#6b7280;">KR {kr_dom:.1f}%</span>
+                        </span>
+                        <span style="background:rgba(0,0,0,0.3);border:1px solid {trend_color};padding:3px 8px;border-radius:6px;">
+                            {trend_emoji} 직전{trend_total}건 {trend_emojis} <span style="color:{trend_color};">{heung_rate:.0f}%</span>
+                        </span>
                     </div>
                 </div>
             </div>''',
