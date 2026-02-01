@@ -92,9 +92,14 @@ def _render_strategy_result(rec):
     col1, col2 = st.columns(2)
     
     with col1:
-        # 론 가능 거래소
+        # 론 가능 거래소 (전체 표시)
         if rec.loan_available:
-            loan_html = f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">💰 론 가능</div><div style="font-size:1rem;font-weight:600;color:#4ade80;">{rec.best_loan_exchange or "있음"}</div></div>'''
+            exchanges = getattr(rec, 'loan_exchanges', []) or []
+            if exchanges:
+                ex_list = ", ".join(exchanges)
+            else:
+                ex_list = rec.best_loan_exchange or "있음"
+            loan_html = f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">💰 론 가능</div><div style="font-size:1rem;font-weight:600;color:#4ade80;">{ex_list}</div></div>'''
         else:
             loan_html = '''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">💰 론 가능</div><div style="font-size:1rem;font-weight:600;color:#f87171;">없음</div></div>'''
         render_html(loan_html)
@@ -125,9 +130,27 @@ def _render_strategy_result(rec):
             f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">📈 현선갭</div><div style="font-size:1rem;font-weight:600;color:{gap_color};">{gap_str}</div></div>'''
         )
         
-        # 네트워크
+        # 네트워크 (속도 설명 추가)
+        speed = rec.network_speed or "unknown"
+        time_str = rec.network_time or "확인 필요"
+        
+        # 속도별 색상 및 설명
+        speed_map = {
+            "very_fast": ("🚀 매우 빠름", "#f87171", "입금 경쟁 치열"),
+            "fast": ("⚡ 빠름", "#fbbf24", "경쟁 있음"),
+            "medium": ("🕐 보통", "#60a5fa", "적당한 속도"),
+            "slow": ("🐢 느림", "#4ade80", "유리 (경쟁↓)"),
+            "very_slow": ("🦥 매우 느림", "#4ade80", "매우 유리"),
+            "unknown": ("❓ 확인 필요", "#6b7280", "")
+        }
+        speed_label, speed_color, speed_note = speed_map.get(speed, ("❓ 확인 필요", "#6b7280", ""))
+        
+        # 시간 정보 포맷
+        time_display = f" ({time_str})" if time_str and time_str != "확인 필요" else ""
+        note_display = f"<div style='font-size:0.75rem;color:#9ca3af;margin-top:0.25rem;'>{speed_note}</div>" if speed_note else ""
+        
         render_html(
-            f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">⚡ 네트워크</div><div style="font-size:1rem;font-weight:600;color:#60a5fa;">{rec.network_speed or "unknown"} ({rec.network_time or "N/A"})</div></div>'''
+            f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">⚡ 네트워크</div><div style="font-size:1rem;font-weight:600;color:{speed_color};">{speed_label}{time_display}</div>{note_display}</div>'''
         )
     
     # 액션 플랜
