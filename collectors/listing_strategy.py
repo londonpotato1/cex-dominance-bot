@@ -76,6 +76,10 @@ class ExchangeMarket:
     has_futures: bool = False
     spot_pairs: List[str] = field(default_factory=list)
     futures_pairs: List[str] = field(default_factory=list)
+    # 입출금 상태
+    deposit_enabled: bool = False
+    withdraw_enabled: bool = False
+    networks: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -701,14 +705,17 @@ class ListingStrategyAnalyzer:
             price_change_24h_pct = listing_intel.price_change_24h_pct
             platforms = listing_intel.platforms or []
             
-            # 거래소별 마켓 정보
+            # 거래소별 마켓 정보 (입출금 상태 포함)
             for ex_name, ex_status in (listing_intel.exchanges or {}).items():
                 exchange_markets.append(ExchangeMarket(
                     exchange=ex_name,
                     has_spot=ex_status.has_spot,
                     has_futures=ex_status.has_futures,
                     spot_pairs=ex_status.spot_pairs,
-                    futures_pairs=ex_status.futures_pairs
+                    futures_pairs=ex_status.futures_pairs,
+                    deposit_enabled=ex_status.deposit_enabled,
+                    withdraw_enabled=ex_status.withdraw_enabled,
+                    networks=ex_status.networks or []
                 ))
         
         return StrategyRecommendation(
