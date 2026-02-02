@@ -45,6 +45,7 @@ def render_strategy_analysis_section():
             result = _run_strategy_analysis(symbol.upper())
             if result:
                 st.session_state.strategy_result = result
+                st.rerun()  # 결과 표시를 위해 rerun
     
     # 저장된 결과 표시 (새로고침 후에도 유지)
     if st.session_state.strategy_result:
@@ -53,6 +54,7 @@ def render_strategy_analysis_section():
 
 def _run_strategy_analysis(symbol: str) -> Optional[dict]:
     """전략 분석 실행"""
+    import streamlit as st
     try:
         from collectors.listing_strategy import analyze_listing
         
@@ -71,9 +73,13 @@ def _run_strategy_analysis(symbol: str) -> Optional[dict]:
         except RuntimeError:
             result = asyncio.run(analyze_listing(symbol))
         
+        if result is None:
+            st.warning(f"⚠️ {symbol} 분석 결과 없음")
         return result
     except Exception as e:
-        logger.error(f"전략 분석 에러: {e}")
+        import traceback
+        logger.error(f"전략 분석 에러: {e}\n{traceback.format_exc()}")
+        st.error(f"❌ 분석 실패: {str(e)[:100]}")
         return None
 
 
