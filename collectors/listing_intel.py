@@ -132,6 +132,14 @@ class ListingIntelCollector:
         if intel.total_supply and intel.circulating_supply:
             intel.circulating_percent = (intel.circulating_supply / intel.total_supply) * 100
         
+        # MC/FDV가 없으면 가격 * 공급량으로 계산
+        price = intel.current_price_usd or intel.futures_price_usd
+        if price:
+            if not intel.fdv_usd and intel.total_supply:
+                intel.fdv_usd = price * intel.total_supply
+            if not intel.market_cap_usd and intel.circulating_supply:
+                intel.market_cap_usd = price * intel.circulating_supply
+        
         return intel
     
     async def _fetch_coingecko(self, intel: ListingIntel) -> None:
