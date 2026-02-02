@@ -18,7 +18,30 @@ def render_ddari_tab() -> None:
     from ui.ddari_learning_guide import render_learning_guide_tab
     from ui.ddari_common import render_html
 
-    # 3개 서브탭 생성 (기본 st.tabs 사용)
+    # 탭 중앙 정렬 + 공백 제거 CSS
+    render_html('''
+    <style>
+    /* 탭 중앙 정렬 */
+    .stTabs [data-baseweb="tab-list"] {
+        justify-content: center !important;
+        gap: 1rem !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+    }
+    /* 탭 패널 상단 패딩 제거 */
+    .stTabs [data-baseweb="tab-panel"] {
+        padding-top: 0.5rem !important;
+    }
+    /* Streamlit 기본 마진 제거 */
+    .stTabs .element-container, .stTabs .stMarkdown {
+        margin-bottom: 0 !important;
+    }
+    </style>
+    ''')
+
+    # 3개 서브탭 생성
     dashboard_tab, analysis_tab, guide_tab = st.tabs([
         "📊 대시보드",
         "🎯 분석센터", 
@@ -26,9 +49,9 @@ def render_ddari_tab() -> None:
     ])
 
     with dashboard_tab:
-        # 탭 설명 + 우측 hover 가이드 (공백 완전 제거)
+        # 탭 설명 + 우측 hover 가이드 (마진 완전 제거)
         render_html(
-            '''<div style="position:relative;margin:0;padding:0;">
+            '''<div style="position:relative;margin:0 0 -0.5rem 0;padding:0;">
                 <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
                     border:1px solid #3b82f6;border-radius:8px;padding:0.5rem 0.75rem;">
                     <div style="font-size:0.9rem;color:#60a5fa;font-weight:600;">📊 대시보드</div>
