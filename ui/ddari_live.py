@@ -243,10 +243,10 @@ def _render_binance_alerts_section() -> None:
                     <span style="background:{badge_color};color:#fff;padding:4px 12px;border-radius:6px;font-size:0.8rem;font-weight:600;">
                         {badge_text}
                     </span>
-                    <span style="color:#8b949e;font-size:0.85rem;">바이낸스 공지</span>
-                    {f'<span style="color:#58a6ff;font-size:0.8rem;">📅 공지: {notice_time_str}</span>' if notice_time_str else ''}
-                    {f'<span style="color:#3fb950;font-size:0.8rem;margin-left:8px;">🚀 상장: {listing_time_str}</span>' if listing_time_str else ''}
-                    {f'<span style="color:#f0883e;font-size:0.8rem;margin-left:8px;">💰 {deposit_time_str}</span>' if deposit_time_str else ''}
+                    <span style="color:#8b949e;font-size:1rem;">바이낸스 공지</span>
+                    {f'<span style="color:#58a6ff;font-size:1rem;margin-left:12px;">📅 공지: {notice_time_str} KST</span>' if notice_time_str else ''}
+                    {f'<span style="color:#3fb950;font-size:1.2rem;font-weight:700;margin-left:16px;">🚀 상장: {listing_time_str} KST</span>' if listing_time_str else ''}
+                    {f'<span style="color:#f0883e;font-size:1rem;margin-left:12px;">💰 {deposit_time_str}</span>' if deposit_time_str else ''}
                 </div>
                 <div style="font-size:1.5rem;font-weight:700;color:#fff;">
                     {symbol if symbol else 'N/A'}
