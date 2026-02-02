@@ -379,62 +379,6 @@ def _render_korean_notices_section() -> None:
     if not notices:
         return
     
-    # 섹션 헤더
-    st.markdown("""
-    <div style="margin-top:1.5rem;margin-bottom:0.75rem;">
-        <span style="font-size:1.1rem;font-weight:600;color:#fff;">
-            🇰🇷 한국 거래소 공지
-        </span>
-        <span style="font-size:0.8rem;color:#8b949e;margin-left:0.5rem;">
-            업비트/빗썸 입출금·유의사항
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # 공지 카드들
-    for notice in notices[:5]:
-        exchange_color = "#00bfff" if notice.exchange == Exchange.UPBIT else "#f0883e"
-        exchange_name = "업비트" if notice.exchange == Exchange.UPBIT else "빗썸"
-        
-        type_color = {
-            NoticeType.LISTING: "#3fb950",
-            NoticeType.DEPOSIT_SUSPEND: "#f85149",
-            NoticeType.DEPOSIT_RESUME: "#3fb950",
-            NoticeType.WITHDRAW_SUSPEND: "#f85149",
-            NoticeType.WITHDRAW_RESUME: "#3fb950",
-            NoticeType.TRADING_CAUTION: "#d29922",
-            NoticeType.CAUTION_RELEASE: "#3fb950",
-        }.get(notice.notice_type, "#8b949e")
-        
-        symbols_str = ", ".join(notice.symbols) if notice.symbols else ""
-        date_str = notice.published_at.strftime("%m/%d")
-        
-        # 분석 버튼 (심볼이 있는 경우)
-        analyze_btn = ""
-        if notice.symbols:
-            symbol = notice.symbols[0]
-            analyze_btn = f'<a href="?tab=analysis&symbol={symbol}" style="background:#238636;color:#fff;padding:4px 12px;border-radius:6px;font-size:0.75rem;font-weight:600;text-decoration:none;margin-left:auto;">📊 {symbol} 분석</a>'
-        
-        render_html(f'''
-        <div style="background:#161b22;border:1px solid #30363d;border-left:3px solid {type_color};border-radius:8px;padding:0.75rem 1rem;margin-bottom:0.5rem;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div style="display:flex;align-items:center;gap:0.75rem;">
-                    <span style="font-size:1.1rem;">{notice.get_emoji()}</span>
-                    <span style="background:{exchange_color};color:#fff;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">{exchange_name}</span>
-                    <span style="background:{type_color}22;color:{type_color};padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">{notice.get_type_text()}</span>
-                    {f'<span style="color:#58a6ff;font-weight:600;">{symbols_str}</span>' if symbols_str else ''}
-                </div>
-                <div style="display:flex;align-items:center;gap:0.5rem;">
-                    <span style="color:#8b949e;font-size:0.8rem;">{date_str}</span>
-                    {analyze_btn}
-                </div>
-            </div>
-            <div style="margin-top:0.5rem;color:#c9d1d9;font-size:0.85rem;">
-                <a href="{notice.url}" target="_blank" style="color:inherit;text-decoration:none;">{notice.title[:60]}{'...' if len(notice.title) > 60 else ''}</a>
-            </div>
-        </div>
-        ''')
-    
     # 감지된 심볼들에 대한 분석 카드 (입출금 관련 공지만)
     analyzed_notices = {}  # symbol -> notice 매핑
     for notice in notices:  # 모든 공지 체크
