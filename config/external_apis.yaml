@@ -34,6 +34,12 @@ alchemy:
     base:
       url_template: "https://base-mainnet.g.alchemy.com/v2/{api_key}"
       chain_id: 8453
+    bsc:
+      url_template: "https://bnb-mainnet.g.alchemy.com/v2/{api_key}"
+      chain_id: 56
+    optimism:
+      url_template: "https://opt-mainnet.g.alchemy.com/v2/{api_key}"
+      chain_id: 10
   cache_ttl: 900  # 15분 (온체인 데이터 상대적 안정)
   rate_limit:
     compute_units_per_request: 25  # eth_call 기준

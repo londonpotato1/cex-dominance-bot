@@ -439,6 +439,30 @@ class ListingIntelCollector:
                     if items:
                         status.has_futures = True
                         status.futures_pairs = [i["symbol"] for i in items]
+            
+            # 네트워크/입출금 상태 체크 (공개 API)
+            try:
+                async with session.get(
+                    f"https://api.bybit.com/v5/asset/coin/query-info?coin={intel.symbol}"
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        rows = data.get("result", {}).get("rows", [])
+                        for row in rows:
+                            if row.get("coin", "").upper() == intel.symbol:
+                                for chain in row.get("chains", []):
+                                    chain_name = chain.get("chain", "")
+                                    if chain_name:
+                                        status.networks.append(chain_name)
+                                        if chain.get("chainDeposit") == "1":
+                                            status.deposit_enabled = True
+                                            status.deposit_networks.append(chain_name)
+                                        if chain.get("chainWithdraw") == "1":
+                                            status.withdraw_enabled = True
+                                            status.withdraw_networks.append(chain_name)
+                                break
+            except:
+                pass
                         
         except Exception as e:
             logger.warning("[Intel] Bybit 에러: %s", e)
@@ -473,6 +497,26 @@ class ListingIntelCollector:
                     if not data.get("in_delisting", False):
                         status.has_futures = True
                         status.futures_pairs.append(f"{intel.symbol}_USDT")
+            
+            # 네트워크/입출금 상태 체크
+            try:
+                async with session.get(
+                    f"https://api.gateio.ws/api/v4/wallet/currency_chains/{intel.symbol}"
+                ) as resp:
+                    if resp.status == 200:
+                        chains_data = await resp.json()
+                        for chain in chains_data:
+                            chain_name = chain.get("chain", "")
+                            if chain_name:
+                                status.networks.append(chain_name)
+                                if not chain.get("is_deposit_disabled", True):
+                                    status.deposit_enabled = True
+                                    status.deposit_networks.append(chain_name)
+                                if not chain.get("is_withdraw_disabled", True):
+                                    status.withdraw_enabled = True
+                                    status.withdraw_networks.append(chain_name)
+            except:
+                pass
                     
         except Exception as e:
             logger.warning("[Intel] Gate 에러: %s", e)
