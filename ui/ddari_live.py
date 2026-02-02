@@ -512,7 +512,7 @@ def _render_korean_coin_analysis(symbols: list) -> None:
                 futures_icon = "🟢" if ex.has_futures else "🔴"
                 dep_icon = "🟢" if ex.deposit_enabled else "⚪"
                 wd_icon = "🟢" if ex.withdraw_enabled else "⚪"
-                nets = ", ".join(ex.deposit_networks[:2]) if ex.deposit_networks else "-"
+                nets = ", ".join(ex.networks[:2]) if ex.networks else "-"
                 exchange_rows += f'''<tr style="border-bottom:1px solid #30363d;">
                     <td style="padding:4px 6px;color:#c9d1d9;font-size:0.8rem;">{ex.exchange.upper()}</td>
                     <td style="padding:4px;text-align:center;font-size:0.8rem;">{spot_icon}</td>
