@@ -289,84 +289,69 @@ class KoreanNoticeFetcher:
         categories: List[int] | None = None,
         limit: int = 20,
     ) -> List[KoreanNotice]:
-        """빗썸 공지 조회 (Playwright 크롤링).
+        """빗썸 입출금 상태 조회 (API 기반).
         
-        Args:
-            categories: 카테고리 목록. 5=거래유의, 7=입출금
-            limit: 조회 개수
+        빗썸은 Cloudflare 보호로 크롤링 불가.
+        대신 assetsstatus API로 입출금 상태 변화 감지.
         """
-        if categories is None:
-            categories = [5, 7]  # 거래유의, 입출금
-        
         notices = []
         
         try:
-            from playwright.async_api import async_playwright
+            session = await self._get_session()
             
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                page = await browser.new_page()
+            # 빗썸 입출금 상태 API
+            url = "https://api.bithumb.com/public/assetsstatus/ALL"
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    logger.warning(f"[Bithumb] API 응답 오류: {resp.status}")
+                    return notices
                 
-                for category in categories:
-                    try:
-                        # 빗썸 공지 페이지 (카테고리별)
-                        url = f"https://feed.bithumb.com/notice?category={category}&page=1"
-                        await page.goto(url, wait_until="networkidle", timeout=30000)
-                        
-                        # Cloudflare 체크 통과 대기
-                        await page.wait_for_timeout(2000)
-                        
-                        # 공지 목록 파싱
-                        items = await page.query_selector_all("table tbody tr")
-                        
-                        for i, item in enumerate(items[:limit // len(categories)]):
-                            try:
-                                # 제목
-                                title_el = await item.query_selector("td:nth-child(2)")
-                                title = await title_el.inner_text() if title_el else ""
-                                
-                                # 날짜
-                                date_el = await item.query_selector("td:last-child")
-                                date_str = await date_el.inner_text() if date_el else ""
-                                
-                                # 링크
-                                link_el = await item.query_selector("a")
-                                href = await link_el.get_attribute("href") if link_el else ""
-                                notice_id = href.split("/")[-1] if href else f"bithumb_{category}_{i}"
-                                
-                                # 날짜 파싱
-                                try:
-                                    pub_date = datetime.strptime(date_str.strip(), "%Y.%m.%d")
-                                except:
-                                    pub_date = datetime.now()
-                                
-                                notice = KoreanNotice(
-                                    exchange=Exchange.BITHUMB,
-                                    notice_id=f"bithumb_{notice_id}",
-                                    title=title.strip(),
-                                    url=f"https://feed.bithumb.com{href}" if href.startswith("/") else href,
-                                    published_at=pub_date,
-                                )
-                                notices.append(notice)
-                                
-                            except Exception as e:
-                                logger.debug(f"[Bithumb] 항목 파싱 실패: {e}")
-                                continue
-                                
-                    except Exception as e:
-                        logger.warning(f"[Bithumb] 카테고리 {category} 조회 실패: {e}")
+                data = await resp.json()
+                if data.get("status") != "0000":
+                    logger.warning(f"[Bithumb] API 상태 오류: {data.get('status')}")
+                    return notices
+                
+                assets = data.get("data", {})
+                
+                # 입출금 중단된 코인 찾기
+                for symbol, status in assets.items():
+                    if not isinstance(status, dict):
                         continue
+                    
+                    deposit = status.get("deposit_status", 1)
+                    withdrawal = status.get("withdrawal_status", 1)
+                    
+                    # 입금 또는 출금 중단된 경우
+                    if deposit == 0 or withdrawal == 0:
+                        # 상태에 따른 제목 생성
+                        if deposit == 0 and withdrawal == 0:
+                            title = f"{symbol} 입출금 일시 중지"
+                            notice_type = NoticeType.DEPOSIT_SUSPEND
+                        elif deposit == 0:
+                            title = f"{symbol} 입금 일시 중지"
+                            notice_type = NoticeType.DEPOSIT_SUSPEND
+                        else:
+                            title = f"{symbol} 출금 일시 중지"
+                            notice_type = NoticeType.WITHDRAW_SUSPEND
+                        
+                        notice = KoreanNotice(
+                            exchange=Exchange.BITHUMB,
+                            notice_id=f"bithumb_status_{symbol}",
+                            title=title,
+                            url="https://www.bithumb.com/",
+                            published_at=datetime.now(),
+                        )
+                        # 직접 심볼과 타입 설정
+                        notice.symbols = [symbol]
+                        notice.notice_type = notice_type
+                        notices.append(notice)
                 
-                await browser.close()
-            
-            logger.info(f"[KoreanNotice] 빗썸 공지 {len(notices)}개 조회 완료")
-            
-        except ImportError:
-            logger.warning("[KoreanNotice] Playwright 미설치 - pip install playwright")
+                logger.info(f"[KoreanNotice] 빗썸 입출금 중단 코인 {len(notices)}개 감지")
+                
         except Exception as e:
-            logger.warning("[KoreanNotice] 빗썸 공지 조회 실패: %s", e)
+            logger.warning("[KoreanNotice] 빗썸 상태 조회 실패: %s", e)
         
-        return notices
+        return notices[:limit]
     
     # ------------------------------------------------------------------
     # 통합 조회
