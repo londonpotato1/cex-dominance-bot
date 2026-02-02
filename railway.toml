@@ -1,3 +1,7 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
 [deploy]
-startCommand = "python start.py"
+startCommand = "bash start.sh"
 restartPolicyType = "ON_FAILURE"
