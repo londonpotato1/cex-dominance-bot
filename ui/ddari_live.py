@@ -185,11 +185,14 @@ def _render_binance_alerts_section() -> None:
     
     # 공지 시간 (한국시간)
     notice_time_str = ""
-    if latest and latest.published_at:
+    if latest and hasattr(latest, 'release_date') and latest.release_date:
         from datetime import timezone, timedelta
         kst = timezone(timedelta(hours=9))
-        notice_kst = latest.published_at.astimezone(kst)
-        notice_time_str = notice_kst.strftime("%m/%d %H:%M")
+        try:
+            notice_kst = latest.release_date.astimezone(kst)
+            notice_time_str = notice_kst.strftime("%m/%d %H:%M")
+        except:
+            notice_time_str = ""
     
     # 거래소 테이블 생성
     exchange_rows_html = ""
