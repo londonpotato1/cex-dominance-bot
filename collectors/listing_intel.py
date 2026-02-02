@@ -9,12 +9,14 @@
 - 현재 가격 (선물/DEX)
 
 v1: 2026-02-02
+v2: 2026-02-02 - CoinMarketCap fallback 추가
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -22,6 +24,9 @@ from datetime import datetime
 import aiohttp
 
 logger = logging.getLogger(__name__)
+
+# CoinMarketCap API 키 (환경변수에서 로드)
+CMC_API_KEY = os.getenv("COINMARKETCAP_API_KEY", "")
 
 # HTTP 설정
 _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=15)
@@ -128,6 +133,11 @@ class ListingIntelCollector:
             return_exceptions=True,
         )
         
+        # CoinGecko 실패 시 CoinMarketCap fallback
+        if not intel.market_cap_usd and not intel.fdv_usd:
+            logger.info(f"[Intel] CoinGecko에서 MC/FDV 없음, CoinMarketCap 시도...")
+            await self._fetch_coinmarketcap(intel)
+        
         # Circulating % 계산
         if intel.total_supply and intel.circulating_supply:
             intel.circulating_percent = (intel.circulating_supply / intel.total_supply) * 100
@@ -212,6 +222,70 @@ class ListingIntelCollector:
                 
         except Exception as e:
             logger.warning("[Intel] CoinGecko 에러: %s", e)
+    
+    async def _fetch_coinmarketcap(self, intel: ListingIntel) -> None:
+        """CoinMarketCap에서 기본 정보 수집 (CoinGecko fallback)."""
+        if not CMC_API_KEY:
+            logger.debug("[Intel] CoinMarketCap API 키 없음, 스킵")
+            return
+        
+        session = await self._get_session()
+        
+        try:
+            headers = {
+                "X-CMC_PRO_API_KEY": CMC_API_KEY,
+                "Accept": "application/json",
+            }
+            
+            # 심볼로 검색
+            async with session.get(
+                "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest",
+                params={"symbol": intel.symbol, "convert": "USD"},
+                headers=headers,
+            ) as resp:
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    logger.warning(f"[Intel] CoinMarketCap 에러: {resp.status} - {error_text[:200]}")
+                    return
+                
+                data = await resp.json()
+                
+                if data.get("status", {}).get("error_code") != 0:
+                    logger.warning(f"[Intel] CoinMarketCap 에러: {data.get('status', {}).get('error_message')}")
+                    return
+                
+                coin_data = data.get("data", {}).get(intel.symbol)
+                if not coin_data:
+                    logger.warning(f"[Intel] CoinMarketCap: {intel.symbol} 데이터 없음")
+                    return
+                
+                # 이름
+                if not intel.name:
+                    intel.name = coin_data.get("name", "")
+                
+                # 공급량
+                intel.total_supply = coin_data.get("total_supply")
+                intel.circulating_supply = coin_data.get("circulating_supply")
+                
+                # USD 시세 정보
+                quote = coin_data.get("quote", {}).get("USD", {})
+                
+                intel.current_price_usd = quote.get("price")
+                intel.market_cap_usd = quote.get("market_cap")
+                intel.fdv_usd = quote.get("fully_diluted_market_cap")
+                intel.volume_24h_usd = quote.get("volume_24h")
+                intel.price_change_24h_pct = quote.get("percent_change_24h")
+                
+                # 플랫폼/체인 정보 (CMC의 platform 필드)
+                platform = coin_data.get("platform")
+                if platform and platform.get("name"):
+                    if not intel.platforms:
+                        intel.platforms = [platform.get("name")]
+                
+                logger.info(f"[Intel] CoinMarketCap에서 {intel.symbol} 데이터 수집 성공")
+                
+        except Exception as e:
+            logger.warning("[Intel] CoinMarketCap 에러: %s", e)
     
     async def _fetch_binance_status(self, intel: ListingIntel) -> None:
         """바이낸스 상장 상태 수집."""
