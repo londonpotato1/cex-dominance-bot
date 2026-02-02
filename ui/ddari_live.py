@@ -497,6 +497,16 @@ def _render_binance_alerts_section() -> None:
         if not deposit_time_str:
             deposit_time_str = "입금 대기 ⏳"
     
+    # 바이낸스 알파 정보
+    alpha_str = ""
+    if latest and hasattr(latest, 'has_alpha') and latest.has_alpha:
+        if latest.alpha_time:
+            alpha_str = f"알파: {latest.alpha_time.strftime('%m/%d %H:%M')}"
+        elif latest.alpha_note:
+            alpha_str = f"알파: {latest.alpha_note}"
+        else:
+            alpha_str = "알파 상장 예정"
+    
     # 거래소 테이블 생성 (핫월렛 포함)
     exchange_rows_html = ""
     hot_wallets = {}
@@ -556,6 +566,7 @@ def _render_binance_alerts_section() -> None:
                     {f'<span style="color:#3fb950;font-size:1.1rem;font-weight:700;margin-left:12px;">🚀 상장: {listing_time_str}</span>' if listing_time_str else ''}
                     {f'<span style="color:#f0883e;font-size:0.9rem;margin-left:8px;">💰 {deposit_time_str}</span>' if deposit_time_str else ''}
                     {f'<span style="color:#a855f7;font-size:0.9rem;margin-left:8px;">📤 {withdraw_time_str}</span>' if withdraw_time_str else ''}
+                    {f'<span style="color:#ec4899;font-size:0.9rem;margin-left:8px;">🅰️ {alpha_str}</span>' if alpha_str else ''}
                 </div>
                 <div style="font-size:1.5rem;font-weight:700;color:#fff;">
                     {symbol if symbol else 'N/A'}

@@ -76,6 +76,11 @@ class BinanceNotice:
     has_futures: bool = False
     seed_tag: bool = False
     
+    # 바이낸스 알파 관련
+    has_alpha: bool = False
+    alpha_time: Optional[datetime] = None
+    alpha_note: Optional[str] = None  # "time will be announced later" 등
+    
     # 본문 (파싱용)
     content: Optional[str] = None
     
@@ -238,6 +243,33 @@ class BinanceNotice:
                 self.withdraw_time = withdraw_dt.astimezone(kst).replace(tzinfo=None)
             except:
                 pass
+        
+        # 4. 바이낸스 알파 파싱
+        if 'binance alpha' in content.lower():
+            self.has_alpha = True
+            
+            # 알파 상장 시간 파싱: "Binance Alpha at YYYY-MM-DD HH:MM (UTC)"
+            alpha_time_match = re.search(
+                r'[Bb]inance\s+[Aa]lpha[^0-9]*(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*\(?UTC\)?',
+                content
+            )
+            if alpha_time_match:
+                try:
+                    date_str = alpha_time_match.group(1)
+                    hour = int(alpha_time_match.group(2))
+                    minute = int(alpha_time_match.group(3))
+                    alpha_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(
+                        hour=hour, minute=minute, tzinfo=utc
+                    )
+                    self.alpha_time = alpha_dt.astimezone(kst).replace(tzinfo=None)
+                except:
+                    pass
+            
+            # "time will be announced later" 등 노트 파싱
+            if 'announced later' in content.lower() or 'will be announced' in content.lower():
+                self.alpha_note = "시간 추후 공지"
+            elif not self.alpha_time:
+                self.alpha_note = "알파 상장 예정"
 
 
 class BinanceNoticeFetcher:
