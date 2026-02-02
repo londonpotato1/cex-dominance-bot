@@ -49,6 +49,15 @@ except ImportError:
     ListingIntelCollector = None
     ListingIntel = None
 
+# v4: 한국 거래소 공지 수집기
+try:
+    from collectors.korean_notice import KoreanNoticeFetcher, KoreanNotice, Exchange, NoticeType
+    _HAS_KOREAN = True
+except ImportError:
+    _HAS_KOREAN = False
+    KoreanNoticeFetcher = None
+    KoreanNotice = None
+
 
 # ------------------------------------------------------------------
 # v2: 바이낸스 상장 알림 섹션
@@ -334,6 +343,88 @@ def _render_binance_alerts_section() -> None:
         </div>''' if actions_html else ''}
     </div>
     ''')
+
+
+# ------------------------------------------------------------------
+# v4: 한국 거래소 공지 섹션
+# ------------------------------------------------------------------
+
+def _render_korean_notices_section() -> None:
+    """한국 거래소(업비트/빗썸) 공지 섹션 렌더링."""
+    import streamlit as st
+    import asyncio
+    
+    if not _HAS_KOREAN:
+        return
+    
+    @st.cache_data(ttl=300)
+    def fetch_korean_notices():
+        async def _fetch():
+            fetcher = KoreanNoticeFetcher()
+            try:
+                notices = await fetcher.fetch_actionable_notices(limit=10)
+                return notices
+            finally:
+                await fetcher.close()
+        
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(_fetch())
+        except Exception as e:
+            return []
+    
+    notices = fetch_korean_notices()
+    
+    if not notices:
+        return
+    
+    # 섹션 헤더
+    st.markdown("""
+    <div style="margin-top:1.5rem;margin-bottom:0.75rem;">
+        <span style="font-size:1.1rem;font-weight:600;color:#fff;">
+            🇰🇷 한국 거래소 공지
+        </span>
+        <span style="font-size:0.8rem;color:#8b949e;margin-left:0.5rem;">
+            업비트/빗썸 입출금·유의사항
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 공지 카드들
+    for notice in notices[:5]:
+        exchange_color = "#00bfff" if notice.exchange == Exchange.UPBIT else "#f0883e"
+        exchange_name = "업비트" if notice.exchange == Exchange.UPBIT else "빗썸"
+        
+        type_color = {
+            NoticeType.LISTING: "#3fb950",
+            NoticeType.DEPOSIT_SUSPEND: "#f85149",
+            NoticeType.DEPOSIT_RESUME: "#3fb950",
+            NoticeType.WITHDRAW_SUSPEND: "#f85149",
+            NoticeType.WITHDRAW_RESUME: "#3fb950",
+            NoticeType.TRADING_CAUTION: "#d29922",
+            NoticeType.CAUTION_RELEASE: "#3fb950",
+        }.get(notice.notice_type, "#8b949e")
+        
+        symbols_str = ", ".join(notice.symbols) if notice.symbols else ""
+        date_str = notice.published_at.strftime("%m/%d")
+        
+        render_html(f'''
+        <div style="background:#161b22;border:1px solid #30363d;border-left:3px solid {type_color};border-radius:8px;padding:0.75rem 1rem;margin-bottom:0.5rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <span style="font-size:1.1rem;">{notice.get_emoji()}</span>
+                    <span style="background:{exchange_color};color:#fff;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">{exchange_name}</span>
+                    <span style="background:{type_color}22;color:{type_color};padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">{notice.get_type_text()}</span>
+                    {f'<span style="color:#58a6ff;font-weight:600;">{symbols_str}</span>' if symbols_str else ''}
+                </div>
+                <span style="color:#8b949e;font-size:0.8rem;">{date_str}</span>
+            </div>
+            <div style="margin-top:0.5rem;color:#c9d1d9;font-size:0.85rem;">
+                <a href="{notice.url}" target="_blank" style="color:inherit;text-decoration:none;">{notice.title[:60]}{'...' if len(notice.title) > 60 else ''}</a>
+            </div>
+        </div>
+        ''')
 
 
 # ------------------------------------------------------------------
@@ -1825,6 +1916,11 @@ def render_live_tab() -> None:
     # 섹션 0: 바이낸스 상장 알림 (v2: 2026-02-02)
     # ============================================================
     _render_binance_alerts_section()
+
+    # ============================================================
+    # 섹션 0.5: 한국 거래소 공지 (v4: 업비트/빗썸)
+    # ============================================================
+    _render_korean_notices_section()
 
     # ============================================================
     # 섹션 1: GO 카드 (최상단, 눈에 띄게)
