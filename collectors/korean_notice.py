@@ -211,7 +211,85 @@ class KoreanNoticeFetcher:
     # ------------------------------------------------------------------
     
     async def fetch_upbit_notices(self, limit: int = 20) -> List[KoreanNotice]:
-        """업비트 공지 조회 (Playwright 크롤링)."""
+        """업비트 입출금 상태 조회 (API 기반).
+        
+        UPBIT_ACCESS_KEY, UPBIT_SECRET_KEY 환경변수 필요.
+        """
+        notices = []
+        
+        try:
+            import os
+            import jwt
+            import uuid
+            import hashlib
+            
+            access_key = os.getenv("UPBIT_ACCESS_KEY")
+            secret_key = os.getenv("UPBIT_SECRET_KEY")
+            
+            if not access_key or not secret_key:
+                logger.warning("[Upbit] API 키 없음 - 크롤링 폴백")
+                return await self._fetch_upbit_notices_crawl(limit)
+            
+            # JWT 토큰 생성
+            payload = {
+                'access_key': access_key,
+                'nonce': str(uuid.uuid4()),
+            }
+            jwt_token = jwt.encode(payload, secret_key)
+            auth_header = f'Bearer {jwt_token}'
+            
+            session = await self._get_session()
+            
+            # 업비트 입출금 상태 API
+            url = "https://api.upbit.com/v1/status/wallet"
+            headers = {"Authorization": auth_header}
+            
+            async with session.get(url, headers=headers) as resp:
+                if resp.status != 200:
+                    logger.warning(f"[Upbit] API 응답 오류: {resp.status}")
+                    return await self._fetch_upbit_notices_crawl(limit)
+                
+                data = await resp.json()
+                
+                # 입출금 중단된 코인 찾기
+                for coin in data:
+                    currency = coin.get("currency", "")
+                    wallet_state = coin.get("wallet_state", "")
+                    
+                    # working = 정상, withdraw_only = 출금만, paused = 중단
+                    if wallet_state in ["paused", "withdraw_only", "deposit_only"]:
+                        if wallet_state == "paused":
+                            title = f"{currency} 입출금 일시 중지"
+                            notice_type = NoticeType.DEPOSIT_SUSPEND
+                        elif wallet_state == "withdraw_only":
+                            title = f"{currency} 입금 일시 중지"
+                            notice_type = NoticeType.DEPOSIT_SUSPEND
+                        else:
+                            title = f"{currency} 출금 일시 중지"
+                            notice_type = NoticeType.WITHDRAW_SUSPEND
+                        
+                        notice = KoreanNotice(
+                            exchange=Exchange.UPBIT,
+                            notice_id=f"upbit_status_{currency}",
+                            title=title,
+                            url="https://upbit.com/service_center/notice",
+                            published_at=datetime.now(),
+                        )
+                        notice.symbols = [currency]
+                        notice.notice_type = notice_type
+                        notices.append(notice)
+                
+                logger.info(f"[KoreanNotice] 업비트 입출금 중단 코인 {len(notices)}개 감지")
+            
+        except ImportError as e:
+            logger.warning(f"[KoreanNotice] JWT 라이브러리 없음: {e}")
+        except Exception as e:
+            logger.warning("[KoreanNotice] 업비트 API 조회 실패: %s", e)
+        
+        return notices[:limit]
+    
+    async def _fetch_upbit_notices_crawl(self, limit: int = 20) -> List[KoreanNotice]:
+        """업비트 공지 크롤링 (API 실패 시 폴백)."""
         notices = []
         
         try:
@@ -222,35 +300,25 @@ class KoreanNoticeFetcher:
                 browser = await p.chromium.launch(headless=True)
                 page = await browser.new_page()
                 
-                # 업비트 공지 페이지 접속
                 await page.goto("https://upbit.com/service_center/notice", timeout=30000)
-                
-                # JS 렌더링 대기
                 await _asyncio.sleep(5)
                 
-                # 공지 목록 파싱 (테이블 행)
                 rows = await page.query_selector_all("tbody tr")
                 
                 for i, row in enumerate(rows[:limit]):
                     try:
-                        # 셀 가져오기
                         cells = await row.query_selector_all("td")
                         if len(cells) < 2:
                             continue
                         
-                        # 제목 (첫 번째 셀)
                         title = await cells[0].inner_text()
-                        
-                        # 날짜 (마지막 셀)
                         date_str = await cells[-1].inner_text()
                         
-                        # 링크
                         link_el = await row.query_selector("a")
                         href = await link_el.get_attribute("href") if link_el else ""
                         notice_id = href.split("id=")[-1] if "id=" in href else f"upbit_{i}"
                         url = f"https://upbit.com{href}" if href.startswith("/") else href
                         
-                        # 날짜 파싱
                         try:
                             pub_date = datetime.strptime(date_str.strip(), "%Y.%m.%d")
                         except:
@@ -271,12 +339,10 @@ class KoreanNoticeFetcher:
                 
                 await browser.close()
                 
-            logger.info(f"[KoreanNotice] 업비트 공지 {len(notices)}개 조회 완료")
+            logger.info(f"[KoreanNotice] 업비트 공지 크롤링 {len(notices)}개 완료")
             
-        except ImportError:
-            logger.warning("[KoreanNotice] Playwright 미설치 - pip install playwright")
         except Exception as e:
-            logger.warning("[KoreanNotice] 업비트 공지 조회 실패: %s", e)
+            logger.warning("[KoreanNotice] 업비트 크롤링 실패: %s", e)
         
         return notices
     

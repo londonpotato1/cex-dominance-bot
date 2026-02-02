@@ -18,6 +18,9 @@ cloudscraper>=1.2.71
 # 공지 크롤링 (JavaScript 렌더링 - 업비트)
 playwright>=1.40.0
 
+# 업비트 API 인증
+PyJWT>=2.8.0
+
 # 웹 대시보드
 streamlit>=1.33.0
 plotly>=5.18.0
