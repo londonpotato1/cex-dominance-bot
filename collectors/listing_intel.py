@@ -140,23 +140,40 @@ class ListingIntelCollector:
         symbol_lower = intel.symbol.lower()
         
         try:
-            # 검색으로 coin_id 찾기
+            # 검색으로 coin_id 찾기 (여러 후보 중 가장 적합한 것 선택)
             async with session.get(
                 "https://api.coingecko.com/api/v3/search",
                 params={"query": intel.symbol},
             ) as resp:
                 if resp.status != 200:
+                    logger.warning(f"[Intel] CoinGecko search failed: {resp.status}")
                     return
                 data = await resp.json()
                 coins = data.get("coins", [])
                 
                 coin_id = None
+                # 1. 정확히 symbol 일치하는 것 우선
                 for c in coins:
                     if c.get("symbol", "").lower() == symbol_lower:
                         coin_id = c.get("id")
+                        intel.name = c.get("name", "")
                         break
                 
+                # 2. 못 찾으면 name에 symbol이 포함된 것
                 if not coin_id:
+                    for c in coins:
+                        if symbol_lower in c.get("name", "").lower():
+                            coin_id = c.get("id")
+                            intel.name = c.get("name", "")
+                            break
+                
+                # 3. 그래도 못 찾으면 첫 번째 결과
+                if not coin_id and coins:
+                    coin_id = coins[0].get("id")
+                    intel.name = coins[0].get("name", "")
+                
+                if not coin_id:
+                    logger.warning(f"[Intel] CoinGecko: {intel.symbol} not found")
                     return
             
             # 상세 정보 가져오기
@@ -194,23 +211,27 @@ class ListingIntelCollector:
         status = ExchangeStatus(exchange="binance")
         
         try:
-            # 현물 체크
+            # 현물 체크 (정확한 매칭: ZAMAUSDT, ZAMABTC 등)
             async with session.get("https://api.binance.com/api/v3/exchangeInfo") as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     for s in data.get("symbols", []):
-                        if intel.symbol in s.get("symbol", ""):
+                        sym = s.get("symbol", "")
+                        base = s.get("baseAsset", "")
+                        # baseAsset가 정확히 일치하거나, 심볼이 SYMBOL+USDT/BTC 형태
+                        if base.upper() == intel.symbol or sym.upper().startswith(intel.symbol + "USDT") or sym.upper().startswith(intel.symbol + "BTC"):
                             status.has_spot = True
-                            status.spot_pairs.append(s["symbol"])
+                            status.spot_pairs.append(sym)
             
-            # 선물 체크
+            # 선물 체크 (정확한 매칭)
             async with session.get("https://fapi.binance.com/fapi/v1/exchangeInfo") as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     for s in data.get("symbols", []):
-                        if intel.symbol in s.get("symbol", ""):
+                        sym = s.get("symbol", "")
+                        if sym.upper().startswith(intel.symbol + "USDT") or sym.upper() == intel.symbol + "PERP":
                             status.has_futures = True
-                            status.futures_pairs.append(s["symbol"])
+                            status.futures_pairs.append(sym)
             
             # 선물 가격
             if status.futures_pairs:
@@ -260,27 +281,31 @@ class ListingIntelCollector:
         status = ExchangeStatus(exchange="okx")
         
         try:
-            # 현물 체크
+            # 현물 체크 (정확한 매칭: ZAMA-USDT)
             async with session.get(
                 "https://www.okx.com/api/v5/public/instruments?instType=SPOT"
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     for s in data.get("data", []):
-                        if intel.symbol in s.get("instId", ""):
+                        inst_id = s.get("instId", "")
+                        base_ccy = s.get("baseCcy", "")
+                        # 정확한 매칭: baseCcy가 일치하거나 instId가 SYMBOL-USDT
+                        if base_ccy.upper() == intel.symbol or inst_id.upper() == f"{intel.symbol}-USDT" or inst_id.upper() == f"{intel.symbol}-USDC":
                             status.has_spot = True
-                            status.spot_pairs.append(s["instId"])
+                            status.spot_pairs.append(inst_id)
             
-            # 선물 체크
+            # 선물 체크 (정확한 매칭: ZAMA-USDT-SWAP)
             async with session.get(
                 "https://www.okx.com/api/v5/public/instruments?instType=SWAP"
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     for s in data.get("data", []):
-                        if intel.symbol in s.get("instId", ""):
+                        inst_id = s.get("instId", "")
+                        if inst_id.upper().startswith(f"{intel.symbol}-USDT") or inst_id.upper().startswith(f"{intel.symbol}-USD"):
                             status.has_futures = True
-                            status.futures_pairs.append(s["instId"])
+                            status.futures_pairs.append(inst_id)
             
             # 네트워크/입출금 상태
             async with session.get(

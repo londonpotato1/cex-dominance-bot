@@ -169,10 +169,27 @@ def _render_binance_alerts_section() -> None:
     
     # 토크노믹스 개별 값
     total_supply_str = f"{intel.total_supply/1e9:.2f}B" if intel and intel.total_supply else "N/A"
-    circ_pct_str = f"{intel.circulating_percent:.1f}%" if intel and intel.circulating_percent else "N/A"
+    
+    # 유통량: 퍼센트 + 실제 수치
+    if intel and intel.circulating_supply and intel.circulating_percent:
+        circ_supply_str = f"{intel.circulating_supply/1e9:.2f}B" if intel.circulating_supply >= 1e9 else f"{intel.circulating_supply/1e6:.1f}M"
+        circ_pct_str = f"{intel.circulating_percent:.1f}% ({circ_supply_str})"
+    elif intel and intel.circulating_percent:
+        circ_pct_str = f"{intel.circulating_percent:.1f}%"
+    else:
+        circ_pct_str = "N/A"
+    
     price_str = f"${intel.futures_price_usd:.4f}" if intel and intel.futures_price_usd else ("$" + f"{intel.current_price_usd:.4f}" if intel and intel.current_price_usd else "N/A")
     mc_str = f"${intel.market_cap_usd/1e6:.1f}M" if intel and intel.market_cap_usd else "N/A"
     fdv_str = f"${intel.fdv_usd/1e6:.1f}M" if intel and intel.fdv_usd else "N/A"
+    
+    # 공지 시간 (한국시간)
+    notice_time_str = ""
+    if latest and latest.published_at:
+        from datetime import timezone, timedelta
+        kst = timezone(timedelta(hours=9))
+        notice_kst = latest.published_at.astimezone(kst)
+        notice_time_str = notice_kst.strftime("%m/%d %H:%M")
     
     # 거래소 테이블 생성
     exchange_rows_html = ""
@@ -203,6 +220,7 @@ def _render_binance_alerts_section() -> None:
                         {badge_text}
                     </span>
                     <span style="color:#8b949e;font-size:0.85rem;">바이낸스 공지</span>
+                    {f'<span style="color:#58a6ff;font-size:0.8rem;">📅 {notice_time_str}</span>' if notice_time_str else ''}
                 </div>
                 <div style="font-size:1.5rem;font-weight:700;color:#fff;">
                     {symbol if symbol else 'N/A'}
