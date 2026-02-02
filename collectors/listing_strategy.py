@@ -69,6 +69,16 @@ class SimilarCase:
 
 
 @dataclass
+class ExchangeMarket:
+    """거래소별 마켓 정보"""
+    exchange: str
+    has_spot: bool = False
+    has_futures: bool = False
+    spot_pairs: List[str] = field(default_factory=list)
+    futures_pairs: List[str] = field(default_factory=list)
+
+
+@dataclass
 class StrategyRecommendation:
     """전략 추천 결과"""
     symbol: str
@@ -80,6 +90,20 @@ class StrategyRecommendation:
     strategy_detail: str
     risk_level: RiskLevel
     go_score: int  # 0-100
+    
+    # 토크노믹스 (기본 정보)
+    name: Optional[str] = None
+    market_cap_usd: Optional[float] = None
+    fdv_usd: Optional[float] = None
+    current_price_usd: Optional[float] = None
+    circulating_supply: Optional[float] = None
+    total_supply: Optional[float] = None
+    circulating_percent: Optional[float] = None
+    volume_24h_usd: Optional[float] = None
+    platforms: List[str] = field(default_factory=list)  # 지원 체인
+    
+    # 거래소별 마켓 정보
+    exchange_markets: List[ExchangeMarket] = field(default_factory=list)
     
     # 개별 분석 결과
     best_gap: Optional[GapInfo] = None
@@ -150,9 +174,10 @@ class ListingStrategyAnalyzer:
         network_task = self._get_network_info(symbol)
         similar_task = self._get_similar_cases(symbol)
         transfer_task = self._get_transfer_analysis(symbol)
+        intel_task = self._get_listing_intel(symbol)
         
         results = await asyncio.gather(
-            gap_task, loan_task, dex_task, wallet_task, network_task, similar_task, transfer_task,
+            gap_task, loan_task, dex_task, wallet_task, network_task, similar_task, transfer_task, intel_task,
             return_exceptions=True
         )
         
@@ -163,6 +188,7 @@ class ListingStrategyAnalyzer:
         network_info = results[4] if not isinstance(results[4], Exception) else {}
         similar_cases = results[5] if not isinstance(results[5], Exception) else []
         transfer_analysis = results[6] if not isinstance(results[6], Exception) else None
+        listing_intel = results[7] if not isinstance(results[7], Exception) else None
         
         # 전략 결정
         return self._determine_strategy(
@@ -173,7 +199,8 @@ class ListingStrategyAnalyzer:
             hot_wallet=hot_wallet,
             network_info=network_info,
             similar_cases=similar_cases,
-            transfer_analysis=transfer_analysis
+            transfer_analysis=transfer_analysis,
+            listing_intel=listing_intel
         )
     
     async def _get_gap_info(self, symbol: str) -> Dict:
@@ -409,6 +436,21 @@ class ListingStrategyAnalyzer:
             logger.error(f"Transfer analysis 실패: {e}")
             return None
     
+    async def _get_listing_intel(self, symbol: str):
+        """토크노믹스 + 거래소 마켓 정보 수집"""
+        try:
+            from collectors.listing_intel import ListingIntelCollector
+            
+            collector = ListingIntelCollector()
+            try:
+                intel = await collector.collect(symbol)
+                return intel
+            finally:
+                await collector.close()
+        except Exception as e:
+            logger.error(f"Listing intel 조회 실패: {e}")
+            return None
+    
     def _predict_result(self, similar_cases: List[SimilarCase]) -> Optional[str]:
         """유사 케이스 기반 흥/망 예측"""
         if not similar_cases:
@@ -438,7 +480,8 @@ class ListingStrategyAnalyzer:
         hot_wallet: Optional[float],
         network_info: Dict,
         similar_cases: List[SimilarCase] = None,
-        transfer_analysis = None
+        transfer_analysis = None,
+        listing_intel = None
     ) -> StrategyRecommendation:
         """전략 결정 로직
         
@@ -631,6 +674,37 @@ class ListingStrategyAnalyzer:
                 best_transfer_route = f"{transfer_analysis.best_route.from_exchange} → {transfer_analysis.best_route.network}"
             fastest_transfer_time = transfer_analysis.fastest_time
         
+        # === 토크노믹스 정보 (listing_intel) ===
+        name = None
+        market_cap_usd = None
+        fdv_usd = None
+        current_price_usd = None
+        circulating_supply = None
+        total_supply = None
+        circulating_percent = None
+        platforms = []
+        exchange_markets = []
+        
+        if listing_intel:
+            name = listing_intel.name
+            market_cap_usd = listing_intel.market_cap_usd
+            fdv_usd = listing_intel.fdv_usd
+            current_price_usd = listing_intel.current_price_usd or listing_intel.futures_price_usd
+            circulating_supply = listing_intel.circulating_supply
+            total_supply = listing_intel.total_supply
+            circulating_percent = listing_intel.circulating_percent
+            platforms = listing_intel.platforms or []
+            
+            # 거래소별 마켓 정보
+            for ex_name, ex_status in (listing_intel.exchanges or {}).items():
+                exchange_markets.append(ExchangeMarket(
+                    exchange=ex_name,
+                    has_spot=ex_status.has_spot,
+                    has_futures=ex_status.has_futures,
+                    spot_pairs=ex_status.spot_pairs,
+                    futures_pairs=ex_status.futures_pairs
+                ))
+        
         return StrategyRecommendation(
             symbol=symbol,
             timestamp=time.time(),
@@ -639,6 +713,17 @@ class ListingStrategyAnalyzer:
             strategy_detail=strategy_detail,
             risk_level=risk_level,
             go_score=go_score,
+            # 토크노믹스
+            name=name,
+            market_cap_usd=market_cap_usd,
+            fdv_usd=fdv_usd,
+            current_price_usd=current_price_usd,
+            circulating_supply=circulating_supply,
+            total_supply=total_supply,
+            circulating_percent=circulating_percent,
+            platforms=platforms,
+            exchange_markets=exchange_markets,
+            # 갭/론
             best_gap=gap_info,
             all_gaps=all_gaps,
             loan_available=has_loan,

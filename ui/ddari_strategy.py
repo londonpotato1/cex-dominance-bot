@@ -98,11 +98,12 @@ def _render_strategy_result(rec):
         prediction_html = f'<span style="background:{pred_color}22;color:{pred_color};padding:4px 12px;border-radius:12px;font-size:0.8rem;margin-left:0.5rem;">{pred_text}</span>'
     
     # 메인 카드
+    name_display = f' ({rec.name})' if getattr(rec, 'name', None) else ''
     render_html(
         f'''<div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);border:2px solid {score_color}40;border-radius:16px;padding:1.5rem;margin:1rem 0;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
             <div style="display:flex;align-items:center;">
-                <span style="font-size:1.3rem;font-weight:700;color:#fff;">📊 {rec.symbol}</span>
+                <span style="font-size:1.3rem;font-weight:700;color:#fff;">📊 {rec.symbol}{name_display}</span>
                 {prediction_html}
             </div>
             <div style="background:{score_color}22;color:{score_color};padding:8px 16px;border-radius:20px;font-weight:700;font-size:1.1rem;">{score_emoji} {rec.go_score}/100</div>
@@ -113,6 +114,65 @@ def _render_strategy_result(rec):
         </div>
         </div>'''
     )
+    
+    # === 토크노믹스 (기본 정보) ===
+    market_cap = getattr(rec, 'market_cap_usd', None)
+    fdv = getattr(rec, 'fdv_usd', None)
+    price = getattr(rec, 'current_price_usd', None)
+    circ_pct = getattr(rec, 'circulating_percent', None)
+    platforms = getattr(rec, 'platforms', []) or []
+    
+    if market_cap or fdv or price:
+        tokenomics_parts = []
+        
+        if price:
+            tokenomics_parts.append(f'<div style="text-align:center;padding:0.5rem;"><div style="font-size:0.75rem;color:#9ca3af;">현재가</div><div style="font-size:1rem;font-weight:600;color:#fff;">${price:.4f}</div></div>')
+        if market_cap:
+            mc_str = f"${market_cap/1e6:.1f}M" if market_cap >= 1e6 else f"${market_cap/1e3:.0f}K"
+            tokenomics_parts.append(f'<div style="text-align:center;padding:0.5rem;"><div style="font-size:0.75rem;color:#9ca3af;">시총 (MC)</div><div style="font-size:1rem;font-weight:600;color:#60a5fa;">{mc_str}</div></div>')
+        if fdv:
+            fdv_str = f"${fdv/1e6:.1f}M" if fdv >= 1e6 else f"${fdv/1e3:.0f}K"
+            tokenomics_parts.append(f'<div style="text-align:center;padding:0.5rem;"><div style="font-size:0.75rem;color:#9ca3af;">FDV</div><div style="font-size:1rem;font-weight:600;color:#a78bfa;">{fdv_str}</div></div>')
+        if circ_pct:
+            tokenomics_parts.append(f'<div style="text-align:center;padding:0.5rem;"><div style="font-size:0.75rem;color:#9ca3af;">유통량</div><div style="font-size:1rem;font-weight:600;color:#fbbf24;">{circ_pct:.1f}%</div></div>')
+        
+        # 체인 정보
+        if platforms:
+            chain_display = " · ".join([p.upper()[:4] for p in platforms[:4]])
+            tokenomics_parts.append(f'<div style="text-align:center;padding:0.5rem;"><div style="font-size:0.75rem;color:#9ca3af;">체인</div><div style="font-size:0.9rem;font-weight:600;color:#4ade80;">{chain_display}</div></div>')
+        
+        tokenomics_html = "".join(tokenomics_parts)
+        render_html(
+            f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;">
+            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;">📊 토크노믹스</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(80px, 1fr));gap:0.5rem;">
+            {tokenomics_html}
+            </div>
+            </div>'''
+        )
+    
+    # === 거래소별 마켓 정보 ===
+    exchange_markets = getattr(rec, 'exchange_markets', []) or []
+    if exchange_markets:
+        market_rows = []
+        for em in exchange_markets:
+            spot_icon = "🟢" if em.has_spot else "🔴"
+            futures_icon = "🟢" if em.has_futures else "🔴"
+            market_rows.append(
+                f'<div style="display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid #374151;">'
+                f'<span style="color:#d1d5db;font-weight:500;">{em.exchange.upper()}</span>'
+                f'<span>S{spot_icon} F{futures_icon}</span>'
+                f'</div>'
+            )
+        
+        if market_rows:
+            markets_html = "".join(market_rows)
+            render_html(
+                f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;">
+                <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">🏦 거래소 마켓 (S=현물, F=선물)</div>
+                {markets_html}
+                </div>'''
+            )
     
     # === 거래소별 현선갭 (all_gaps) ===
     all_gaps = getattr(rec, 'all_gaps', []) or []
