@@ -201,14 +201,10 @@ class BinanceNotice:
             except:
                 pass
         
-        # 2. 입금 시간 파싱
-        # 패턴1: "start depositing ... one hour later" → 상장 1시간 전
-        if "one hour later" in content.lower() and self.listing_time:
-            self.deposit_time = self.listing_time - timedelta(hours=1)
-        
-        # 패턴2: "Deposits ... will be available at YYYY-MM-DD HH:MM (UTC)"
+        # 2. 입금 시간 파싱 (명시적 날짜가 있는 경우만)
+        # "Deposits will open at YYYY-MM-DD HH:MM (UTC)" 또는 "Deposit available at ..."
         deposit_match = re.search(
-            r'[Dd]eposit[s]?[^0-9]*(?:available|open)[^0-9]*(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*\(?UTC\)?',
+            r'[Dd]eposit[s]?\s+(?:will\s+)?(?:open|be\s+available)\s+(?:at\s+)?(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*\(?UTC\)?',
             content
         )
         if deposit_match:
@@ -222,6 +218,9 @@ class BinanceNotice:
                 self.deposit_time = deposit_dt.astimezone(kst).replace(tzinfo=None)
             except:
                 pass
+        
+        # "start depositing" + "in preparation" → 상장 전 입금 가능 (정확한 시간 없음)
+        # 이 경우 상장 시간 표시만 하고 입금 시간은 별도 표시 안함
         
         # 3. 출금 시간 파싱: "Withdrawals will open at YYYY-MM-DD HH:MM (UTC)"
         withdraw_match = re.search(
@@ -357,11 +356,17 @@ class BinanceNoticeFetcher:
         """공지 본문 가져오기 + 시간 파싱."""
         session = await self._get_session()
         
-        # 바이낸스 공지 상세 API
-        detail_url = f"https://www.binance.com/bapi/composite/v1/public/cms/article/detail/query?type=1&articleCode={notice.code}"
+        # 바이낸스 공지 상세 API (정확한 엔드포인트)
+        detail_url = f"https://www.binance.com/bapi/composite/v1/public/cms/article/detail/query?articleCode={notice.code}"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json',
+            'lang': 'en',
+        }
         
         try:
-            async with session.get(detail_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            async with session.get(detail_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 if resp.status != 200:
                     logger.warning("[Binance] 공지 상세 조회 실패: %d", resp.status)
                     return ""
@@ -370,11 +375,33 @@ class BinanceNoticeFetcher:
                 if not data.get("success"):
                     return ""
                 
-                article = data.get("data", {}).get("article", {})
-                content = article.get("content", "")
+                # body 키에 본문 있음 (JSON 또는 HTML)
+                article = data.get("data", {})
+                content = article.get("body", "")
                 
-                # HTML 태그 제거
-                import re
+                # JSON 형식인 경우 텍스트 추출
+                if content.startswith('{'):
+                    import json
+                    try:
+                        def extract_text_from_json(obj):
+                            """JSON 구조에서 텍스트 추출"""
+                            texts = []
+                            if isinstance(obj, dict):
+                                if obj.get('node') == 'text':
+                                    texts.append(obj.get('text', ''))
+                                for v in obj.values():
+                                    texts.extend(extract_text_from_json(v))
+                            elif isinstance(obj, list):
+                                for item in obj:
+                                    texts.extend(extract_text_from_json(item))
+                            return texts
+                        
+                        json_data = json.loads(content)
+                        content = ' '.join(extract_text_from_json(json_data))
+                    except:
+                        pass
+                
+                # HTML 태그 제거 (fallback)
                 content = re.sub(r'<[^>]+>', ' ', content)
                 content = re.sub(r'\s+', ' ', content).strip()
                 
