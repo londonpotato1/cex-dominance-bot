@@ -350,29 +350,47 @@ class ListingStrategyAnalyzer:
             return None
     
     async def _get_exchange_hot_wallets(self, exchanges: List[str]) -> Dict[str, Dict]:
-        """거래소별 핫월렛 잔고 조회
+        """거래소별 핫월렛 잔고 조회 (병렬 + 타임아웃)
         
         Returns:
             {"binance": {"total_usd": 1000000, "wallet_count": 5}, ...}
         """
         result = {}
+        
+        # 핫월렛 조회는 시간이 오래 걸리므로 타임아웃 설정
+        TIMEOUT = 5.0  # 5초 타임아웃
+        
+        async def fetch_one(tracker, exchange: str) -> tuple:
+            ex_lower = exchange.lower()
+            try:
+                wallet_result = await asyncio.wait_for(
+                    tracker.get_exchange_balance(ex_lower),
+                    timeout=TIMEOUT
+                )
+                if wallet_result and wallet_result.total_balance_usd > 0:
+                    return ex_lower, {
+                        "total_usd": wallet_result.total_balance_usd,
+                        "wallet_count": len(wallet_result.balances),
+                        "chains": wallet_result.chains_checked,
+                    }
+            except asyncio.TimeoutError:
+                logger.debug(f"{exchange} 핫월렛 조회 타임아웃")
+            except Exception as e:
+                logger.debug(f"{exchange} 핫월렛 조회 실패: {e}")
+            return ex_lower, None
+        
         try:
             from collectors.hot_wallet_tracker import HotWalletTracker
             
             tracker = HotWalletTracker()
             try:
-                for exchange in exchanges:
-                    ex_lower = exchange.lower()
-                    try:
-                        wallet_result = await tracker.get_exchange_balance(ex_lower)
-                        if wallet_result:
-                            result[ex_lower] = {
-                                "total_usd": wallet_result.total_balance_usd,
-                                "wallet_count": len(wallet_result.balances),
-                                "chains": wallet_result.chains_checked,
-                            }
-                    except Exception as e:
-                        logger.debug(f"{exchange} 핫월렛 조회 실패: {e}")
+                # 병렬 조회
+                tasks = [fetch_one(tracker, ex) for ex in exchanges]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                for item in results:
+                    if isinstance(item, tuple) and item[1]:
+                        result[item[0]] = item[1]
             finally:
                 await tracker.close()
                 
