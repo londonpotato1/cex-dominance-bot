@@ -86,44 +86,298 @@ class CoinDepositInfo:
         return "NO_GO"
 
 
-async def get_binance_deposit_status(symbol: str) -> Optional[CoinDepositInfo]:
-    """바이낸스 입출금 상태 조회.
+async def get_bithumb_deposit_status(symbol: str) -> Optional[CoinDepositInfo]:
+    """빗썸 입출금 상태 조회.
     
-    Note: Public API - 인증 불필요
+    Public API - 인증 불필요!
+    https://api.bithumb.com/public/assetsstatus/{currency}
     """
     try:
         async with aiohttp.ClientSession() as session:
-            # 모든 코인 정보 조회 (캐시 권장)
-            url = "https://api.binance.com/sapi/v1/capital/config/getall"
-            
-            # Public endpoint로 변경 - 인증 없이 조회 가능한 endpoint 사용
-            # 실제로는 /sapi/v1/capital/config/getall은 인증 필요
-            # 대신 exchange info 사용
-            url = f"https://api.binance.com/api/v3/exchangeInfo"
+            url = f"https://api.bithumb.com/public/assetsstatus/{symbol.upper()}"
             
             async with session.get(url, timeout=15) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    # exchangeInfo에서는 입출금 상태 확인 불가
-                    # 인증 없이는 제한적
-                    return None
+                    
+                    if data.get("status") != "0000":
+                        return None
+                    
+                    coin_data = data.get("data", {})
+                    
+                    # 빗썸은 네트워크 구분 없이 단일 상태만 제공
+                    deposit_enabled = coin_data.get("deposit_status") == 1
+                    withdraw_enabled = coin_data.get("withdrawal_status") == 1
+                    
+                    networks = [NetworkStatus(
+                        network="default",
+                        chain="default",
+                        deposit_enabled=deposit_enabled,
+                        withdraw_enabled=withdraw_enabled,
+                        min_confirm=0,
+                        withdraw_fee=0,
+                        withdraw_min=0,
+                    )]
+                    
+                    return CoinDepositInfo(
+                        exchange="bithumb",
+                        symbol=symbol.upper(),
+                        name=symbol.upper(),
+                        networks=networks,
+                        timestamp=datetime.now(),
+                    )
                     
     except Exception as e:
-        logger.warning(f"Binance API 오류: {e}")
+        logger.warning(f"Bithumb API error: {e}")
     return None
 
 
-async def get_bybit_deposit_status(symbol: str) -> Optional[CoinDepositInfo]:
-    """바이비트 입출금 상태 조회.
+async def get_bithumb_all_status() -> dict[str, dict]:
+    """빗썸 전체 코인 입출금 상태 조회 (캐시용).
     
-    Public API로 조회 가능!
+    Returns:
+        {symbol: {"deposit": bool, "withdraw": bool}}
     """
     try:
         async with aiohttp.ClientSession() as session:
-            url = "https://api.bybit.com/v5/asset/coin/query-info"
-            params = {"coin": symbol.upper()}
+            url = "https://api.bithumb.com/public/assetsstatus/ALL"
             
-            async with session.get(url, params=params, timeout=15) as resp:
+            async with session.get(url, timeout=15) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    
+                    if data.get("status") != "0000":
+                        return {}
+                    
+                    result = {}
+                    for symbol, status in data.get("data", {}).items():
+                        result[symbol.upper()] = {
+                            "deposit": status.get("deposit_status") == 1,
+                            "withdraw": status.get("withdrawal_status") == 1,
+                        }
+                    
+                    return result
+                    
+    except Exception as e:
+        logger.warning(f"Bithumb ALL API error: {e}")
+    return {}
+
+
+async def get_upbit_deposit_status(
+    symbol: str,
+    access_key: str = "",
+    secret_key: str = "",
+) -> Optional[CoinDepositInfo]:
+    """업비트 입출금 상태 조회.
+    
+    Note: 인증 필요! (access_key, secret_key)
+    API 키가 없으면 None 반환.
+    """
+    if not access_key or not secret_key:
+        logger.debug("Upbit API requires authentication")
+        return None
+    
+    try:
+        import jwt
+        import uuid
+        import hashlib
+        
+        payload = {
+            'access_key': access_key,
+            'nonce': str(uuid.uuid4()),
+        }
+        jwt_token = jwt.encode(payload, secret_key)
+        headers = {"Authorization": f"Bearer {jwt_token}"}
+        
+        async with aiohttp.ClientSession() as session:
+            url = "https://api.upbit.com/v1/status/wallet"
+            
+            async with session.get(url, headers=headers, timeout=15) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    
+                    # symbol에 해당하는 코인 찾기
+                    for coin in data:
+                        if coin.get("currency", "").upper() == symbol.upper():
+                            wallet_state = coin.get("wallet_state", "")
+                            
+                            # wallet_state: working, withdraw_only, deposit_only, paused
+                            deposit_enabled = wallet_state in ("working", "deposit_only")
+                            withdraw_enabled = wallet_state in ("working", "withdraw_only")
+                            
+                            # 네트워크별 상태
+                            net_type = coin.get("net_type", "default")
+                            
+                            networks = [NetworkStatus(
+                                network=net_type,
+                                chain=net_type,
+                                deposit_enabled=deposit_enabled,
+                                withdraw_enabled=withdraw_enabled,
+                                min_confirm=0,
+                                withdraw_fee=0,
+                                withdraw_min=0,
+                            )]
+                            
+                            return CoinDepositInfo(
+                                exchange="upbit",
+                                symbol=symbol.upper(),
+                                name=coin.get("currency", symbol),
+                                networks=networks,
+                                timestamp=datetime.now(),
+                            )
+                    
+    except ImportError:
+        logger.warning("PyJWT not installed for Upbit auth")
+    except Exception as e:
+        logger.warning(f"Upbit API error: {e}")
+    return None
+
+
+async def get_binance_deposit_status(symbol: str) -> Optional[CoinDepositInfo]:
+    """바이낸스 입출금 상태 조회.
+    
+    Public API - 인증 불필요!
+    https://www.binance.com/bapi/capital/v1/public/capital/getNetworkCoinAll
+    """
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = "https://www.binance.com/bapi/capital/v1/public/capital/getNetworkCoinAll"
+            
+            async with session.get(url, timeout=20) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    
+                    if data.get("code") != "000000":
+                        return None
+                    
+                    # symbol에 해당하는 코인 찾기
+                    for coin in data.get("data", []):
+                        if coin.get("coin", "").upper() == symbol.upper():
+                            network_list = coin.get("networkList", [])
+                            
+                            networks = []
+                            for net in network_list:
+                                networks.append(NetworkStatus(
+                                    network=net.get("network", ""),
+                                    chain=net.get("networkDisplay", net.get("network", "")),
+                                    deposit_enabled=net.get("depositEnable", False),
+                                    withdraw_enabled=net.get("withdrawEnable", False),
+                                    min_confirm=int(net.get("minConfirm", 0) or 0),
+                                    withdraw_fee=float(net.get("withdrawFee", 0) or 0),
+                                    withdraw_min=float(net.get("withdrawMin", 0) or 0),
+                                ))
+                            
+                            return CoinDepositInfo(
+                                exchange="binance",
+                                symbol=symbol.upper(),
+                                name=coin.get("name", symbol),
+                                networks=networks,
+                                timestamp=datetime.now(),
+                            )
+                    
+    except Exception as e:
+        logger.warning(f"Binance API error: {e}")
+    return None
+
+
+# 바이낸스 전체 코인 캐시 (5분 TTL)
+_binance_cache: dict = {}
+_binance_cache_time: float = 0
+
+
+async def get_binance_all_status() -> dict[str, dict]:
+    """바이낸스 전체 코인 입출금 상태 조회 (캐시용).
+    
+    Returns:
+        {symbol: {"deposit": bool, "withdraw": bool, "networks": [...]}}
+    """
+    global _binance_cache, _binance_cache_time
+    import time
+    
+    now = time.time()
+    if now - _binance_cache_time < 300 and _binance_cache:  # 5분 캐시
+        return _binance_cache
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = "https://www.binance.com/bapi/capital/v1/public/capital/getNetworkCoinAll"
+            
+            async with session.get(url, timeout=30) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    
+                    if data.get("code") != "000000":
+                        return _binance_cache
+                    
+                    result = {}
+                    for coin in data.get("data", []):
+                        symbol = coin.get("coin", "").upper()
+                        if not symbol:
+                            continue
+                        
+                        networks = []
+                        for net in coin.get("networkList", []):
+                            networks.append({
+                                "network": net.get("network"),
+                                "deposit": net.get("depositEnable", False),
+                                "withdraw": net.get("withdrawEnable", False),
+                            })
+                        
+                        result[symbol] = {
+                            "deposit": coin.get("depositAllEnable", False),
+                            "withdraw": coin.get("withdrawAllEnable", False),
+                            "networks": networks,
+                        }
+                    
+                    _binance_cache = result
+                    _binance_cache_time = now
+                    return result
+                    
+    except Exception as e:
+        logger.warning(f"Binance ALL API error: {e}")
+    
+    return _binance_cache
+
+
+async def get_bybit_deposit_status(
+    symbol: str,
+    api_key: str = "",
+    api_secret: str = "",
+) -> Optional[CoinDepositInfo]:
+    """바이비트 입출금 상태 조회.
+    
+    Note: API 키 필요! 키 없으면 None 반환.
+    환경변수: BYBIT_API_KEY, BYBIT_API_SECRET
+    """
+    import os
+    api_key = api_key or os.environ.get("BYBIT_API_KEY", "")
+    
+    if not api_key:
+        logger.debug("Bybit API requires authentication")
+        return None
+    
+    try:
+        import time
+        import hmac
+        import hashlib
+        
+        api_secret = api_secret or os.environ.get("BYBIT_API_SECRET", "")
+        timestamp = str(int(time.time() * 1000))
+        params = {"coin": symbol.upper()}
+        param_str = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
+        sign_str = f"{timestamp}{api_key}{param_str}"
+        signature = hmac.new(api_secret.encode(), sign_str.encode(), hashlib.sha256).hexdigest()
+        
+        headers = {
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-SIGN": signature,
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            url = "https://api.bybit.com/v5/asset/coin/query-info"
+            
+            async with session.get(url, params=params, headers=headers, timeout=15) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     
@@ -315,16 +569,24 @@ async def check_all_exchanges(
     """
     # Public API 거래소 (인증 불필요)
     tasks = [
+        # 국내
+        ("bithumb", get_bithumb_deposit_status(symbol)),
+        # 해외 - 주요 5개
+        ("binance", get_binance_deposit_status(symbol)),
+        ("bybit", get_bybit_deposit_status(symbol)),
+        ("okx", get_okx_deposit_status(symbol)),
         ("gate", get_gate_deposit_status(symbol)),
         ("bitget", get_bitget_deposit_status(symbol)),
     ]
     
-    # 인증 필요 거래소는 선택적
-    if include_auth_required:
-        tasks.extend([
-            ("bybit", get_bybit_deposit_status(symbol)),
-            ("okx", get_okx_deposit_status(symbol)),
-        ])
+    # 인증 필요 거래소는 선택적 (현재 없음 - 모두 Public API 사용 가능)
+    
+    # 업비트는 환경변수에서 키 조회
+    import os
+    upbit_access = os.environ.get("UPBIT_ACCESS_KEY", "")
+    upbit_secret = os.environ.get("UPBIT_SECRET_KEY", "")
+    if upbit_access and upbit_secret:
+        tasks.append(("upbit", get_upbit_deposit_status(symbol, upbit_access, upbit_secret)))
     
     results = {}
     for exchange, task in tasks:

@@ -1,14 +1,19 @@
 """김치 프리미엄 계산 (Phase 3).
 
-5단계 FX 폴백 체인:
-  1. BTC Implied FX (BTC_Upbit_KRW / BTC_Binance_USDT)
-  2. ETH Implied FX
-  3. USDT/KRW 직접 환율 (Upbit)
-  4. 캐시된 FX값 (5분 이내)
-  5. 하드코딩 기본값 (1350.0) + CRITICAL
+FX 환율 폴백 체인:
+  1. 네이버 금융 실시간 환율 (가장 정확)
+  2. Exchange Rate API (무료 API)
+  3. USDT/KRW 직접 환율 (Upbit) - 테더 프리미엄 포함
+  4. BTC Implied FX (BTC_Upbit_KRW / BTC_Binance_USDT) - 폴백용
+  5. 캐시된 FX값 (5분 이내)
+  6. 하드코딩 기본값 (1350.0) + CRITICAL
 
 글로벌 VWAP: Binance + OKX + Bybit REST ticker → 거래량 가중 평균.
 모든 가격은 REST API on-demand 호출 (DB 미사용).
+
+추가 데이터:
+  - upbit_usdt_krw: 업비트 USDT 가격 (테더 프리미엄 계산용)
+  - bithumb_usdt_krw: 빗썸 USDT 가격 (테더 프리미엄 계산용)
 """
 
 from __future__ import annotations
@@ -19,6 +24,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
+
+import re
 
 import aiohttp
 import yaml
@@ -61,10 +68,11 @@ _FX_CACHE_TTL = 300.0  # 런타임에 _get_fx_cache_ttl() 사용
 # HTTP 타임아웃
 _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=10)
 
-# FX 스냅샷 INSERT SQL
+# FX 스냅샷 INSERT SQL (확장된 컬럼)
 _FX_SNAPSHOT_SQL = (
-    "INSERT INTO fx_snapshots (timestamp, fx_rate, source, btc_krw, btc_usd) "
-    "VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO fx_snapshots (timestamp, fx_rate, source, btc_krw, btc_usd, "
+    "upbit_usdt_krw, bithumb_usdt_krw, real_fx_rate) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 
@@ -74,8 +82,9 @@ class PremiumResult:
     premium_pct: float          # 프리미엄 퍼센트 (e.g., 5.2 = 5.2%)
     krw_price: float            # 국내 원화 가격
     global_usd_price: float     # 글로벌 USD 가격
-    fx_rate: float              # 사용된 FX 환율
-    fx_source: str              # FX 소스 ('btc_implied', 'eth_implied', ...)
+    fx_rate: float              # 사용된 FX 환율 (실제 환율)
+    fx_source: str              # FX 소스 ('naver', 'exchangerate', ...)
+    usdt_premium_pct: float = 0.0  # 테더 프리미엄 (%) - 갭매매 실수익 계산용
 
 
 @dataclass
@@ -113,10 +122,10 @@ class PremiumCalculator:
             logger.warning("exchanges.yaml 미발견, 기본값 사용")
             self._exchange_config = {}
 
-    async def get_implied_fx(
+    async def get_real_fx(
         self, session: aiohttp.ClientSession | None = None,
     ) -> tuple[float, str]:
-        """내재 FX 환율 조회 (5단계 폴백).
+        """실제 FX 환율 조회 (6단계 폴백) - 김프 계산에 사용.
 
         Returns:
             (fx_rate, source) 튜플.
@@ -126,22 +135,27 @@ class PremiumCalculator:
             session = aiohttp.ClientSession(timeout=_HTTP_TIMEOUT)
 
         try:
-            # 1단계: BTC Implied FX
-            fx = await self._try_btc_implied(session)
+            # 1단계: 네이버 금융 실시간 환율 (가장 정확)
+            fx = await self._try_naver_fx(session)
             if fx:
                 return fx
 
-            # 2단계: ETH Implied FX
-            fx = await self._try_eth_implied(session)
+            # 2단계: Exchange Rate API (무료)
+            fx = await self._try_exchangerate_api(session)
             if fx:
                 return fx
 
-            # 3단계: USDT/KRW 직접
+            # 3단계: USDT/KRW 직접 (테더 프리미엄 포함되지만 차선책)
             fx = await self._try_usdt_krw(session)
             if fx:
                 return fx
 
-            # 4단계: 캐시된 FX값 (TTL 이내) — 원본 소스 유지
+            # 4단계: BTC Implied FX (폴백용)
+            fx = await self._try_btc_implied(session)
+            if fx:
+                return fx
+
+            # 5단계: 캐시된 FX값 (TTL 이내) — 원본 소스 유지
             if self._fx_cache:
                 rate, source, ts = self._fx_cache
                 age = time.time() - ts
@@ -150,13 +164,44 @@ class PremiumCalculator:
                     logger.info("FX 캐시 사용: %.2f (%s, age=%.0fs)", rate, source, age)
                     return rate, source
 
-            # 5단계: config 폴백 기본값
+            # 6단계: config 폴백 기본값
             fallback_fx = _get_fallback_fx()
             logger.critical(
                 "FX 모든 폴백 실패! config 기본값 사용: %.2f", fallback_fx,
             )
             return fallback_fx, "hardcoded_fallback"
 
+        finally:
+            if own_session and session:
+                await session.close()
+
+    # 기존 메서드 별칭 (하위 호환성)
+    async def get_implied_fx(
+        self, session: aiohttp.ClientSession | None = None,
+    ) -> tuple[float, str]:
+        """내재 FX 환율 조회 (하위 호환성용, get_real_fx로 대체됨)."""
+        return await self.get_real_fx(session)
+
+    async def get_usdt_prices(
+        self, session: aiohttp.ClientSession | None = None,
+    ) -> dict[str, float]:
+        """업비트/빗썸 USDT 가격 조회 (테더 프리미엄 계산용).
+
+        Returns:
+            {'upbit': float, 'bithumb': float} 딕셔너리.
+        """
+        own_session = session is None
+        if own_session:
+            session = aiohttp.ClientSession(timeout=_HTTP_TIMEOUT)
+
+        try:
+            upbit_usdt = await _fetch_upbit_price("KRW-USDT", session)
+            bithumb_usdt = await _fetch_bithumb_price("USDT_KRW", session)
+
+            return {
+                'upbit': upbit_usdt or 0.0,
+                'bithumb': bithumb_usdt or 0.0,
+            }
         finally:
             if own_session and session:
                 await session.close()
@@ -252,21 +297,79 @@ class PremiumCalculator:
     async def save_fx_snapshot(
         self, fx_rate: float, source: str,
         btc_krw: float | None = None, btc_usd: float | None = None,
+        upbit_usdt_krw: float | None = None, bithumb_usdt_krw: float | None = None,
+        real_fx_rate: float | None = None,
     ) -> None:
-        """FX 스냅샷 DB 저장 (Writer Queue 경유)."""
+        """FX 스냅샷 DB 저장 (Writer Queue 경유).
+        
+        Args:
+            fx_rate: 사용된 환율 (분석용)
+            source: 환율 소스
+            btc_krw: 업비트 BTC 가격
+            btc_usd: 바이낸스 BTC 가격
+            upbit_usdt_krw: 업비트 USDT 가격
+            bithumb_usdt_krw: 빗썸 USDT 가격
+            real_fx_rate: 실제 환율 (네이버 등)
+        """
         await self._writer.enqueue(
             _FX_SNAPSHOT_SQL,
-            (time.time(), fx_rate, source, btc_krw, btc_usd),
+            (time.time(), fx_rate, source, btc_krw, btc_usd,
+             upbit_usdt_krw, bithumb_usdt_krw, real_fx_rate),
         )
 
     # ------------------------------------------------------------------
     # FX 폴백 단계별 구현
     # ------------------------------------------------------------------
 
+    async def _try_naver_fx(
+        self, session: aiohttp.ClientSession,
+    ) -> tuple[float, str] | None:
+        """1단계: 네이버 금융 실시간 환율 (가장 정확)."""
+        try:
+            fx = await _fetch_naver_fx(session)
+            if fx and fx > 0:
+                self._fx_cache = (fx, "naver", time.time())
+                # USDT 가격도 함께 조회해서 저장
+                usdt_prices = await self.get_usdt_prices(session)
+                btc_krw = await _fetch_upbit_price("KRW-BTC", session)
+                btc_usd = await _fetch_binance_price("BTCUSDT", session)
+                await self.save_fx_snapshot(
+                    fx, "naver", btc_krw, btc_usd,
+                    usdt_prices.get('upbit'), usdt_prices.get('bithumb'),
+                    fx,  # real_fx_rate
+                )
+                logger.info("네이버 환율: %.2f", fx)
+                return fx, "naver"
+        except Exception as e:
+            logger.debug("네이버 환율 조회 실패: %s", e)
+        return None
+
+    async def _try_exchangerate_api(
+        self, session: aiohttp.ClientSession,
+    ) -> tuple[float, str] | None:
+        """2단계: Exchange Rate API (무료)."""
+        try:
+            fx = await _fetch_exchangerate_api(session)
+            if fx and fx > 0:
+                self._fx_cache = (fx, "exchangerate_api", time.time())
+                usdt_prices = await self.get_usdt_prices(session)
+                btc_krw = await _fetch_upbit_price("KRW-BTC", session)
+                btc_usd = await _fetch_binance_price("BTCUSDT", session)
+                await self.save_fx_snapshot(
+                    fx, "exchangerate_api", btc_krw, btc_usd,
+                    usdt_prices.get('upbit'), usdt_prices.get('bithumb'),
+                    fx,
+                )
+                logger.info("ExchangeRate API 환율: %.2f", fx)
+                return fx, "exchangerate_api"
+        except Exception as e:
+            logger.debug("ExchangeRate API 조회 실패: %s", e)
+        return None
+
     async def _try_btc_implied(
         self, session: aiohttp.ClientSession,
     ) -> tuple[float, str] | None:
-        """1단계: BTC Implied FX = BTC_KRW(Upbit) / BTC_USD(Binance)."""
+        """4단계: BTC Implied FX = BTC_KRW(Upbit) / BTC_USD(Binance) (폴백용)."""
         try:
             btc_krw = await _fetch_upbit_price("KRW-BTC", session)
             btc_usd = await _fetch_binance_price("BTCUSDT", session)
@@ -274,40 +377,34 @@ class PremiumCalculator:
             if btc_krw and btc_usd and btc_usd > 0:
                 fx = btc_krw / btc_usd
                 self._fx_cache = (fx, "btc_implied", time.time())
-                await self.save_fx_snapshot(fx, "btc_implied", btc_krw, btc_usd)
+                usdt_prices = await self.get_usdt_prices(session)
+                await self.save_fx_snapshot(
+                    fx, "btc_implied", btc_krw, btc_usd,
+                    usdt_prices.get('upbit'), usdt_prices.get('bithumb'),
+                    None,  # real_fx_rate 없음 (implied이므로)
+                )
                 logger.debug("BTC Implied FX: %.2f (BTC_KRW=%.0f, BTC_USD=%.2f)", fx, btc_krw, btc_usd)
                 return fx, "btc_implied"
         except Exception as e:
             logger.debug("BTC Implied FX 실패: %s", e)
         return None
 
-    async def _try_eth_implied(
-        self, session: aiohttp.ClientSession,
-    ) -> tuple[float, str] | None:
-        """2단계: ETH Implied FX = ETH_KRW(Upbit) / ETH_USD(Binance)."""
-        try:
-            eth_krw = await _fetch_upbit_price("KRW-ETH", session)
-            eth_usd = await _fetch_binance_price("ETHUSDT", session)
-
-            if eth_krw and eth_usd and eth_usd > 0:
-                fx = eth_krw / eth_usd
-                self._fx_cache = (fx, "eth_implied", time.time())
-                await self.save_fx_snapshot(fx, "eth_implied")
-                logger.debug("ETH Implied FX: %.2f", fx)
-                return fx, "eth_implied"
-        except Exception as e:
-            logger.debug("ETH Implied FX 실패: %s", e)
-        return None
-
     async def _try_usdt_krw(
         self, session: aiohttp.ClientSession,
     ) -> tuple[float, str] | None:
-        """3단계: USDT/KRW 직접 환율 (Upbit)."""
+        """3단계: USDT/KRW 직접 환율 (Upbit) - 테더 프리미엄 포함."""
         try:
             usdt_krw = await _fetch_upbit_price("KRW-USDT", session)
             if usdt_krw and usdt_krw > 0:
                 self._fx_cache = (usdt_krw, "usdt_krw_direct", time.time())
-                await self.save_fx_snapshot(usdt_krw, "usdt_krw_direct")
+                bithumb_usdt = await _fetch_bithumb_price("USDT_KRW", session)
+                btc_krw = await _fetch_upbit_price("KRW-BTC", session)
+                btc_usd = await _fetch_binance_price("BTCUSDT", session)
+                await self.save_fx_snapshot(
+                    usdt_krw, "usdt_krw_direct", btc_krw, btc_usd,
+                    usdt_krw, bithumb_usdt,
+                    None,
+                )
                 logger.debug("USDT/KRW 직접: %.2f", usdt_krw)
                 return usdt_krw, "usdt_krw_direct"
         except Exception as e:
@@ -318,6 +415,100 @@ class PremiumCalculator:
 # ------------------------------------------------------------------
 # REST API 헬퍼 함수 (모듈 레벨)
 # ------------------------------------------------------------------
+
+async def _fetch_naver_fx(session: aiohttp.ClientSession) -> float | None:
+    """네이버 금융에서 USD/KRW 환율 조회.
+
+    Returns:
+        USD/KRW 환율 또는 None.
+    """
+    url = "https://finance.naver.com/marketindex/exchangeDetail.naver"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+    try:
+        async with session.get(url, params={"marketindexCd": "FX_USDKRW"}, headers=headers) as resp:
+            if resp.status != 200:
+                return None
+            text = await resp.text()
+            
+            # 네이버 환율은 개별 span으로 숫자가 분리되어 있음:
+            # <span class="no1">1</span><span class="shim">,</span><span class="no4">4</span>...
+            # p.no_today 영역에서 숫자 추출
+            no_today_match = re.search(r'<p class="no_today">(.*?)</p>', text, re.DOTALL)
+            if no_today_match:
+                no_today = no_today_match.group(1)
+                # class="noX" 패턴에서 숫자만 추출 (0-9)
+                digits = re.findall(r'<span class="no(\d)">\d</span>', no_today)
+                # shim(,)과 jum(.) 위치 파악
+                shim_pos = no_today.find('class="shim"')
+                jum_pos = no_today.find('class="jum"')
+                
+                # 전체 숫자 문자열 조합
+                all_spans = re.findall(r'<span class="(no\d|shim|jum)"[^>]*>([^<]*)</span>', no_today)
+                rate_str = ""
+                for cls, val in all_spans:
+                    if cls.startswith("no"):
+                        rate_str += cls[-1]  # noX에서 X 추출
+                    elif cls == "shim":
+                        pass  # 쉼표 무시
+                    elif cls == "jum":
+                        rate_str += "."
+                
+                if rate_str:
+                    return float(rate_str)
+    except Exception as e:
+        logger.debug("네이버 환율 조회 실패: %s", e)
+    return None
+
+
+async def _fetch_exchangerate_api(session: aiohttp.ClientSession) -> float | None:
+    """Exchange Rate API에서 USD/KRW 환율 조회 (무료).
+
+    Returns:
+        USD/KRW 환율 또는 None.
+    """
+    url = "https://open.er-api.com/v6/latest/USD"
+    try:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                return None
+            data = await resp.json()
+            if data.get("result") == "success":
+                rates = data.get("rates", {})
+                return float(rates.get("KRW", 0))
+    except Exception as e:
+        logger.debug("ExchangeRate API 조회 실패: %s", e)
+    return None
+
+
+async def _fetch_bithumb_price(
+    market: str, session: aiohttp.ClientSession
+) -> float | None:
+    """빗썸 REST API로 현재가 조회.
+
+    Args:
+        market: 마켓 코드 (e.g., "BTC_KRW", "USDT_KRW").
+        session: aiohttp 세션.
+
+    Returns:
+        현재 거래가 또는 None.
+    """
+    # 마켓 코드에서 심볼 추출 (BTC_KRW -> BTC)
+    symbol = market.split("_")[0]
+    url = f"https://api.bithumb.com/public/ticker/{symbol}_KRW"
+    try:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                return None
+            data = await resp.json()
+            if data.get("status") == "0000":
+                ticker = data.get("data", {})
+                return float(ticker.get("closing_price", 0))
+    except Exception as e:
+        logger.debug("빗썸 가격 조회 실패 (%s): %s", market, e)
+    return None
+
 
 async def _fetch_upbit_price(
     market: str, session: aiohttp.ClientSession

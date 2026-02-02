@@ -1,8 +1,8 @@
 {
   "overall": {
-    "accuracy": 73.1,
+    "accuracy": 74.6,
     "count": 67,
-    "correct": 49
+    "correct": 50
   },
   "categories": {
     "heung_big": {
@@ -18,9 +18,9 @@
       "label": "흥따리"
     },
     "neutral": {
-      "accuracy": 46.2,
+      "accuracy": 53.8,
       "count": 13,
-      "correct": 6,
+      "correct": 7,
       "label": "보통"
     },
     "mang": {
@@ -33,9 +33,17 @@
   "improvements": [
     "Turnover Factor 추가 (+9.0%p)",
     "turnover_ratio 필드 활용 (+4.5%p)",
-    "Threshold 조정 (+4.4%p)"
+    "Threshold 조정 (+4.4%p)",
+    "김피카 복기 데이터 16건 추가 (+1.5%p, neutral +7.6%p)"
   ],
-  "data_source": "data/labeling/listing_data.csv",
-  "updated_at": "2026-01-30",
-  "version": "1.0.0"
+  "learning_cases": {
+    "total": 16,
+    "source": "telegram:김피카썬더볼트",
+    "heung_big": 8,
+    "mang": 6,
+    "neutral": 2
+  },
+  "data_source": "data/labeling/listing_data.csv + learning_cases",
+  "updated_at": "2026-02-02",
+  "version": "1.1.0"
 }

@@ -69,7 +69,7 @@ def _run_strategy_analysis(symbol: str) -> Optional[dict]:
 
 
 def _render_strategy_result(rec):
-    """전략 분석 결과 렌더링 (업그레이드: 거래소별 갭, 론 상세, 흥/망 예측)"""
+    """전략 분석 결과 렌더링 (업그레이드: 기본 데이터 → 전략 순서)"""
     import streamlit as st
     
     # GO Score 색상
@@ -97,59 +97,93 @@ def _render_strategy_result(rec):
             pred_text = "😐 보통"
         prediction_html = f'<span style="background:{pred_color}22;color:{pred_color};padding:4px 12px;border-radius:12px;font-size:0.8rem;margin-left:0.5rem;">{pred_text}</span>'
     
-    # 메인 카드
+    # === 1. 기본 데이터 (가장 위에 크게) ===
     name_display = f' ({rec.name})' if getattr(rec, 'name', None) else ''
+    price = getattr(rec, 'current_price_usd', None)
+    price_change = getattr(rec, 'price_change_24h_pct', None)
+    market_cap = getattr(rec, 'market_cap_usd', None)
+    fdv = getattr(rec, 'fdv_usd', None)
+    volume_24h = getattr(rec, 'volume_24h_usd', None)
+    circ_pct = getattr(rec, 'circulating_percent', None)
+    platforms = getattr(rec, 'platforms', []) or []
+    
+    # 가격 + 등락률
+    price_str = f"${price:.6f}" if price and price < 0.01 else f"${price:.4f}" if price and price < 1 else f"${price:.2f}" if price else "N/A"
+    if price_change:
+        change_color = "#4ade80" if price_change >= 0 else "#f87171"
+        change_str = f'<span style="color:{change_color};font-size:0.9rem;margin-left:0.5rem;">{price_change:+.2f}%</span>'
+    else:
+        change_str = ""
+    
+    # 시총/FDV/거래량 포맷
+    def format_usd(val):
+        if not val:
+            return "N/A"
+        if val >= 1e9:
+            return f"${val/1e9:.2f}B"
+        elif val >= 1e6:
+            return f"${val/1e6:.2f}M"
+        elif val >= 1e3:
+            return f"${val/1e3:.0f}K"
+        else:
+            return f"${val:.2f}"
+    
+    mc_str = format_usd(market_cap)
+    fdv_str = format_usd(fdv)
+    vol_str = format_usd(volume_24h)
+    circ_str = f"{circ_pct:.1f}%" if circ_pct else "N/A"
+    chain_str = " · ".join([p.upper()[:5] for p in platforms[:4]]) if platforms else "N/A"
+    
+    # 기본 데이터 카드 (맨 위)
     render_html(
-        f'''<div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);border:2px solid {score_color}40;border-radius:16px;padding:1.5rem;margin:1rem 0;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        f'''<div style="background:linear-gradient(135deg, #0d1117 0%, #161b22 100%);border:1px solid #30363d;border-radius:16px;padding:1.5rem;margin:1rem 0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.5rem;">
             <div style="display:flex;align-items:center;">
-                <span style="font-size:1.3rem;font-weight:700;color:#fff;">📊 {rec.symbol}{name_display}</span>
+                <span style="font-size:1.4rem;font-weight:700;color:#fff;">📊 {rec.symbol}{name_display}</span>
                 {prediction_html}
             </div>
             <div style="background:{score_color}22;color:{score_color};padding:8px 16px;border-radius:20px;font-weight:700;font-size:1.1rem;">{score_emoji} {rec.go_score}/100</div>
         </div>
-        <div style="background:{score_color}15;border-left:4px solid {score_color};padding:1rem;border-radius:0 12px 12px 0;margin-bottom:1rem;">
-            <div style="font-size:1.1rem;font-weight:600;color:#fff;margin-bottom:0.3rem;">{rec.strategy_name}</div>
-            <div style="font-size:0.9rem;color:#d1d5db;">{rec.strategy_detail}</div>
+        
+        <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:1rem;margin-bottom:1rem;">
+            <div style="background:#21262d;border-radius:12px;padding:1rem;text-align:center;">
+                <div style="font-size:0.75rem;color:#8b949e;margin-bottom:0.25rem;">현재가</div>
+                <div style="font-size:1.5rem;font-weight:700;color:#fff;">{price_str}{change_str}</div>
+            </div>
+            <div style="background:#21262d;border-radius:12px;padding:1rem;text-align:center;">
+                <div style="font-size:0.75rem;color:#8b949e;margin-bottom:0.25rem;">24h 거래량</div>
+                <div style="font-size:1.3rem;font-weight:600;color:#58a6ff;">{vol_str}</div>
+            </div>
+        </div>
+        
+        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:0.75rem;">
+            <div style="background:#21262d;border-radius:8px;padding:0.75rem;text-align:center;">
+                <div style="font-size:0.7rem;color:#8b949e;">시총 (MC)</div>
+                <div style="font-size:1rem;font-weight:600;color:#58a6ff;">{mc_str}</div>
+            </div>
+            <div style="background:#21262d;border-radius:8px;padding:0.75rem;text-align:center;">
+                <div style="font-size:0.7rem;color:#8b949e;">FDV</div>
+                <div style="font-size:1rem;font-weight:600;color:#a371f7;">{fdv_str}</div>
+            </div>
+            <div style="background:#21262d;border-radius:8px;padding:0.75rem;text-align:center;">
+                <div style="font-size:0.7rem;color:#8b949e;">유통량</div>
+                <div style="font-size:1rem;font-weight:600;color:#f0883e;">{circ_str}</div>
+            </div>
+            <div style="background:#21262d;border-radius:8px;padding:0.75rem;text-align:center;">
+                <div style="font-size:0.7rem;color:#8b949e;">체인</div>
+                <div style="font-size:0.85rem;font-weight:600;color:#3fb950;overflow:hidden;text-overflow:ellipsis;">{chain_str}</div>
+            </div>
         </div>
         </div>'''
     )
     
-    # === 토크노믹스 (기본 정보) ===
-    market_cap = getattr(rec, 'market_cap_usd', None)
-    fdv = getattr(rec, 'fdv_usd', None)
-    price = getattr(rec, 'current_price_usd', None)
-    circ_pct = getattr(rec, 'circulating_percent', None)
-    platforms = getattr(rec, 'platforms', []) or []
-    
-    if market_cap or fdv or price:
-        tokenomics_parts = []
-        
-        if price:
-            tokenomics_parts.append(f'<div style="text-align:center;padding:0.5rem;"><div style="font-size:0.75rem;color:#9ca3af;">현재가</div><div style="font-size:1rem;font-weight:600;color:#fff;">${price:.4f}</div></div>')
-        if market_cap:
-            mc_str = f"${market_cap/1e6:.1f}M" if market_cap >= 1e6 else f"${market_cap/1e3:.0f}K"
-            tokenomics_parts.append(f'<div style="text-align:center;padding:0.5rem;"><div style="font-size:0.75rem;color:#9ca3af;">시총 (MC)</div><div style="font-size:1rem;font-weight:600;color:#60a5fa;">{mc_str}</div></div>')
-        if fdv:
-            fdv_str = f"${fdv/1e6:.1f}M" if fdv >= 1e6 else f"${fdv/1e3:.0f}K"
-            tokenomics_parts.append(f'<div style="text-align:center;padding:0.5rem;"><div style="font-size:0.75rem;color:#9ca3af;">FDV</div><div style="font-size:1rem;font-weight:600;color:#a78bfa;">{fdv_str}</div></div>')
-        if circ_pct:
-            tokenomics_parts.append(f'<div style="text-align:center;padding:0.5rem;"><div style="font-size:0.75rem;color:#9ca3af;">유통량</div><div style="font-size:1rem;font-weight:600;color:#fbbf24;">{circ_pct:.1f}%</div></div>')
-        
-        # 체인 정보
-        if platforms:
-            chain_display = " · ".join([p.upper()[:4] for p in platforms[:4]])
-            tokenomics_parts.append(f'<div style="text-align:center;padding:0.5rem;"><div style="font-size:0.75rem;color:#9ca3af;">체인</div><div style="font-size:0.9rem;font-weight:600;color:#4ade80;">{chain_display}</div></div>')
-        
-        tokenomics_html = "".join(tokenomics_parts)
-        render_html(
-            f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;">
-            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;">📊 토크노믹스</div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(80px, 1fr));gap:0.5rem;">
-            {tokenomics_html}
-            </div>
-            </div>'''
-        )
+    # === 2. 전략 추천 카드 ===
+    render_html(
+        f'''<div style="background:{score_color}10;border:1px solid {score_color}40;border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+        <div style="font-size:1.1rem;font-weight:600;color:#fff;margin-bottom:0.3rem;">{rec.strategy_name}</div>
+        <div style="font-size:0.9rem;color:#d1d5db;">{rec.strategy_detail}</div>
+        </div>'''
+    )
     
     # === 거래소별 마켓 정보 ===
     exchange_markets = getattr(rec, 'exchange_markets', []) or []

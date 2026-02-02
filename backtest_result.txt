@@ -1,0 +1,38 @@
+﻿python : [Supply] WCT@Upbit ??UNKNOWN (紐⑤뱺 ?⑺꽣 ?놁쓬)
+위치 줄:1 문자:90
++ ... "; $env:PYTHONIOENCODING='utf-8'; python run_backtest.py 2>&1 | Out-F ...
++                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([Supply] WCT@Up...N (紐⑤뱺 ?⑺꽣 ?놁쓬):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[Supply] HYPER@Bithumb ??UNKNOWN (紐⑤뱺 ?⑺꽣 ?놁쓬)
+Loading data...
+======================================================================
+ 諛깊뀒?ㅽ듃 由ы룷??
+======================================================================
+
+珥??뚯뒪?? 67嫄?
+?뺥솗: 50嫄?
+遺?뺥솗: 17嫄?
+**?꾩껜 ?뺥솗?? 74.6%**
+
+寃곌낵蹂??뺥솗??
+  - ??λ뵲由? 90.5%
+  - ?λ뵲由? 76.9%
+  - 蹂댄넻: 53.8%
+  - 留앸뵲由? 70.0%
+
+???ㅼ삁痢??섑뵆 (珥?17嫄?:
+  VANA: ?덉륫=neutral, ?ㅼ젣=留앸뵲由?
+  ANIME: ?덉륫=neutral, ?ㅼ젣=留앸뵲由?
+  BERA: ?덉륫=neutral, ?ㅼ젣=留앸뵲由?
+  WLFI: ?덉륫=neutral, ?ㅼ젣=?λ뵲由?
+  ENA: ?덉륫=heung, ?ㅼ젣=蹂댄넻
+  IP: ?덉륫=neutral, ?ㅼ젣=留앸뵲由?
+  AGLD: ?덉륫=neutral, ?ㅼ젣=?λ뵲由?
+  PEPE: ?덉륫=neutral, ?ㅼ젣=??λ뵲由?
+  BONK: ?덉륫=mang, ?ㅼ젣=蹂댄넻
+  RENDER: ?덉륫=mang, ?ㅼ젣=?λ뵲由?
+  ... ??7嫄?
+
+======================================================================

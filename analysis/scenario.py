@@ -327,12 +327,34 @@ class ScenarioPlanner:
         heung_prob: float,
         hedge_type: str,
         supply_class: str,
+        listing_type: str = "UNKNOWN",
+        max_premium_pct: float = 0.0,
+        premium_at_5m_pct: float = 0.0,
     ) -> tuple[ScenarioOutcome, float]:
         """시나리오 결과 예측.
+
+        v18 개선사항:
+        1. 보통 예측 범위 확장 (40-50% → 35-55%)
+        2. 피뢰침 패턴 별도 감지
+        3. 직상장 별도 처리
 
         Returns:
             (predicted_outcome, confidence)
         """
+        # [개선 2] 피뢰침 패턴 감지: 높은 김프 후 급락 → NEUTRAL
+        # 피뢰침 = max_premium > 10% AND 5분 후 절반 이하로 하락
+        if max_premium_pct > 10 and premium_at_5m_pct > 0:
+            if premium_at_5m_pct < max_premium_pct * 0.5:
+                logger.debug(
+                    "[Scenario] 피뢰침 패턴 감지: max=%.1f%%, 5m=%.1f%%",
+                    max_premium_pct, premium_at_5m_pct,
+                )
+                return ScenarioOutcome.NEUTRAL, 0.7  # 피뢰침은 NEUTRAL
+
+        # [개선 3] 직상장 별도 처리: 더 보수적으로 예측
+        # 직상장은 패턴이 다양하므로 NEUTRAL 범위 확대
+        is_direct_listing = listing_type == "DIRECT"
+        
         # 대흥따리 조건: 헤징 불가 + 공급 제약 + 높은 흥따리 확률
         if (
             hedge_type == "none"
@@ -341,13 +363,45 @@ class ScenarioPlanner:
         ):
             return ScenarioOutcome.HEUNG_BIG, heung_prob
 
-        # 흥따리 (v10: 55% → 50% 낮춤 - 백테스트 개선)
-        if heung_prob >= 0.50:
+        # [개선 1+3] 예측 범위 조정 (v18 final)
+        # supply=unknown일 때 보수적으로 예측 (데이터 부족)
+        is_unknown_supply = supply_class == "unknown"
+        is_direct_with_hedge = is_direct_listing and hedge_type == "cex"
+        is_smooth_supply = supply_class == "smooth"
+        
+        if is_unknown_supply:
+            # 데이터 부족 시 매우 보수적 예측: 높은 확률만 흥따리로
+            heung_threshold = 0.75   # 75% 이상만 흥따리 (매우 높은 기준)
+            neutral_threshold = 0.25  # 25% 이상이면 보통 (매우 낮은 기준)
+            logger.debug("[Scenario] supply=unknown → 매우 보수적 예측 적용")
+        elif is_direct_with_hedge and is_smooth_supply:
+            # 직상장 + CEX헷징 + 공급원활 = 거의 보통
+            heung_threshold = 0.58
+            neutral_threshold = 0.32
+        elif is_direct_with_hedge:
+            # 직상장 + CEX헷징 = 보통 가능성 높음
+            heung_threshold = 0.55
+            neutral_threshold = 0.35
+        elif is_direct_listing:
+            # 직상장 + 헷징불가 = 기존대로
+            heung_threshold = 0.50
+            neutral_threshold = 0.40
+        else:
+            # TGE: 기존 유지
+            heung_threshold = 0.50
+            neutral_threshold = 0.40
+
+        # 흥따리
+        if heung_prob >= heung_threshold:
             return ScenarioOutcome.HEUNG, heung_prob
 
-        # 보통 (v10: 35-50% 범위로 축소)
-        if heung_prob >= 0.40:
-            return ScenarioOutcome.NEUTRAL, 1.0 - abs(heung_prob - 0.45) * 4
+        # 보통 (확장된 범위)
+        if heung_prob >= neutral_threshold:
+            # 신뢰도: 중앙(0.45)에서 멀수록 낮음
+            mid_point = (heung_threshold + neutral_threshold) / 2
+            confidence = 1.0 - abs(heung_prob - mid_point) * 3
+            confidence = max(0.3, min(0.9, confidence))
+            return ScenarioOutcome.NEUTRAL, confidence
 
         # 망따리
         return ScenarioOutcome.MANG, 1.0 - heung_prob
@@ -538,9 +592,10 @@ class ScenarioPlanner:
         heung_big_ratio = 0.62 if heung_prob > 0.6 else 0.4
         heung_big_prob = heung_prob * heung_big_ratio
 
-        # 결과 예측
+        # 결과 예측 (v18: listing_type 전달)
         outcome, confidence = self._predict_outcome(
             heung_prob, hedge_type, supply_class,
+            listing_type=listing_type,
         )
 
         # Phase 7: Reference price 낮으면 신뢰도 감소

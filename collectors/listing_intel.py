@@ -64,6 +64,10 @@ class ListingIntel:
     current_price_usd: Optional[float] = None
     futures_price_usd: Optional[float] = None
     dex_price_usd: Optional[float] = None
+    price_change_24h_pct: Optional[float] = None  # 24시간 등락률
+    
+    # 거래량
+    volume_24h_usd: Optional[float] = None  # 24시간 거래량
     
     # 체인/네트워크
     platforms: List[str] = field(default_factory=list)
@@ -172,6 +176,10 @@ class ListingIntelCollector:
                 intel.current_price_usd = md.get("current_price", {}).get("usd")
                 intel.total_supply = md.get("total_supply")
                 intel.circulating_supply = md.get("circulating_supply")
+                
+                # 24시간 거래량 & 등락률
+                intel.volume_24h_usd = md.get("total_volume", {}).get("usd")
+                intel.price_change_24h_pct = md.get("price_change_percentage_24h")
                 
                 # 플랫폼
                 platforms = data.get("platforms", {})

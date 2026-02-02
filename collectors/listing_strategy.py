@@ -100,6 +100,7 @@ class StrategyRecommendation:
     total_supply: Optional[float] = None
     circulating_percent: Optional[float] = None
     volume_24h_usd: Optional[float] = None
+    price_change_24h_pct: Optional[float] = None  # 24시간 등락률
     platforms: List[str] = field(default_factory=list)  # 지원 체인
     
     # 거래소별 마켓 정보
@@ -685,6 +686,9 @@ class ListingStrategyAnalyzer:
         platforms = []
         exchange_markets = []
         
+        volume_24h_usd = None
+        price_change_24h_pct = None
+        
         if listing_intel:
             name = listing_intel.name
             market_cap_usd = listing_intel.market_cap_usd
@@ -693,6 +697,8 @@ class ListingStrategyAnalyzer:
             circulating_supply = listing_intel.circulating_supply
             total_supply = listing_intel.total_supply
             circulating_percent = listing_intel.circulating_percent
+            volume_24h_usd = listing_intel.volume_24h_usd
+            price_change_24h_pct = listing_intel.price_change_24h_pct
             platforms = listing_intel.platforms or []
             
             # 거래소별 마켓 정보
@@ -721,6 +727,8 @@ class ListingStrategyAnalyzer:
             circulating_supply=circulating_supply,
             total_supply=total_supply,
             circulating_percent=circulating_percent,
+            volume_24h_usd=volume_24h_usd,
+            price_change_24h_pct=price_change_24h_pct,
             platforms=platforms,
             exchange_markets=exchange_markets,
             # 갭/론
