@@ -266,8 +266,8 @@ def _render_binance_alerts_section() -> None:
     if not _HAS_BINANCE:
         return
     
-    # 캐싱: 5분마다 갱신
-    @st.cache_data(ttl=300)
+    # 캐싱: 1분마다 갱신 (시간 정확도 위해)
+    @st.cache_data(ttl=60)
     def fetch_binance_notices():
         async def _fetch():
             fetcher = BinanceNoticeFetcher()
