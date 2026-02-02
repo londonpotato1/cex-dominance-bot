@@ -18,19 +18,24 @@ def render_ddari_tab() -> None:
     from ui.ddari_learning_guide import render_learning_guide_tab
     from ui.ddari_common import render_html
 
-    # 탭 스타일 커스터마이징 (폰트 크게, 중앙 정렬)
+    # 탭 스타일 커스터마이징 (폰트 크게, 정중앙 정렬)
     render_html('''
     <style>
-    /* 탭 컨테이너 중앙 정렬 */
+    /* 탭 컨테이너 정중앙 정렬 */
     div[data-testid="stTabs"] > div[role="tablist"] {
+        display: flex !important;
         justify-content: center !important;
-        gap: 1rem !important;
+        width: 100% !important;
+        gap: 2rem !important;
+        border-bottom: 1px solid #333 !important;
+        padding-bottom: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
     }
     /* 탭 버튼 폰트 크게 */
     div[data-testid="stTabs"] button[role="tab"] {
-        font-size: 1.1rem !important;
+        font-size: 1.15rem !important;
         font-weight: 600 !important;
-        padding: 0.75rem 1.5rem !important;
+        padding: 0.5rem 1.5rem !important;
     }
     /* 선택된 탭 강조 */
     div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
@@ -48,11 +53,11 @@ def render_ddari_tab() -> None:
     ])
 
     with dashboard_tab:
-        # 탭 설명 + 우측 hover 가이드
+        # 탭 설명 + 우측 hover 가이드 (공백 최소화)
         render_html(
-            '''<div style="position:relative;margin-bottom:1rem;">
+            '''<div style="position:relative;margin-bottom:0.25rem;">
                 <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                    border:1px solid #3b82f6;border-radius:12px;padding:1rem;">
+                    border:1px solid #3b82f6;border-radius:8px;padding:0.5rem 0.75rem;">
                     <div style="font-size:0.9rem;color:#60a5fa;font-weight:600;">📊 대시보드</div>
                     <div style="font-size:0.8rem;color:#9ca3af;margin-top:0.25rem;">
                         실시간 GO/NO-GO 현황, 프리미엄 차트, 시장 분위기를 한눈에 확인하세요.
