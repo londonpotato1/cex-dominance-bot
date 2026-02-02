@@ -183,16 +183,37 @@ def _render_binance_alerts_section() -> None:
     mc_str = f"${intel.market_cap_usd/1e6:.1f}M" if intel and intel.market_cap_usd else "N/A"
     fdv_str = f"${intel.fdv_usd/1e6:.1f}M" if intel and intel.fdv_usd else "N/A"
     
-    # 공지 시간 (한국시간)
+    # 공지 시간, 상장 시간 (한국시간)
     notice_time_str = ""
+    listing_time_str = ""
+    deposit_time_str = ""
+    
+    from datetime import timezone, timedelta
+    kst = timezone(timedelta(hours=9))
+    
     if latest and hasattr(latest, 'release_date') and latest.release_date:
-        from datetime import timezone, timedelta
-        kst = timezone(timedelta(hours=9))
         try:
             notice_kst = latest.release_date.astimezone(kst)
             notice_time_str = notice_kst.strftime("%m/%d %H:%M")
         except:
             notice_time_str = ""
+    
+    # 상장 시간 (공지에서 파싱된 값)
+    if latest and hasattr(latest, 'listing_time') and latest.listing_time:
+        try:
+            listing_kst = latest.listing_time.astimezone(kst)
+            listing_time_str = listing_kst.strftime("%m/%d %H:%M")
+        except:
+            listing_time_str = ""
+    
+    # 입금 가능 시간 (거래소 deposit_enabled 기준)
+    if intel and intel.exchanges:
+        for ex_name, ex_status in intel.exchanges.items():
+            if ex_status.deposit_enabled and ex_status.deposit_networks:
+                deposit_time_str = "입금 가능 ✅"
+                break
+        if not deposit_time_str:
+            deposit_time_str = "입금 대기 ⏳"
     
     # 거래소 테이블 생성
     exchange_rows_html = ""
@@ -223,7 +244,9 @@ def _render_binance_alerts_section() -> None:
                         {badge_text}
                     </span>
                     <span style="color:#8b949e;font-size:0.85rem;">바이낸스 공지</span>
-                    {f'<span style="color:#58a6ff;font-size:0.8rem;">📅 {notice_time_str}</span>' if notice_time_str else ''}
+                    {f'<span style="color:#58a6ff;font-size:0.8rem;">📅 공지: {notice_time_str}</span>' if notice_time_str else ''}
+                    {f'<span style="color:#3fb950;font-size:0.8rem;margin-left:8px;">🚀 상장: {listing_time_str}</span>' if listing_time_str else ''}
+                    {f'<span style="color:#f0883e;font-size:0.8rem;margin-left:8px;">💰 {deposit_time_str}</span>' if deposit_time_str else ''}
                 </div>
                 <div style="font-size:1.5rem;font-weight:700;color:#fff;">
                     {symbol if symbol else 'N/A'}
