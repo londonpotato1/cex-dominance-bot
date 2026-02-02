@@ -437,22 +437,24 @@ def _render_korean_notices_section() -> None:
     
     # 감지된 심볼들에 대한 분석 카드 (입출금 관련 공지만)
     analyzed_symbols = set()
-    for notice in notices[:5]:
+    for notice in notices:  # 모든 공지 체크
         if notice.symbols and notice.notice_type in [
             NoticeType.DEPOSIT_SUSPEND, NoticeType.DEPOSIT_RESUME,
             NoticeType.WITHDRAW_SUSPEND, NoticeType.WITHDRAW_RESUME,
             NoticeType.NETWORK_ISSUE
         ]:
             for sym in notice.symbols:
-                if sym not in analyzed_symbols:
+                # 주요 코인만 필터링 (너무 마이너한 코인 제외)
+                if sym not in analyzed_symbols and sym not in ['P', 'BM', 'A']:
                     analyzed_symbols.add(sym)
     
     if analyzed_symbols:
-        _render_korean_coin_analysis(list(analyzed_symbols)[:3])
+        # 최대 5개까지 분석 카드 표시
+        _render_korean_coin_analysis(list(analyzed_symbols)[:5])
 
 
 def _render_korean_coin_analysis(symbols: list) -> None:
-    """한국 공지에서 감지된 코인들의 간단한 분석 카드 렌더링."""
+    """한국 공지에서 감지된 코인들의 상세 분석 카드 렌더링 (ZAMA 스타일)."""
     import streamlit as st
     import asyncio
     from collectors.listing_strategy import ListingStrategyAnalyzer
@@ -474,42 +476,113 @@ def _render_korean_coin_analysis(symbols: list) -> None:
             return None
     
     st.markdown("""
-    <div style="margin-top:1rem;margin-bottom:0.5rem;">
-        <span style="font-size:0.9rem;font-weight:600;color:#8b949e;">
-            📊 감지된 코인 분석
+    <div style="margin-top:1rem;margin-bottom:0.75rem;">
+        <span style="font-size:1.1rem;font-weight:600;color:#fff;">
+            📊 입출금 중단 코인 분석
+        </span>
+        <span style="font-size:0.8rem;color:#8b949e;margin-left:0.5rem;">
+            따리 전략 참고용
         </span>
     </div>
     """, unsafe_allow_html=True)
     
-    cols = st.columns(len(symbols))
-    
-    for i, symbol in enumerate(symbols):
-        with cols[i]:
-            result = fetch_analysis(symbol)
-            if result:
-                score_color = "#3fb950" if result.go_score >= 70 else "#d29922" if result.go_score >= 50 else "#f85149"
-                price_str = f"${result.current_price_usd:.4f}" if result.current_price_usd else "N/A"
-                mc_str = f"${result.market_cap_usd/1e6:.1f}M" if result.market_cap_usd else "N/A"
-                
-                render_html(f'''
-                <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:0.75rem;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-                        <span style="font-size:1rem;font-weight:600;color:#fff;">{symbol}</span>
-                        <span style="background:{score_color};color:#fff;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">{result.go_score}점</span>
-                    </div>
-                    <div style="font-size:0.8rem;color:#8b949e;">
-                        <div>💵 {price_str}</div>
-                        <div>📊 시총 {mc_str}</div>
-                        <div>🎯 {result.strategy_name[:15] if result.strategy_name else "분석중"}...</div>
-                    </div>
+    for symbol in symbols:
+        result = fetch_analysis(symbol)
+        if not result:
+            continue
+        
+        # 스코어 색상
+        score_color = "#3fb950" if result.go_score >= 70 else "#d29922" if result.go_score >= 50 else "#f85149"
+        
+        # 기본 정보
+        price_str = f"${result.current_price_usd:.4f}" if result.current_price_usd else "N/A"
+        mc_str = f"${result.market_cap_usd/1e6:.1f}M" if result.market_cap_usd else "N/A"
+        fdv_str = f"${result.fdv_usd/1e6:.1f}M" if result.fdv_usd else "N/A"
+        vol_str = f"${result.volume_24h_usd/1e6:.1f}M" if result.volume_24h_usd else "N/A"
+        circ_str = f"{result.circulating_percent:.1f}%" if result.circulating_percent else "N/A"
+        
+        # 체인 정보
+        chains = ", ".join(result.platforms[:3]) if result.platforms else "N/A"
+        
+        # 거래소 현황 테이블
+        exchange_rows = ""
+        if result.exchange_markets:
+            for ex in result.exchange_markets[:4]:
+                spot_icon = "🟢" if ex.has_spot else "🔴"
+                futures_icon = "🟢" if ex.has_futures else "🔴"
+                dep_icon = "🟢" if ex.deposit_enabled else "⚪"
+                wd_icon = "🟢" if ex.withdraw_enabled else "⚪"
+                nets = ", ".join(ex.deposit_networks[:2]) if ex.deposit_networks else "-"
+                exchange_rows += f'''<tr style="border-bottom:1px solid #30363d;">
+                    <td style="padding:4px 6px;color:#c9d1d9;font-size:0.8rem;">{ex.exchange.upper()}</td>
+                    <td style="padding:4px;text-align:center;font-size:0.8rem;">{spot_icon}</td>
+                    <td style="padding:4px;text-align:center;font-size:0.8rem;">{futures_icon}</td>
+                    <td style="padding:4px;text-align:center;font-size:0.8rem;">{dep_icon}</td>
+                    <td style="padding:4px;text-align:center;font-size:0.8rem;">{wd_icon}</td>
+                    <td style="padding:4px;color:#8b949e;font-size:0.75rem;">{nets}</td>
+                </tr>'''
+        
+        render_html(f'''
+        <div style="background:#0d1117;border:2px solid #f0883e;border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+            
+            <!-- 헤더 -->
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;padding-bottom:0.5rem;border-bottom:1px solid #30363d;">
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <span style="background:#f0883e;color:#fff;padding:4px 10px;border-radius:6px;font-size:0.75rem;font-weight:600;">🔴 입출금 중단</span>
+                    <span style="font-size:1.2rem;font-weight:700;color:#fff;">{symbol}</span>
+                    <span style="color:#8b949e;font-size:0.9rem;">{result.name or ""}</span>
                 </div>
-                ''')
-            else:
-                render_html(f'''
-                <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:0.75rem;text-align:center;">
-                    <span style="color:#8b949e;">{symbol} 분석 중...</span>
+                <div style="text-align:center;">
+                    <div style="font-size:1.5rem;font-weight:700;color:{score_color};">{result.go_score}</div>
+                    <div style="font-size:0.7rem;color:#8b949e;">따리 스코어</div>
                 </div>
-                ''')
+            </div>
+            
+            <!-- 토크노믹스 -->
+            <div style="margin-bottom:0.75rem;">
+                <div style="font-size:0.8rem;color:#8b949e;margin-bottom:0.25rem;">📊 토크노믹스</div>
+                <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0.5rem;text-align:center;">
+                    <div><div style="color:#8b949e;font-size:0.7rem;">현재가</div><div style="color:#fff;font-weight:600;">{price_str}</div></div>
+                    <div><div style="color:#8b949e;font-size:0.7rem;">시가총액</div><div style="color:#fff;font-weight:600;">{mc_str}</div></div>
+                    <div><div style="color:#8b949e;font-size:0.7rem;">FDV</div><div style="color:#fff;font-weight:600;">{fdv_str}</div></div>
+                    <div><div style="color:#8b949e;font-size:0.7rem;">24h 거래량</div><div style="color:#fff;font-weight:600;">{vol_str}</div></div>
+                    <div><div style="color:#8b949e;font-size:0.7rem;">유통량</div><div style="color:#3fb950;font-weight:600;">{circ_str}</div></div>
+                </div>
+            </div>
+            
+            <!-- 체인 -->
+            <div style="margin-bottom:0.75rem;">
+                <span style="font-size:0.8rem;color:#8b949e;">🔗 체인:</span>
+                <span style="color:#58a6ff;font-size:0.85rem;margin-left:0.5rem;">{chains}</span>
+            </div>
+            
+            <!-- 거래소 현황 테이블 -->
+            {f"""
+            <div style="margin-bottom:0.5rem;">
+                <div style="font-size:0.8rem;color:#8b949e;margin-bottom:0.25rem;">🏦 거래소 현황</div>
+                <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+                    <thead>
+                        <tr style="border-bottom:1px solid #30363d;">
+                            <th style="padding:4px 6px;text-align:left;color:#8b949e;font-weight:500;">거래소</th>
+                            <th style="padding:4px;text-align:center;color:#8b949e;font-weight:500;">현물</th>
+                            <th style="padding:4px;text-align:center;color:#8b949e;font-weight:500;">선물</th>
+                            <th style="padding:4px;text-align:center;color:#8b949e;font-weight:500;">입금</th>
+                            <th style="padding:4px;text-align:center;color:#8b949e;font-weight:500;">출금</th>
+                            <th style="padding:4px;text-align:left;color:#8b949e;font-weight:500;">네트워크</th>
+                        </tr>
+                    </thead>
+                    <tbody>{exchange_rows}</tbody>
+                </table>
+            </div>
+            """ if exchange_rows else ""}
+            
+            <!-- 전략 -->
+            <div style="background:#161b22;border-radius:8px;padding:0.5rem 0.75rem;margin-top:0.5rem;">
+                <span style="color:#d29922;font-weight:600;">🎯 {result.strategy_name or "분석중"}</span>
+            </div>
+            
+        </div>
+        ''')
 
 
 # ------------------------------------------------------------------
