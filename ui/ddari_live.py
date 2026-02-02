@@ -60,6 +60,92 @@ except ImportError:
 
 
 # ------------------------------------------------------------------
+# Claude API 종합 분석
+# ------------------------------------------------------------------
+
+try:
+    import anthropic
+    _HAS_ANTHROPIC = True
+except ImportError:
+    _HAS_ANTHROPIC = False
+    anthropic = None
+
+
+def analyze_with_claude(data: dict) -> str | None:
+    """Claude API로 따리 전략 종합 분석.
+    
+    Args:
+        data: 코인 데이터 (토크노믹스, 거래소 현황 등)
+    
+    Returns:
+        분석 코멘트 또는 None
+    """
+    import os
+    import streamlit as st
+    
+    if not _HAS_ANTHROPIC:
+        return None
+    
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        return None
+    
+    # 캐싱 (같은 심볼은 5분간 재사용)
+    cache_key = f"claude_analysis_{data.get('symbol', 'unknown')}"
+    if cache_key in st.session_state:
+        cached = st.session_state[cache_key]
+        import time
+        if time.time() - cached.get('ts', 0) < 300:  # 5분
+            return cached.get('result')
+    
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        
+        prompt = f"""당신은 한국 암호화폐 따리(차익거래) 전문가입니다.
+
+아래 코인 데이터를 분석하고 따리 전략 관점에서 핵심 인사이트를 2-3문장으로 제공하세요.
+
+## 코인 데이터
+- 심볼: {data.get('symbol', 'N/A')}
+- 이름: {data.get('name', 'N/A')}
+- 현재가: {data.get('price', 'N/A')}
+- 시가총액: {data.get('market_cap', 'N/A')}
+- FDV: {data.get('fdv', 'N/A')}
+- 유통량: {data.get('circulating_percent', 'N/A')}%
+- 24h 거래량: {data.get('volume_24h', 'N/A')}
+- 지원 체인: {data.get('chains', 'N/A')}
+- 거래소 현물 상장: {data.get('spot_exchanges', 'N/A')}
+- 거래소 선물 상장: {data.get('futures_exchanges', 'N/A')}
+- 입금 가능 거래소: {data.get('deposit_enabled', 'N/A')}
+- 상장 유형: {data.get('listing_type', 'N/A')}
+
+## 분석 포인트
+1. 현물 상장 여부 - 물량 확보 가능성
+2. 유통량 - 흥따리 가능성
+3. 거래소 입출금 상태 - 따리 실행 가능성
+4. 전체적인 따리 전략 추천
+
+간결하게 핵심만 답변하세요. 이모지 사용 가능."""
+
+        message = client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        
+        result = message.content[0].text
+        
+        # 캐시 저장
+        import time
+        st.session_state[cache_key] = {'result': result, 'ts': time.time()}
+        
+        return result
+        
+    except Exception as e:
+        return f"분석 실패: {str(e)[:50]}"
+
+
+# ------------------------------------------------------------------
 # 따리 판단 기준 함수들 (DDARI_FUNDAMENTALS.md 기반)
 # ------------------------------------------------------------------
 
@@ -460,6 +546,51 @@ def _render_binance_alerts_section() -> None:
         </div>''' if actions_html else ''}
     </div>
     ''')
+    
+    # 🤖 Claude AI 종합 분석
+    if _HAS_ANTHROPIC and symbol:
+        # 거래소 현황 요약
+        spot_exchanges = []
+        futures_exchanges = []
+        deposit_enabled = []
+        if intel and intel.exchanges:
+            for ex_name, ex_status in intel.exchanges.items():
+                if ex_status.has_spot:
+                    spot_exchanges.append(ex_name)
+                if ex_status.has_futures:
+                    futures_exchanges.append(ex_name)
+                if ex_status.deposit_enabled:
+                    deposit_enabled.append(ex_name)
+        
+        analysis_data = {
+            'symbol': symbol,
+            'name': latest.title if latest else '',
+            'price': price_str,
+            'market_cap': mc_str,
+            'fdv': fdv_str,
+            'circulating_percent': intel.circulating_percent if intel else None,
+            'volume_24h': 'N/A',
+            'chains': platforms_html,
+            'spot_exchanges': ', '.join(spot_exchanges) if spot_exchanges else '없음',
+            'futures_exchanges': ', '.join(futures_exchanges) if futures_exchanges else '없음',
+            'deposit_enabled': ', '.join(deposit_enabled) if deposit_enabled else '없음',
+            'listing_type': 'Seed Tag' if latest and latest.seed_tag else '현물 상장',
+        }
+        
+        claude_analysis = analyze_with_claude(analysis_data)
+        
+        if claude_analysis:
+            render_html(f'''
+            <div style="background:linear-gradient(135deg, #1a1b26 0%, #161b22 100%);border:1px solid #7c3aed;border-radius:12px;padding:1rem;margin-top:0.5rem;">
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                    <span style="font-size:1.2rem;">🤖</span>
+                    <span style="font-size:0.9rem;font-weight:600;color:#a78bfa;">Claude AI 종합 분석</span>
+                </div>
+                <div style="color:#e2e8f0;font-size:0.85rem;line-height:1.6;">
+                    {claude_analysis}
+                </div>
+            </div>
+            ''')
 
 
 # ------------------------------------------------------------------
