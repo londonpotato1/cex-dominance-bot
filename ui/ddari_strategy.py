@@ -105,6 +105,8 @@ def _render_strategy_result(rec):
     fdv = getattr(rec, 'fdv_usd', None)
     volume_24h = getattr(rec, 'volume_24h_usd', None)
     circ_pct = getattr(rec, 'circulating_percent', None)
+    circ_supply = getattr(rec, 'circulating_supply', None)
+    total_supply = getattr(rec, 'total_supply', None)
     platforms = getattr(rec, 'platforms', []) or []
     
     # 가격 + 등락률
@@ -128,10 +130,35 @@ def _render_strategy_result(rec):
         else:
             return f"${val:.2f}"
     
+    # 수량 포맷 (토큰 개수)
+    def format_amount(val):
+        if not val:
+            return "N/A"
+        if val >= 1e12:
+            return f"{val/1e12:.2f}T"
+        elif val >= 1e9:
+            return f"{val/1e9:.2f}B"
+        elif val >= 1e6:
+            return f"{val/1e6:.2f}M"
+        elif val >= 1e3:
+            return f"{val/1e3:.0f}K"
+        else:
+            return f"{val:.0f}"
+    
     mc_str = format_usd(market_cap)
     fdv_str = format_usd(fdv)
     vol_str = format_usd(volume_24h)
-    circ_str = f"{circ_pct:.1f}%" if circ_pct else "N/A"
+    
+    # 유통량: 실제 수량 + % (예: "2.2B / 11B (20.0%)")
+    if circ_supply and total_supply:
+        circ_str = f"{format_amount(circ_supply)} / {format_amount(total_supply)}"
+        if circ_pct:
+            circ_str += f" ({circ_pct:.1f}%)"
+    elif circ_pct:
+        circ_str = f"{circ_pct:.1f}%"
+    else:
+        circ_str = "N/A"
+    
     chain_str = " · ".join([p.upper()[:5] for p in platforms[:4]]) if platforms else "N/A"
     
     # 헤더 (심볼 + 스코어)
@@ -236,7 +263,7 @@ def _render_strategy_result(rec):
         </div>'''
     )
     
-    # === 현선갭 + 론 + 네트워크 (2x2 그리드) ===
+    # === 현선갭 상세 테이블 ===
     all_gaps = getattr(rec, 'all_gaps', []) or []
     loan_details = getattr(rec, 'loan_details', []) or []
     network_chain = getattr(rec, 'network_chain', None)
@@ -246,12 +273,43 @@ def _render_strategy_result(rec):
     # 체인 이름
     chain_display = network_chain or (platforms[0].upper()[:10] if platforms else "미확인")
     
-    # 현선갭 HTML
+    # 현선갭 상세 테이블 HTML
     if all_gaps:
-        gaps_items = [f'<span style="color:{"#3fb950" if g.gap_percent < 2 else "#f0883e" if g.gap_percent < 4 else "#f85149"};margin-right:12px;">{g.exchange.split("/")[0][:3].upper()} {g.gap_percent:.1f}%</span>' for g in all_gaps[:4]]
-        gaps_html = "".join(gaps_items)
+        gap_rows = ""
+        for g in all_gaps[:6]:
+            ex_name = g.exchange.split("/")[0].upper()[:8]
+            gap_color = "#3fb950" if g.gap_percent < 2 else "#f0883e" if g.gap_percent < 4 else "#f85149"
+            gap_sign = "+" if g.gap_percent >= 0 else ""
+            spot_str = f"${g.spot_price:.4f}" if g.spot_price < 1 else f"${g.spot_price:.2f}" if g.spot_price else "N/A"
+            futures_str = f"${g.futures_price:.4f}" if g.futures_price < 1 else f"${g.futures_price:.2f}" if g.futures_price else "N/A"
+            reverse_badge = ' <span style="color:#a855f7;font-size:0.7rem;">역프</span>' if getattr(g, 'is_reverse', False) else ""
+            
+            gap_rows += f'''<tr style="border-bottom:1px solid #2d3748;">
+                <td style="padding:6px 8px;color:#fff;font-weight:500;">{ex_name}{reverse_badge}</td>
+                <td style="padding:6px 8px;color:#8b949e;text-align:right;">{spot_str}</td>
+                <td style="padding:6px 8px;color:#8b949e;text-align:right;">{futures_str}</td>
+                <td style="padding:6px 8px;color:{gap_color};text-align:right;font-weight:600;">{gap_sign}{g.gap_percent:.2f}%</td>
+            </tr>'''
+        
+        gaps_table_html = f'''<div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:8px;padding:12px;margin-bottom:8px;">
+            <div style="font-size:0.85rem;color:#8b949e;margin-bottom:8px;">📈 현선갭 상세 <span style="color:#4a5568;font-size:0.75rem;">(현물/선물/갭)</span></div>
+            <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+            <tr style="color:#6b7280;background:#0d1117;">
+                <th style="text-align:left;padding:6px 8px;">거래소</th>
+                <th style="padding:6px 8px;text-align:right;">현물가</th>
+                <th style="padding:6px 8px;text-align:right;">선물가</th>
+                <th style="padding:6px 8px;text-align:right;">갭</th>
+            </tr>
+            {gap_rows}
+            </table>
+        </div>'''
     else:
-        gaps_html = '<span style="color:#8b949e;">데이터 없음</span>'
+        gaps_table_html = '''<div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:8px;padding:12px;margin-bottom:8px;">
+            <div style="font-size:0.85rem;color:#8b949e;margin-bottom:8px;">📈 현선갭</div>
+            <div style="color:#6b7280;font-size:0.85rem;">데이터 없음 (선물 미상장)</div>
+        </div>'''
+    
+    render_html(gaps_table_html)
     
     # 론 HTML
     if rec.loan_available and loan_details:
@@ -274,23 +332,20 @@ def _render_strategy_result(rec):
     else:
         cases_html = "데이터 없음"
     
+    # 론 + 네트워크 + 유사 케이스 (3컬럼)
     render_html(
-        f'''<div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:8px;margin-bottom:8px;">
-            <div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:8px;padding:12px;">
-                <div style="font-size:0.75rem;color:#8b949e;margin-bottom:6px;">📈 현선갭</div>
-                <div style="font-size:0.95rem;">{gaps_html}</div>
-            </div>
+        f'''<div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:8px;">
             <div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:8px;padding:12px;">
                 <div style="font-size:0.75rem;color:#8b949e;margin-bottom:6px;">💰 론 가능</div>
-                <div style="font-size:0.95rem;">{loans_html}</div>
+                <div style="font-size:0.9rem;">{loans_html}</div>
             </div>
             <div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:8px;padding:12px;">
                 <div style="font-size:0.75rem;color:#8b949e;margin-bottom:6px;">⚡ 네트워크</div>
-                <div style="font-size:0.95rem;"><span style="color:#58a6ff;">{chain_display}</span> <span style="color:#8b949e;">({network_time})</span></div>
+                <div style="font-size:0.9rem;"><span style="color:#58a6ff;">{chain_display}</span> <span style="color:#6b7280;">({network_time})</span></div>
             </div>
             <div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:8px;padding:12px;">
                 <div style="font-size:0.75rem;color:#8b949e;margin-bottom:6px;">📊 유사 케이스</div>
-                <div style="font-size:0.95rem;color:#d1d5db;">{cases_html}</div>
+                <div style="font-size:0.9rem;color:#d1d5db;">{cases_html}</div>
             </div>
         </div>'''
     )
