@@ -67,12 +67,17 @@ class BinanceNotice:
     symbols: List[str] = field(default_factory=list)
     listing_type: BinanceListingType = BinanceListingType.UNKNOWN
     listing_time: Optional[datetime] = None
+    deposit_time: Optional[datetime] = None  # 입금 시작 시간
+    withdraw_time: Optional[datetime] = None  # 출금 시작 시간
     pairs: List[str] = field(default_factory=list)  # 거래쌍 (BTC, USDT 등)
     
     # 전략 관련
     has_spot: bool = False
     has_futures: bool = False
     seed_tag: bool = False
+    
+    # 본문 (파싱용)
+    content: Optional[str] = None
     
     def __post_init__(self):
         """제목에서 정보 추출."""
@@ -161,6 +166,79 @@ class BinanceNotice:
         # 일반 현물/선물: 공지 후 약 1-2시간 (즉시 상장 패턴)
         elif self.has_spot or self.has_futures:
             self.listing_time = self.release_date + timedelta(hours=1)
+    
+    def parse_content_times(self, content: str) -> None:
+        """공지 본문에서 정확한 시간 파싱.
+        
+        파싱 패턴:
+        - "open trading ... at 2026-02-02 13:00 (UTC)" → 상장 시간
+        - "start depositing ... one hour later" → 입금 시간 (상장 1시간 전)
+        - "Withdrawals will open at 2026-02-03 13:00 (UTC)" → 출금 시간
+        """
+        from datetime import timedelta
+        import pytz
+        
+        self.content = content
+        
+        # UTC → KST 변환용
+        utc = pytz.UTC
+        kst = pytz.timezone('Asia/Seoul')
+        
+        # 1. 상장 시간 파싱: "open trading at YYYY-MM-DD HH:MM (UTC)"
+        listing_match = re.search(
+            r'open trading[^0-9]*(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*\(?UTC\)?',
+            content, re.IGNORECASE
+        )
+        if listing_match:
+            try:
+                date_str = listing_match.group(1)
+                hour = int(listing_match.group(2))
+                minute = int(listing_match.group(3))
+                listing_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(
+                    hour=hour, minute=minute, tzinfo=utc
+                )
+                self.listing_time = listing_dt.astimezone(kst).replace(tzinfo=None)
+            except:
+                pass
+        
+        # 2. 입금 시간 파싱
+        # 패턴1: "start depositing ... one hour later" → 상장 1시간 전
+        if "one hour later" in content.lower() and self.listing_time:
+            self.deposit_time = self.listing_time - timedelta(hours=1)
+        
+        # 패턴2: "Deposits ... will be available at YYYY-MM-DD HH:MM (UTC)"
+        deposit_match = re.search(
+            r'[Dd]eposit[s]?[^0-9]*(?:available|open)[^0-9]*(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*\(?UTC\)?',
+            content
+        )
+        if deposit_match:
+            try:
+                date_str = deposit_match.group(1)
+                hour = int(deposit_match.group(2))
+                minute = int(deposit_match.group(3))
+                deposit_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(
+                    hour=hour, minute=minute, tzinfo=utc
+                )
+                self.deposit_time = deposit_dt.astimezone(kst).replace(tzinfo=None)
+            except:
+                pass
+        
+        # 3. 출금 시간 파싱: "Withdrawals will open at YYYY-MM-DD HH:MM (UTC)"
+        withdraw_match = re.search(
+            r'[Ww]ithdrawal[s]?\s+will\s+open\s+at\s+(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*\(?UTC\)?',
+            content
+        )
+        if withdraw_match:
+            try:
+                date_str = withdraw_match.group(1)
+                hour = int(withdraw_match.group(2))
+                minute = int(withdraw_match.group(3))
+                withdraw_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(
+                    hour=hour, minute=minute, tzinfo=utc
+                )
+                self.withdraw_time = withdraw_dt.astimezone(kst).replace(tzinfo=None)
+            except:
+                pass
 
 
 class BinanceNoticeFetcher:
@@ -274,6 +352,42 @@ class BinanceNoticeFetcher:
         except Exception as e:
             logger.error("[Binance] API 에러: %s", e)
             return []
+    
+    async def fetch_article_content(self, notice: BinanceNotice) -> str:
+        """공지 본문 가져오기 + 시간 파싱."""
+        session = await self._get_session()
+        
+        # 바이낸스 공지 상세 API
+        detail_url = f"https://www.binance.com/bapi/composite/v1/public/cms/article/detail/query?type=1&articleCode={notice.code}"
+        
+        try:
+            async with session.get(detail_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                if resp.status != 200:
+                    logger.warning("[Binance] 공지 상세 조회 실패: %d", resp.status)
+                    return ""
+                
+                data = await resp.json()
+                if not data.get("success"):
+                    return ""
+                
+                article = data.get("data", {}).get("article", {})
+                content = article.get("content", "")
+                
+                # HTML 태그 제거
+                import re
+                content = re.sub(r'<[^>]+>', ' ', content)
+                content = re.sub(r'\s+', ' ', content).strip()
+                
+                # 시간 파싱
+                if content:
+                    notice.parse_content_times(content)
+                    logger.info(f"[Binance] {notice.symbols} 시간 파싱 완료 - 상장:{notice.listing_time}, 입금:{notice.deposit_time}, 출금:{notice.withdraw_time}")
+                
+                return content
+                
+        except Exception as e:
+            logger.error("[Binance] 공지 본문 조회 에러: %s", e)
+            return ""
 
 
 @dataclass

@@ -273,6 +273,9 @@ def _render_binance_alerts_section() -> None:
             fetcher = BinanceNoticeFetcher()
             try:
                 notices = await fetcher.fetch_all_listings(page_size=5)
+                # 최신 공지의 본문에서 정확한 시간 파싱
+                for notice in notices[:2]:  # 최신 2개만
+                    await fetcher.fetch_article_content(notice)
                 return notices
             finally:
                 await fetcher.close()
@@ -435,10 +438,11 @@ def _render_binance_alerts_section() -> None:
         intel.market_cap_usd if intel else None
     )
     
-    # 공지 시간, 상장 시간 (한국시간)
+    # 공지 시간, 상장/입금/출금 시간 (한국시간)
     notice_time_str = ""
     listing_time_str = ""
     deposit_time_str = ""
+    withdraw_time_str = ""
     
     from datetime import timezone, timedelta
     kst = timezone(timedelta(hours=9))
@@ -450,16 +454,42 @@ def _render_binance_alerts_section() -> None:
         except:
             notice_time_str = ""
     
-    # 상장 시간 (공지에서 파싱된 값)
+    # 상장 시간 (공지에서 파싱된 값 - 이미 KST)
     if latest and hasattr(latest, 'listing_time') and latest.listing_time:
         try:
-            listing_kst = latest.listing_time.astimezone(kst)
-            listing_time_str = listing_kst.strftime("%m/%d %H:%M")
+            # 파싱된 값은 이미 KST (tzinfo=None)
+            if latest.listing_time.tzinfo is None:
+                listing_time_str = latest.listing_time.strftime("%m/%d %H:%M")
+            else:
+                listing_kst = latest.listing_time.astimezone(kst)
+                listing_time_str = listing_kst.strftime("%m/%d %H:%M")
         except:
             listing_time_str = ""
     
-    # 입금 가능 시간 (거래소 deposit_enabled 기준)
-    if intel and intel.exchanges:
+    # 입금 시작 시간 (공지에서 파싱된 값 - 이미 KST)
+    if latest and hasattr(latest, 'deposit_time') and latest.deposit_time:
+        try:
+            if latest.deposit_time.tzinfo is None:
+                deposit_time_str = f"입금: {latest.deposit_time.strftime('%m/%d %H:%M')}"
+            else:
+                deposit_kst = latest.deposit_time.astimezone(kst)
+                deposit_time_str = f"입금: {deposit_kst.strftime('%m/%d %H:%M')}"
+        except:
+            deposit_time_str = ""
+    
+    # 출금 시작 시간 (공지에서 파싱된 값 - 이미 KST)
+    if latest and hasattr(latest, 'withdraw_time') and latest.withdraw_time:
+        try:
+            if latest.withdraw_time.tzinfo is None:
+                withdraw_time_str = f"출금: {latest.withdraw_time.strftime('%m/%d %H:%M')}"
+            else:
+                withdraw_kst = latest.withdraw_time.astimezone(kst)
+                withdraw_time_str = f"출금: {withdraw_kst.strftime('%m/%d %H:%M')}"
+        except:
+            withdraw_time_str = ""
+    
+    # 입금 가능 여부 (거래소 deposit_enabled 기준) - deposit_time이 없을 때만
+    if not deposit_time_str and intel and intel.exchanges:
         for ex_name, ex_status in intel.exchanges.items():
             if ex_status.deposit_enabled and ex_status.deposit_networks:
                 deposit_time_str = "입금 가능 ✅"
@@ -522,9 +552,10 @@ def _render_binance_alerts_section() -> None:
                         {badge_text}
                     </span>
                     <a href="{latest.url}" target="_blank" style="color:#58a6ff;font-size:1rem;text-decoration:none;">바이낸스 공지 🔗</a>
-                    {f'<span style="color:#58a6ff;font-size:1rem;margin-left:12px;">📅 공지: {notice_time_str} KST</span>' if notice_time_str else ''}
-                    {f'<span style="color:#3fb950;font-size:1.2rem;font-weight:700;margin-left:16px;">🚀 상장: {listing_time_str} KST</span>' if listing_time_str else ''}
-                    {f'<span style="color:#f0883e;font-size:1rem;margin-left:12px;">💰 {deposit_time_str}</span>' if deposit_time_str else ''}
+                    {f'<span style="color:#58a6ff;font-size:0.9rem;margin-left:8px;">📅 공지: {notice_time_str}</span>' if notice_time_str else ''}
+                    {f'<span style="color:#3fb950;font-size:1.1rem;font-weight:700;margin-left:12px;">🚀 상장: {listing_time_str}</span>' if listing_time_str else ''}
+                    {f'<span style="color:#f0883e;font-size:0.9rem;margin-left:8px;">💰 {deposit_time_str}</span>' if deposit_time_str else ''}
+                    {f'<span style="color:#a855f7;font-size:0.9rem;margin-left:8px;">📤 {withdraw_time_str}</span>' if withdraw_time_str else ''}
                 </div>
                 <div style="font-size:1.5rem;font-weight:700;color:#fff;">
                     {symbol if symbol else 'N/A'}
