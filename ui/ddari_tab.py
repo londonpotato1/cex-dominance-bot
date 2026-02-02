@@ -48,30 +48,33 @@ def render_ddari_tab() -> None:
     ])
 
     with dashboard_tab:
-        # 탭 설명
+        # 탭 설명 + 우측 hover 가이드
         render_html(
-            '''<div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                border:1px solid #3b82f6;border-radius:12px;padding:1rem;margin-bottom:1rem;">
-                <div style="font-size:0.9rem;color:#60a5fa;font-weight:600;">📊 대시보드</div>
-                <div style="font-size:0.8rem;color:#9ca3af;margin-top:0.25rem;">
-                    실시간 GO/NO-GO 현황, 프리미엄 차트, 시장 분위기를 한눈에 확인하세요.
+            '''<div style="position:relative;margin-bottom:1rem;">
+                <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                    border:1px solid #3b82f6;border-radius:12px;padding:1rem;">
+                    <div style="font-size:0.9rem;color:#60a5fa;font-weight:600;">📊 대시보드</div>
+                    <div style="font-size:0.8rem;color:#9ca3af;margin-top:0.25rem;">
+                        실시간 GO/NO-GO 현황, 프리미엄 차트, 시장 분위기를 한눈에 확인하세요.
+                    </div>
                 </div>
-            </div>'''
+                <!-- 우측 hover 가이드 -->
+                <div class="hover-guide" style="position:absolute;top:0;right:0;z-index:100;">
+                    <div class="hover-trigger" style="background:#3b82f6;color:#fff;padding:4px 8px;border-radius:6px;font-size:0.75rem;cursor:pointer;">💡 사용법</div>
+                    <div class="hover-content" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#1a1a2e;border:1px solid #3b82f6;border-radius:8px;padding:12px;width:280px;font-size:0.8rem;color:#d1d5db;line-height:1.6;box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+                        <div style="margin-bottom:6px;"><b style="color:#4ade80;">🟢 GO 카드</b>: 진입 검토 가능. 스코어↑ = 유리</div>
+                        <div style="margin-bottom:6px;"><b style="color:#f87171;">🔴 NO-GO</b>: 조건 불충족. 진입 회피</div>
+                        <div style="margin-bottom:6px;"><b style="color:#60a5fa;">📈 프리미엄</b>: 김치프리미엄 추이</div>
+                        <div style="margin-bottom:6px;"><b style="color:#a78bfa;">📊 현선갭</b>: 헷징 비용 판단</div>
+                        <div><b style="color:#fbbf24;">🔍 빠른 분석</b>: 심볼별 즉시 조회</div>
+                    </div>
+                </div>
+            </div>
+            <style>
+            .hover-guide:hover .hover-content { display:block !important; }
+            .hover-trigger:hover { background:#2563eb !important; }
+            </style>'''
         )
-        
-        # 대시보드 사용법 가이드 (접이식)
-        with st.expander("💡 대시보드 사용법", expanded=False):
-            render_html(
-                '''
-                <div style="font-size:0.85rem;color:#d1d5db;line-height:1.7;">
-                    <p><b>🟢 GO 카드</b>: 진입 검토 가능한 상장 건. GO 스코어가 높을수록 유리한 조건입니다.</p>
-                    <p><b>🔴 NO-GO 카드</b>: 조건 불충족. 진입을 피해야 합니다.</p>
-                    <p><b>📈 프리미엄 차트</b>: 시간별 김치프리미엄 추이를 확인합니다.</p>
-                    <p><b>📊 현선갭 모니터</b>: 현물-선물 가격 차이. 헷징 비용 판단에 활용합니다.</p>
-                    <p><b>🔍 빠른 분석</b>: 심볼 입력 후 현선갭 + DEX 유동성을 즉시 조회합니다.</p>
-                </div>
-                '''
-            )
         
         render_live_tab()
 
