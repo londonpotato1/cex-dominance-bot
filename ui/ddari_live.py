@@ -167,39 +167,123 @@ def _render_binance_alerts_section() -> None:
     if strategy and strategy.actions:
         actions_html = " | ".join([f"{a}" for a in strategy.actions[:2]])
     
+    # 토크노믹스 개별 값
+    total_supply_str = f"{intel.total_supply/1e9:.2f}B" if intel and intel.total_supply else "N/A"
+    circ_pct_str = f"{intel.circulating_percent:.1f}%" if intel and intel.circulating_percent else "N/A"
+    price_str = f"${intel.futures_price_usd:.4f}" if intel and intel.futures_price_usd else ("$" + f"{intel.current_price_usd:.4f}" if intel and intel.current_price_usd else "N/A")
+    mc_str = f"${intel.market_cap_usd/1e6:.1f}M" if intel and intel.market_cap_usd else "N/A"
+    fdv_str = f"${intel.fdv_usd/1e6:.1f}M" if intel and intel.fdv_usd else "N/A"
+    
+    # 거래소 테이블 생성
+    exchange_rows_html = ""
+    if intel and intel.exchanges:
+        for ex_name, ex_status in intel.exchanges.items():
+            spot_icon = "🟢" if ex_status.has_spot else "🔴"
+            futures_icon = "🟢" if ex_status.has_futures else "🔴"
+            dep_icon = "🟢" if ex_status.deposit_enabled else "⚪"
+            wd_icon = "🟢" if ex_status.withdraw_enabled else "⚪"
+            nets = ", ".join(ex_status.networks[:3]) if ex_status.networks else "-"
+            exchange_rows_html += f'''<tr style="border-bottom:1px solid #30363d;">
+                <td style="padding:6px 8px;color:#fff;font-weight:500;">{ex_name.upper()}</td>
+                <td style="padding:6px;text-align:center;">{spot_icon}</td>
+                <td style="padding:6px;text-align:center;">{futures_icon}</td>
+                <td style="padding:6px;text-align:center;">{dep_icon}</td>
+                <td style="padding:6px;text-align:center;">{wd_icon}</td>
+                <td style="padding:6px;color:#8b949e;font-size:0.8rem;">{nets}</td>
+            </tr>'''
+    
     render_html(f'''
-    <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        border:2px solid {border_color};border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+    <div style="background:#0d1117;border:2px solid {border_color};border-radius:16px;padding:1.5rem;margin-bottom:1rem;">
         
-        <!-- 헤더 -->
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
-            <div style="flex:1;">
-                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;">
-                    <span style="background:{badge_color};color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;">
+        <!-- 헤더: 뱃지 + 코인명 + 스코어 -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid #30363d;">
+            <div>
+                <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
+                    <span style="background:{badge_color};color:#fff;padding:4px 12px;border-radius:6px;font-size:0.8rem;font-weight:600;">
                         {badge_text}
                     </span>
-                    <span style="font-size:0.7rem;color:#6b7280;">바이낸스</span>
+                    <span style="color:#8b949e;font-size:0.85rem;">바이낸스 공지</span>
                 </div>
-                <div style="font-size:1.1rem;font-weight:700;color:#fff;">
-                    {symbol if symbol else 'N/A'} {f'<span style="font-size:0.75rem;font-weight:400;color:#9ca3af;">({intel.name})</span>' if intel and intel.name else ''}
+                <div style="font-size:1.5rem;font-weight:700;color:#fff;">
+                    {symbol if symbol else 'N/A'}
+                    <span style="font-size:1rem;font-weight:400;color:#8b949e;margin-left:0.5rem;">{intel.name if intel and intel.name else ''}</span>
                 </div>
             </div>
-            <div style="text-align:right;">
-                <div style="font-size:1.4rem;font-weight:700;color:{border_color};">
-                    {strategy.score if strategy else 0}점
+            <div style="text-align:center;background:#161b22;padding:1rem 1.5rem;border-radius:12px;">
+                <div style="font-size:2rem;font-weight:700;color:{border_color};">
+                    {strategy.score if strategy else 0}
                 </div>
-                <div style="font-size:0.7rem;color:#6b7280;">따리 스코어</div>
+                <div style="font-size:0.8rem;color:#8b949e;">따리 스코어</div>
             </div>
         </div>
         
-        <!-- 토크노믹스 & 체인 -->
-        {f'<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.5rem;font-size:0.75rem;"><span style="color:#60a5fa;">📊 {tokenomics_html}</span><span style="color:#a78bfa;">🔗 {platforms_html}</span></div>' if tokenomics_html or platforms_html else ''}
+        <!-- 토크노믹스 섹션 -->
+        <div style="margin-bottom:1.5rem;">
+            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
+                📊 토크노믹스
+                <span style="font-size:0.75rem;font-weight:400;color:#8b949e;">코인 기본 정보</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:1rem;background:#161b22;padding:1rem;border-radius:12px;">
+                <div style="text-align:center;">
+                    <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">현재가</div>
+                    <div style="font-size:1rem;font-weight:600;color:#fff;">{price_str}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">시가총액</div>
+                    <div style="font-size:1rem;font-weight:600;color:#58a6ff;">{mc_str}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">FDV</div>
+                    <div style="font-size:1rem;font-weight:600;color:#a371f7;">{fdv_str}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">총 공급량</div>
+                    <div style="font-size:1rem;font-weight:600;color:#3fb950;">{total_supply_str}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">유통량</div>
+                    <div style="font-size:1rem;font-weight:600;color:#f0883e;">{circ_pct_str}</div>
+                </div>
+            </div>
+        </div>
         
-        <!-- 거래소 상태 -->
-        {f'<div style="background:rgba(0,0,0,0.3);border-radius:8px;padding:0.5rem;margin-bottom:0.5rem;font-size:0.7rem;color:#9ca3af;">🏦 {exchange_html}</div>' if exchange_html else ''}
+        <!-- 체인/네트워크 -->
+        <div style="margin-bottom:1.5rem;">
+            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
+                🔗 지원 체인
+                <span style="font-size:0.75rem;font-weight:400;color:#8b949e;">입출금 가능 네트워크</span>
+            </div>
+            <div style="background:#161b22;padding:0.75rem 1rem;border-radius:8px;display:flex;gap:0.75rem;flex-wrap:wrap;">
+                {' '.join([f'<span style="background:#21262d;color:#58a6ff;padding:4px 12px;border-radius:6px;font-size:0.85rem;">{p}</span>' for p in (platforms_html.split(' · ') if platforms_html else ['N/A'])]) }
+            </div>
+        </div>
+        
+        <!-- 거래소 현황 테이블 -->
+        <div style="margin-bottom:1.5rem;">
+            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
+                🏦 거래소 현황
+                <span style="font-size:0.75rem;font-weight:400;color:#8b949e;">현물/선물 상장 및 입출금 상태</span>
+            </div>
+            <div style="background:#161b22;border-radius:12px;overflow:hidden;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                    <tr style="background:#21262d;color:#8b949e;">
+                        <th style="text-align:left;padding:10px 8px;">거래소</th>
+                        <th style="padding:10px;text-align:center;">현물</th>
+                        <th style="padding:10px;text-align:center;">선물</th>
+                        <th style="padding:10px;text-align:center;">입금</th>
+                        <th style="padding:10px;text-align:center;">출금</th>
+                        <th style="padding:10px;text-align:left;">네트워크</th>
+                    </tr>
+                    {exchange_rows_html if exchange_rows_html else '<tr><td colspan="6" style="padding:12px;text-align:center;color:#8b949e;">거래소 정보 없음</td></tr>'}
+                </table>
+            </div>
+        </div>
         
         <!-- 전략 액션 -->
-        {f'<div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:0.5rem;color:#fbbf24;font-size:0.75rem;">🎯 {actions_html}</div>' if actions_html else ''}
+        {f'''<div style="background:#21262d;border-left:4px solid {border_color};padding:1rem;border-radius:0 8px 8px 0;">
+            <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">🎯 추천 액션</div>
+            <div style="color:#f0883e;font-size:0.9rem;">{actions_html}</div>
+        </div>''' if actions_html else ''}
     </div>
     ''')
 
