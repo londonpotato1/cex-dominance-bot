@@ -69,7 +69,7 @@ def _run_strategy_analysis(symbol: str) -> Optional[dict]:
 
 
 def _render_strategy_result(rec):
-    """전략 분석 결과 렌더링"""
+    """전략 분석 결과 렌더링 (업그레이드: 거래소별 갭, 론 상세, 흥/망 예측)"""
     import streamlit as st
     
     # GO Score 색상
@@ -83,26 +83,91 @@ def _render_strategy_result(rec):
         score_color = "#f87171"
         score_emoji = "🔴"
     
+    # 흥/망 예측 표시
+    prediction_html = ""
+    if hasattr(rec, 'predicted_result') and rec.predicted_result:
+        if rec.predicted_result == "heung":
+            pred_color = "#4ade80"
+            pred_text = "🔥 흥따리 유력"
+        elif rec.predicted_result == "mang":
+            pred_color = "#f87171"
+            pred_text = "💀 망따리 주의"
+        else:
+            pred_color = "#fbbf24"
+            pred_text = "😐 보통"
+        prediction_html = f'<span style="background:{pred_color}22;color:{pred_color};padding:4px 12px;border-radius:12px;font-size:0.8rem;margin-left:0.5rem;">{pred_text}</span>'
+    
     # 메인 카드
     render_html(
-        f'''<div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);border:2px solid {score_color}40;border-radius:16px;padding:1.5rem;margin:1rem 0;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;"><div style="font-size:1.3rem;font-weight:700;color:#fff;">📊 {rec.symbol}</div><div style="background:{score_color}22;color:{score_color};padding:8px 16px;border-radius:20px;font-weight:700;font-size:1.1rem;">{score_emoji} {rec.go_score}/100</div></div><div style="background:{score_color}15;border-left:4px solid {score_color};padding:1rem;border-radius:0 12px 12px 0;margin-bottom:1rem;"><div style="font-size:1.1rem;font-weight:600;color:#fff;margin-bottom:0.3rem;">{rec.strategy_name}</div><div style="font-size:0.9rem;color:#d1d5db;">{rec.strategy_detail}</div></div></div>'''
+        f'''<div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);border:2px solid {score_color}40;border-radius:16px;padding:1.5rem;margin:1rem 0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+            <div style="display:flex;align-items:center;">
+                <span style="font-size:1.3rem;font-weight:700;color:#fff;">📊 {rec.symbol}</span>
+                {prediction_html}
+            </div>
+            <div style="background:{score_color}22;color:{score_color};padding:8px 16px;border-radius:20px;font-weight:700;font-size:1.1rem;">{score_emoji} {rec.go_score}/100</div>
+        </div>
+        <div style="background:{score_color}15;border-left:4px solid {score_color};padding:1rem;border-radius:0 12px 12px 0;margin-bottom:1rem;">
+            <div style="font-size:1.1rem;font-weight:600;color:#fff;margin-bottom:0.3rem;">{rec.strategy_name}</div>
+            <div style="font-size:0.9rem;color:#d1d5db;">{rec.strategy_detail}</div>
+        </div>
+        </div>'''
     )
+    
+    # === 거래소별 현선갭 (all_gaps) ===
+    all_gaps = getattr(rec, 'all_gaps', []) or []
+    if all_gaps:
+        gaps_rows = []
+        for gap in all_gaps[:5]:  # 최대 5개
+            gap_color = "#4ade80" if gap.gap_percent < 2 else "#fbbf24" if gap.gap_percent < 4 else "#f87171"
+            status = "🟢" if gap.gap_percent < 2 else "🟡" if gap.gap_percent < 4 else "🔴"
+            gaps_rows.append(
+                f'<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid #374151;">'
+                f'<span style="color:#9ca3af;">{gap.exchange}</span>'
+                f'<span style="color:{gap_color};font-weight:600;">{gap.gap_percent:.2f}% {status}</span>'
+                f'</div>'
+            )
+        gaps_html = "".join(gaps_rows)
+        
+        render_html(
+            f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;">
+            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;">📈 거래소별 현선갭</div>
+            {gaps_html}
+            </div>'''
+        )
     
     # 상세 정보 (2컬럼)
     col1, col2 = st.columns(2)
     
     with col1:
-        # 론 가능 거래소 (전체 표시)
-        if rec.loan_available:
-            exchanges = getattr(rec, 'loan_exchanges', []) or []
-            if exchanges:
-                ex_list = ", ".join(exchanges)
+        # 론 가능 거래소 (상세 - 이자율 포함)
+        loan_details = getattr(rec, 'loan_details', []) or []
+        if rec.loan_available and loan_details:
+            loan_rows = []
+            for ld in loan_details:
+                if ld.available:
+                    rate_str = f" ({ld.hourly_rate:.4f}%/h)" if ld.hourly_rate else ""
+                    is_best = ld.exchange == rec.best_loan_exchange
+                    best_mark = " ✅" if is_best else ""
+                    loan_rows.append(
+                        f'<div style="padding:0.3rem 0;color:#d1d5db;">{ld.exchange}{rate_str}{best_mark}</div>'
+                    )
+            if loan_rows:
+                loans_html = "".join(loan_rows)
+                render_html(
+                    f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;">
+                    <div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">💰 론 가능 거래소</div>
+                    {loans_html}
+                    </div>'''
+                )
             else:
-                ex_list = rec.best_loan_exchange or "있음"
-            loan_html = f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">💰 론 가능</div><div style="font-size:1rem;font-weight:600;color:#4ade80;">{ex_list}</div></div>'''
+                render_html('''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">💰 론 가능</div><div style="font-size:1rem;font-weight:600;color:#f87171;">없음</div></div>''')
+        elif rec.loan_available:
+            exchanges = getattr(rec, 'loan_exchanges', []) or []
+            ex_list = ", ".join(exchanges) if exchanges else (rec.best_loan_exchange or "있음")
+            render_html(f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">💰 론 가능</div><div style="font-size:1rem;font-weight:600;color:#4ade80;">{ex_list}</div></div>''')
         else:
-            loan_html = '''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">💰 론 가능</div><div style="font-size:1rem;font-weight:600;color:#f87171;">없음</div></div>'''
-        render_html(loan_html)
+            render_html('''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">💰 론 가능</div><div style="font-size:1rem;font-weight:600;color:#f87171;">없음</div></div>''')
         
         # DEX 유동성
         if rec.dex_liquidity_usd:
@@ -117,24 +182,10 @@ def _render_strategy_result(rec):
         )
     
     with col2:
-        # 현선갭
-        if rec.best_gap:
-            gap = rec.best_gap.gap_percent
-            gap_color = "#4ade80" if gap < 2 else "#fbbf24" if gap < 4 else "#f87171"
-            gap_str = f"{gap:.1f}%"
-        else:
-            gap_str = "1.5% (기본값)"
-            gap_color = "#4ade80"
-        
-        render_html(
-            f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">📈 현선갭</div><div style="font-size:1rem;font-weight:600;color:{gap_color};">{gap_str}</div></div>'''
-        )
-        
-        # 네트워크 (속도 설명 추가)
+        # 네트워크
         speed = rec.network_speed or "unknown"
         time_str = rec.network_time or "확인 필요"
         
-        # 속도별 색상 및 설명
         speed_map = {
             "very_fast": ("🚀 매우 빠름", "#f87171", "입금 경쟁 치열"),
             "fast": ("⚡ 빠름", "#fbbf24", "경쟁 있음"),
@@ -145,12 +196,75 @@ def _render_strategy_result(rec):
         }
         speed_label, speed_color, speed_note = speed_map.get(speed, ("❓ 확인 필요", "#6b7280", ""))
         
-        # 시간 정보 포맷
         time_display = f" ({time_str})" if time_str and time_str != "확인 필요" else ""
         note_display = f"<div style='font-size:0.75rem;color:#9ca3af;margin-top:0.25rem;'>{speed_note}</div>" if speed_note else ""
         
         render_html(
-            f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">⚡ 네트워크</div><div style="font-size:1rem;font-weight:600;color:{speed_color};">{speed_label}{time_display}</div>{note_display}</div>'''
+            f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-bottom:0.5rem;"><div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">⚡ 네트워크</div><div style="font-size:1rem;font-weight:600;color:{speed_color};">{speed_label}{time_display}</div>{note_display}</div>'''
+        )
+        
+        # 흥/망 예측 (유사 케이스)
+        similar_cases = getattr(rec, 'similar_cases', []) or []
+        if similar_cases:
+            cases_rows = []
+            for case in similar_cases[:3]:
+                label_map = {
+                    'heung': ('🔥', '#4ade80'), 'heung_big': ('🔥🔥', '#4ade80'), '흥따리': ('🔥', '#4ade80'), '대흥따리': ('🔥🔥', '#4ade80'),
+                    'mang': ('💀', '#f87171'), '망따리': ('💀', '#f87171'),
+                    'neutral': ('😐', '#fbbf24'), '보통': ('😐', '#fbbf24')
+                }
+                emoji, color = label_map.get(case.result_label, ('❓', '#6b7280'))
+                prem_str = f" (+{case.max_premium_pct:.0f}%)" if case.max_premium_pct else ""
+                cases_rows.append(
+                    f'<div style="padding:0.25rem 0;font-size:0.8rem;color:#d1d5db;">{emoji} {case.symbol}{prem_str}</div>'
+                )
+            cases_html = "".join(cases_rows)
+            
+            render_html(
+                f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;">
+                <div style="font-size:0.85rem;color:#9ca3af;margin-bottom:0.5rem;">📊 유사 케이스</div>
+                {cases_html}
+                </div>'''
+            )
+    
+    # === 전송 분석 섹션 ===
+    exchange_networks = getattr(rec, 'exchange_networks', {}) or {}
+    bridge_required = getattr(rec, 'bridge_required', False)
+    bridge_name = getattr(rec, 'bridge_name', None)
+    best_transfer_route = getattr(rec, 'best_transfer_route', None)
+    fastest_transfer_time = getattr(rec, 'fastest_transfer_time', None)
+    
+    if exchange_networks or bridge_required or best_transfer_route:
+        transfer_content = []
+        
+        # 브릿지 필요 여부
+        if bridge_required:
+            bridge_text = f"🔗 브릿지 필요" + (f" ({bridge_name})" if bridge_name else "")
+            transfer_content.append(f'<div style="color:#fbbf24;font-weight:600;margin-bottom:0.5rem;">{bridge_text}</div>')
+        else:
+            transfer_content.append('<div style="color:#4ade80;margin-bottom:0.5rem;">✅ 직접 전송 가능</div>')
+        
+        # 최적 경로
+        if best_transfer_route:
+            time_text = f" ({fastest_transfer_time})" if fastest_transfer_time else ""
+            transfer_content.append(f'<div style="color:#d1d5db;font-size:0.85rem;">📤 {best_transfer_route}{time_text}</div>')
+        
+        # 거래소별 출금 네트워크
+        if exchange_networks:
+            transfer_content.append('<div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid #374151;font-size:0.8rem;">')
+            for ex, nets in list(exchange_networks.items())[:3]:
+                nets_str = ", ".join(nets[:4]) if nets else "없음"
+                if len(nets) > 4:
+                    nets_str += f" +{len(nets)-4}"
+                transfer_content.append(f'<div style="color:#9ca3af;padding:0.2rem 0;">{ex}: {nets_str}</div>')
+            transfer_content.append('</div>')
+        
+        transfer_html = "".join(transfer_content)
+        render_html(
+            f'''<div style="background:#1f2937;padding:1rem;border-radius:12px;margin-top:0.5rem;">
+            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">⚡ 전송 분석</div>
+            {transfer_html}
+            </div>'''
         )
     
     # 액션 플랜

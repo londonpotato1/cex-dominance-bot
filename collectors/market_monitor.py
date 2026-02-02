@@ -401,12 +401,25 @@ class MarketMonitor:
                         except Exception as e:
                             logger.warning("[MarketMonitor] AI 분석 실패: %s", e)
                     
-                    # 5. 텔레그램 알림 (속도 정보 + AI 결과 + 인라인 버튼)
+                    # 5. 통합 전략 분석 (Phase 6: All-in-One)
+                    strategy_rec = None
+                    try:
+                        from collectors.listing_strategy import analyze_listing
+                        strategy_rec = await analyze_listing(symbol)
+                        logger.info(
+                            "[MarketMonitor] 전략 분석 완료: %s (GO Score: %d)",
+                            symbol, strategy_rec.go_score
+                        )
+                    except Exception as e:
+                        logger.warning("[MarketMonitor] 전략 분석 실패: %s", e)
+                    
+                    # 6. 텔레그램 알림 (속도 정보 + AI 결과 + 전략 분석 + 인라인 버튼)
                     if self._alert:
                         alert_msg, buttons = self._format_alert(
                             symbol, exchange, result, 
                             latency_tracker=tracker, 
-                            ai_result=ai_result
+                            ai_result=ai_result,
+                            strategy_rec=strategy_rec,
                         )
                         await self._alert.send(
                             result.alert_level,
@@ -544,9 +557,10 @@ class MarketMonitor:
         result: GateResult,
         latency_tracker: "LatencyTracker | None" = None,
         ai_result: "AIAnalysisResult | None" = None,
+        strategy_rec = None,  # StrategyRecommendation
         duration_ms: float = 0,  # 하위 호환성 (deprecated)
     ) -> tuple[str, list[list[dict]] | None]:
-        """Gate 결과를 알림 메시지로 포맷 (Phase 1.1 + Phase 3 AI + Phase 4.2 속도).
+        """Gate 결과를 알림 메시지로 포맷 (Phase 6: All-in-One 전략 분석 포함).
         
         Args:
             symbol: 토큰 심볼.
@@ -554,107 +568,123 @@ class MarketMonitor:
             result: Gate 분석 결과.
             latency_tracker: Phase 4.2 지연 시간 트래커 (optional).
             ai_result: AI 분석 결과 (optional).
+            strategy_rec: 전략 분석 결과 (optional).
             duration_ms: [deprecated] 분석 시간 (ms). latency_tracker 우선.
             
         Returns:
             tuple: (메시지 텍스트, 인라인 버튼 배열 또는 None)
         """
-        # LatencyTracker import (TYPE_CHECKING에서 사용)
         from metrics.latency import LatencyTracker
         gi = result.gate_input
         is_go = result.can_proceed
         
-        # ===== 헤더: 크고 명확하게 =====
-        if is_go:
-            header = f"🚀 *GO!* {symbol} @{exchange.upper()}"
+        # ===== 헤더 =====
+        lines = [f"🚀 *[신규 상장 분석]* {symbol} @{exchange.upper()}", ""]
+        
+        # ===== GO Score (전략 분석 결과) =====
+        if strategy_rec:
+            go_score = strategy_rec.go_score
+            score_emoji = "🟢" if go_score >= 70 else "🟡" if go_score >= 50 else "🔴"
+            
+            # 흥/망 예측
+            pred = getattr(strategy_rec, 'predicted_result', None)
+            pred_text = ""
+            if pred == "heung":
+                pred_text = " | 🔥 흥따리 유력"
+            elif pred == "mang":
+                pred_text = " | 💀 망따리 주의"
+            
+            lines.append(f"🎯 *GO Score: {go_score}/100* {score_emoji}{pred_text}")
+            lines.append(f"📋 전략: {strategy_rec.strategy_name}")
+            lines.append("")
+        elif is_go:
+            lines.append("🎯 *GO* - 진입 검토 가능")
+            lines.append("")
         else:
-            header = f"🔴 *NO-GO* {symbol} @{exchange.upper()}"
+            lines.append("🔴 *NO-GO* - 진입 비권장")
+            lines.append("")
         
-        lines = [header, ""]
-        
-        # ===== 핵심 지표: 수익 중심 =====
+        # ===== 핵심 지표 =====
         if gi:
-            net_profit = gi.cost_result.net_profit_pct
             premium = gi.premium_pct
-            
-            # 예상 수익 계산 (50만원 기준)
-            base_krw = 500_000
-            profit_krw = int(base_krw * net_profit / 100)
-            
-            if is_go:
-                lines.append(f"💰 *예상 수익: {net_profit:+.2f}%* (≈₩{profit_krw:,})")
-            else:
-                lines.append(f"💸 순수익: {net_profit:+.2f}% (≈₩{profit_krw:,})")
-            
-            lines.append(f"📈 김프: {premium:+.2f}% | 비용: {gi.cost_result.total_cost_pct:.2f}%")
+            net_profit = gi.cost_result.net_profit_pct
+            lines.append(f"📈 김프: {premium:+.2f}% | 순익: {net_profit:+.2f}%")
         
-        # ===== 공급 분류 + 전략 =====
-        if result.supply_result:
-            supply = result.supply_result.classification.value
-            confidence = result.supply_result.total_score
+        # ===== 헷징 분석 (전략 분석 결과) =====
+        if strategy_rec:
+            # 현선갭
+            all_gaps = getattr(strategy_rec, 'all_gaps', []) or []
+            if all_gaps:
+                gap_parts = []
+                for gap in all_gaps[:3]:
+                    gap_emoji = "🟢" if gap.gap_percent < 2 else "🟡" if gap.gap_percent < 4 else "🔴"
+                    ex_short = gap.exchange.split('/')[0][:3].upper()
+                    gap_parts.append(f"{ex_short} {gap.gap_percent:.1f}%{gap_emoji}")
+                lines.append(f"📊 현선갭: {' | '.join(gap_parts)}")
             
-            # 흥/망따리 이모지
-            if "smooth" in supply.lower() or confidence > 6:
-                supply_emoji = "🔥"
-                supply_text = "흥따리 유력"
-            elif "tight" in supply.lower() or confidence < 3:
-                supply_emoji = "💀"
-                supply_text = "망따리 주의"
+            # 론 가능 거래소
+            if strategy_rec.loan_available:
+                loan_parts = []
+                for ld in getattr(strategy_rec, 'loan_details', [])[:2]:
+                    if ld.available:
+                        rate = f" ({ld.hourly_rate:.3f}%/h)" if ld.hourly_rate else ""
+                        mark = " ✅" if ld.exchange == strategy_rec.best_loan_exchange else ""
+                        loan_parts.append(f"{ld.exchange}{rate}{mark}")
+                if loan_parts:
+                    lines.append(f"💰 론: {' | '.join(loan_parts)}")
             else:
-                supply_emoji = "😐"
-                supply_text = "보통"
-            
-            lines.append(f"{supply_emoji} {supply_text} (점수: {confidence:.1f})")
+                lines.append("💰 론: 불가")
         
-        # ===== 속도 정보 (Phase 4.2) =====
+        # ===== 전송 분석 =====
+        if strategy_rec:
+            # 브릿지
+            bridge_required = getattr(strategy_rec, 'bridge_required', False)
+            bridge_name = getattr(strategy_rec, 'bridge_name', None)
+            if bridge_required:
+                lines.append(f"🔗 브릿지: 필요 ({bridge_name})" if bridge_name else "🔗 브릿지: 필요")
+            
+            # 전송 시간
+            fastest = getattr(strategy_rec, 'fastest_transfer_time', None)
+            if fastest:
+                lines.append(f"⚡ 전송: {fastest}")
+        
+        # ===== 유사 케이스 =====
+        if strategy_rec:
+            cases = getattr(strategy_rec, 'similar_cases', []) or []
+            if cases:
+                case_parts = []
+                for c in cases[:2]:
+                    label_emoji = {"heung": "🔥", "heung_big": "🔥", "mang": "💀", "흥따리": "🔥", "망따리": "💀"}.get(c.result_label, "😐")
+                    prem = f"+{c.max_premium_pct:.0f}%" if c.max_premium_pct else ""
+                    case_parts.append(f"{label_emoji}{c.symbol}{prem}")
+                lines.append(f"📚 유사: {' | '.join(case_parts)}")
+        
+        # ===== 분석 속도 =====
         if latency_tracker and latency_tracker.analyze_duration_ms:
             analyze_ms = latency_tracker.analyze_duration_ms
-            if analyze_ms >= 1000:
-                lines.append(f"⚡ 분석: *{analyze_ms/1000:.1f}s*")
-            else:
-                lines.append(f"⚡ 분석: *{analyze_ms:.0f}ms*")
-        elif duration_ms > 0:
-            # 하위 호환성
-            lines.append(f"⚡ 감지 → 분석: *{duration_ms:.0f}ms*")
+            lines.append(f"⏱ 분석: {analyze_ms:.0f}ms")
         
-        # ===== 경고사항 (간결하게) =====
+        # ===== 경고사항 =====
+        all_warnings = list(result.warnings) if result.warnings else []
+        if strategy_rec and strategy_rec.warnings:
+            all_warnings.extend(strategy_rec.warnings[:2])
+        
+        if all_warnings:
+            lines.append("")
+            for w in all_warnings[:3]:
+                lines.append(f"⚠️ {w[:45]}")
+        
+        # ===== 차단 사유 (NO-GO) =====
         if result.blockers:
             lines.append("")
-            lines.append("🚫 *차단 사유:*")
-            for b in result.blockers[:2]:  # 최대 2개
+            lines.append("🚫 *차단:*")
+            for b in result.blockers[:2]:
                 lines.append(f"  • {b[:40]}")
-        
-        if result.warnings and is_go:  # GO일 때만 경고 표시
-            lines.append("")
-            lines.append("⚠️ *주의:*")
-            for w in result.warnings[:2]:  # 최대 2개
-                lines.append(f"  • {w[:40]}")
-        
-        # ===== AI 인사이트 (Phase 3) =====
-        if ai_result is not None:
-            lines.append("")
-            lines.append("🤖 *AI 분석:*")
-            
-            # AI 요약
-            if ai_result.summary:
-                lines.append(f"  {ai_result.summary[:50]}")
-            
-            # AI 리스크 레벨
-            risk_emoji = {
-                "low": "🟢", "medium": "🟡", "high": "🟠", "critical": "🔴"
-            }.get(ai_result.risk_level.value, "⚪")
-            lines.append(f"  {risk_emoji} 리스크: {ai_result.risk_level.value.upper()}")
-            
-            # AI 경고
-            for w in ai_result.warnings[:1]:
-                lines.append(f"  ⚠️ {w[:35]}")
         
         message = "\n".join(lines)
         
-        # ===== 인라인 버튼 (GO일 때만) =====
-        buttons = None
-        if is_go:
-            buttons = MarketMonitor._get_exchange_buttons(symbol, exchange)
+        # ===== 인라인 버튼 =====
+        buttons = MarketMonitor._get_exchange_buttons(symbol, exchange)
         
         return message, buttons
     

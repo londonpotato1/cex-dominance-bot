@@ -1824,8 +1824,27 @@ def render_live_tab() -> None:
         render_html(market_info_html)
         
     with col_right:
-        # 🔍 빠른 분석 섹션
-        _render_quick_analysis_section()
+        # 🎯 분석센터 안내 (빠른 분석은 분석센터 탭으로 통합됨)
+        render_html('''
+        <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border:1px solid #3b82f6;border-radius:12px;padding:1rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                <span style="font-size:1.2rem;">🎯</span>
+                <span style="font-size:1rem;font-weight:700;color:#fff;">전략 분석</span>
+            </div>
+            <p style="font-size:0.8rem;color:#9ca3af;margin-bottom:0.75rem;">
+                상장 코인 분석, 현선갭, 론 가능 거래소, 
+                전략 추천은 <b style="color:#60a5fa;">분석센터</b> 탭에서 확인하세요.
+            </p>
+            <div style="background:#1f2937;border-radius:8px;padding:0.75rem;font-size:0.75rem;">
+                <div style="color:#4ade80;margin-bottom:0.3rem;">✅ 통합 전략 분석</div>
+                <div style="color:#d1d5db;">• 거래소별 현선갭 비교</div>
+                <div style="color:#d1d5db;">• 론 가능 거래소 스캔</div>
+                <div style="color:#d1d5db;">• 흥/망따리 예측</div>
+                <div style="color:#d1d5db;">• 전략 추천 (헷지/후따리)</div>
+            </div>
+        </div>
+        ''')
 
     # ============================================================
     # 섹션 3: 차트/상세 정보 (접이식)

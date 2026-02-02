@@ -50,6 +50,25 @@ class GapInfo:
 
 
 @dataclass
+class LoanDetail:
+    """거래소별 론 상세 정보"""
+    exchange: str
+    available: bool
+    hourly_rate: Optional[float] = None
+    max_amount: Optional[float] = None
+
+
+@dataclass
+class SimilarCase:
+    """복기 데이터 - 유사 케이스"""
+    symbol: str
+    listing_date: str
+    result_label: str  # heung_big, heung, neutral, mang
+    max_premium_pct: Optional[float] = None
+    similarity_reason: str = ""
+
+
+@dataclass
 class StrategyRecommendation:
     """전략 추천 결과"""
     symbol: str
@@ -64,8 +83,10 @@ class StrategyRecommendation:
     
     # 개별 분석 결과
     best_gap: Optional[GapInfo] = None
+    all_gaps: List[GapInfo] = field(default_factory=list)  # 거래소별 전체 갭
     loan_available: bool = False
     loan_exchanges: List[str] = field(default_factory=list)
+    loan_details: List[LoanDetail] = field(default_factory=list)  # 거래소별 론 상세
     best_loan_exchange: Optional[str] = None
     best_loan_rate: Optional[float] = None
     
@@ -73,6 +94,19 @@ class StrategyRecommendation:
     hot_wallet_krw: Optional[float] = None
     network_speed: Optional[str] = None
     network_time: Optional[str] = None
+    network_chain: Optional[str] = None  # 체인명 (ETH, SOL 등)
+    
+    # 전송 분석
+    bridge_required: bool = False  # 브릿지 필요 여부
+    bridge_info: Optional[str] = None  # 브릿지 정보
+    bridge_name: Optional[str] = None  # 추천 브릿지 이름
+    exchange_networks: Dict[str, List[str]] = field(default_factory=dict)  # 거래소별 출금 가능 네트워크
+    best_transfer_route: Optional[str] = None  # 최적 전송 경로
+    fastest_transfer_time: Optional[str] = None  # 가장 빠른 전송 시간
+    
+    # 흥/망 예측 (복기 데이터 기반)
+    predicted_result: Optional[str] = None  # heung, mang, neutral
+    similar_cases: List[SimilarCase] = field(default_factory=list)
     
     # 액션 아이템
     actions: List[str] = field(default_factory=list)
@@ -114,30 +148,36 @@ class ListingStrategyAnalyzer:
         dex_task = self._get_dex_liquidity(symbol)
         wallet_task = self._get_hot_wallet(symbol)
         network_task = self._get_network_info(symbol)
+        similar_task = self._get_similar_cases(symbol)
+        transfer_task = self._get_transfer_analysis(symbol)
         
         results = await asyncio.gather(
-            gap_task, loan_task, dex_task, wallet_task, network_task,
+            gap_task, loan_task, dex_task, wallet_task, network_task, similar_task, transfer_task,
             return_exceptions=True
         )
         
-        gap_info = results[0] if not isinstance(results[0], Exception) else None
+        gap_result = results[0] if not isinstance(results[0], Exception) else {"best": None, "all": []}
         loan_info = results[1] if not isinstance(results[1], Exception) else {}
         dex_liquidity = results[2] if not isinstance(results[2], Exception) else None
         hot_wallet = results[3] if not isinstance(results[3], Exception) else None
         network_info = results[4] if not isinstance(results[4], Exception) else {}
+        similar_cases = results[5] if not isinstance(results[5], Exception) else []
+        transfer_analysis = results[6] if not isinstance(results[6], Exception) else None
         
         # 전략 결정
         return self._determine_strategy(
             symbol=symbol,
-            gap_info=gap_info,
+            gap_result=gap_result,
             loan_info=loan_info,
             dex_liquidity=dex_liquidity,
             hot_wallet=hot_wallet,
-            network_info=network_info
+            network_info=network_info,
+            similar_cases=similar_cases,
+            transfer_analysis=transfer_analysis
         )
     
-    async def _get_gap_info(self, symbol: str) -> Optional[GapInfo]:
-        """현선갭 조회 - 실제 API 연동"""
+    async def _get_gap_info(self, symbol: str) -> Dict:
+        """현선갭 조회 - 실제 API 연동 (거래소별 전체 갭 반환)"""
         try:
             from collectors.exchange_service import exchange_service
             from collectors.gap_calculator import GapCalculator
@@ -158,9 +198,10 @@ class ListingStrategyAnalyzer:
             
             if not spot_prices or not futures_prices:
                 logger.warning(f"{symbol}: 가격 데이터 없음 (spot={len(spot_prices)}, futures={len(futures_prices)})")
-                return None
+                return {"best": None, "all": []}
             
             # 모든 조합의 갭 계산
+            all_gaps = []
             best_gap = None
             best_gap_percent = float('inf')
             
@@ -172,25 +213,31 @@ class ListingStrategyAnalyzer:
                     gap_percent = ((futures_data.price - spot_data.price) / spot_data.price) * 100
                     is_reverse = gap_percent < 0
                     
-                    # 갭이 낮을수록(또는 역프일수록) 좋음 - 절대값이 작은 것 선호
+                    gap_info = GapInfo(
+                        exchange=f"{spot_ex}/{futures_ex}",
+                        spot_price=spot_data.price,
+                        futures_price=futures_data.price,
+                        gap_percent=gap_percent,
+                        is_reverse=is_reverse
+                    )
+                    all_gaps.append(gap_info)
+                    
+                    # 갭이 낮을수록 좋음 - 절대값이 작은 것 선호
                     if abs(gap_percent) < abs(best_gap_percent):
                         best_gap_percent = gap_percent
-                        best_gap = GapInfo(
-                            exchange=f"{spot_ex}/{futures_ex}",
-                            spot_price=spot_data.price,
-                            futures_price=futures_data.price,
-                            gap_percent=gap_percent,
-                            is_reverse=is_reverse
-                        )
+                        best_gap = gap_info
+            
+            # 갭 낮은 순으로 정렬
+            all_gaps.sort(key=lambda x: abs(x.gap_percent))
             
             if best_gap:
-                logger.info(f"{symbol} 갭: {best_gap.gap_percent:.2f}% ({best_gap.exchange})")
+                logger.info(f"{symbol} 갭: {best_gap.gap_percent:.2f}% ({best_gap.exchange}), 총 {len(all_gaps)}개")
             
-            return best_gap
+            return {"best": best_gap, "all": all_gaps}
             
         except Exception as e:
             logger.error(f"Gap info 조회 실패: {e}")
-            return None
+            return {"best": None, "all": []}
     
     async def _get_loan_info(self, symbol: str) -> Dict:
         """론 가능 거래소 조회"""
@@ -294,14 +341,104 @@ class ListingStrategyAnalyzer:
             logger.error(f"Network info 조회 실패: {e}")
             return {}
     
+    async def _get_similar_cases(self, symbol: str) -> List[SimilarCase]:
+        """복기 데이터에서 유사 케이스 조회"""
+        try:
+            import sqlite3
+            import os
+            from pathlib import Path
+            
+            # DB 경로 (환경변수 또는 기본 경로)
+            data_dir = os.environ.get("DATA_DIR", "/data")
+            db_path = Path(data_dir) / "listing_history.db"
+            
+            if not db_path.exists():
+                # 로컬 개발 환경
+                db_path = Path("C:/Users/user/clawd/data/listing_history.db")
+            
+            if not db_path.exists():
+                logger.debug("listing_history.db not found")
+                return []
+            
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # learning_cases 테이블에서 유사 케이스 검색
+            # (향후: 시총, 거래소, 네트워크 등 조건으로 유사도 계산 가능)
+            cursor.execute("""
+                SELECT symbol, listing_date, result_label, max_premium_pct, 
+                       top_exchange, network_chain, market_cap_usd
+                FROM learning_cases
+                WHERE result_label IS NOT NULL
+                ORDER BY listing_date DESC
+                LIMIT 5
+            """)
+            
+            cases = []
+            for row in cursor.fetchall():
+                similarity_reason = f"{row['top_exchange'] or ''} 상장"
+                if row['network_chain']:
+                    similarity_reason += f", {row['network_chain']} 체인"
+                
+                cases.append(SimilarCase(
+                    symbol=row['symbol'],
+                    listing_date=row['listing_date'] or '',
+                    result_label=row['result_label'],
+                    max_premium_pct=row['max_premium_pct'],
+                    similarity_reason=similarity_reason
+                ))
+            
+            conn.close()
+            
+            if cases:
+                logger.info(f"{symbol}: {len(cases)}개 유사 케이스 발견")
+            
+            return cases
+            
+        except Exception as e:
+            logger.error(f"Similar cases 조회 실패: {e}")
+            return []
+    
+    async def _get_transfer_analysis(self, symbol: str):
+        """전송 분석 (브릿지, 출금 가능 네트워크)"""
+        try:
+            from collectors.transfer_analyzer import analyze_transfer
+            return await analyze_transfer(symbol)
+        except Exception as e:
+            logger.error(f"Transfer analysis 실패: {e}")
+            return None
+    
+    def _predict_result(self, similar_cases: List[SimilarCase]) -> Optional[str]:
+        """유사 케이스 기반 흥/망 예측"""
+        if not similar_cases:
+            return None
+        
+        heung_count = sum(1 for c in similar_cases if c.result_label in ('heung', 'heung_big', '흥따리', '대흥따리'))
+        mang_count = sum(1 for c in similar_cases if c.result_label in ('mang', '망따리'))
+        
+        total = heung_count + mang_count
+        if total == 0:
+            return "neutral"
+        
+        heung_rate = heung_count / total
+        if heung_rate >= 0.6:
+            return "heung"
+        elif heung_rate <= 0.4:
+            return "mang"
+        else:
+            return "neutral"
+    
     def _determine_strategy(
         self,
         symbol: str,
-        gap_info: Optional[GapInfo],
+        gap_result: Dict,
         loan_info: Dict,
         dex_liquidity: Optional[float],
         hot_wallet: Optional[float],
-        network_info: Dict
+        network_info: Dict,
+        similar_cases: List[SimilarCase] = None,
+        transfer_analysis = None
     ) -> StrategyRecommendation:
         """전략 결정 로직
         
@@ -312,12 +449,16 @@ class ListingStrategyAnalyzer:
         - 역프 → 역따리 전략
         - 핫월렛 많음 + 네트워크 빠름 → 경쟁 치열, 리스크 ↑
         """
+        if similar_cases is None:
+            similar_cases = []
         
         actions = []
         warnings = []
         go_score = 50  # 기본 점수
         
         # === 갭 정보 처리 ===
+        gap_info = gap_result.get("best") if gap_result else None
+        all_gaps = gap_result.get("all", []) if gap_result else []
         gap_percent = gap_info.gap_percent if gap_info else None
         is_reverse = gap_info.is_reverse if gap_info else False
         
@@ -449,6 +590,47 @@ class ListingStrategyAnalyzer:
         
         go_score = max(0, min(100, go_score))
         
+        # === 흥/망 예측 ===
+        predicted_result = self._predict_result(similar_cases)
+        if predicted_result == "heung":
+            go_score = min(100, go_score + 10)
+            actions.append("📈 복기 데이터: 흥따리 유력 (유사 케이스 기반)")
+        elif predicted_result == "mang":
+            go_score = max(0, go_score - 10)
+            warnings.append("📉 복기 데이터: 망따리 주의 (유사 케이스 기반)")
+        
+        # === 론 상세 정보 ===
+        loan_details = []
+        all_results = loan_info.get("all_results", [])
+        for r in all_results:
+            if hasattr(r, 'exchange'):
+                loan_details.append(LoanDetail(
+                    exchange=r.exchange,
+                    available=r.available,
+                    hourly_rate=getattr(r, 'hourly_rate', None),
+                    max_amount=getattr(r, 'max_loan_amount', None)
+                ))
+        
+        # === 전송 분석 결과 ===
+        bridge_required = False
+        bridge_info = None
+        bridge_name = None
+        exchange_networks = {}
+        best_transfer_route = None
+        fastest_transfer_time = None
+        
+        if transfer_analysis:
+            bridge_required = transfer_analysis.bridge_required
+            if transfer_analysis.bridge_reason:
+                bridge_info = transfer_analysis.bridge_reason
+            if transfer_analysis.recommended_bridge:
+                bridge_name = transfer_analysis.recommended_bridge.name
+                warnings.append(f"🔗 브릿지 필요: {bridge_name} 이용 추천")
+            exchange_networks = transfer_analysis.exchange_networks
+            if transfer_analysis.best_route:
+                best_transfer_route = f"{transfer_analysis.best_route.from_exchange} → {transfer_analysis.best_route.network}"
+            fastest_transfer_time = transfer_analysis.fastest_time
+        
         return StrategyRecommendation(
             symbol=symbol,
             timestamp=time.time(),
@@ -458,14 +640,24 @@ class ListingStrategyAnalyzer:
             risk_level=risk_level,
             go_score=go_score,
             best_gap=gap_info,
+            all_gaps=all_gaps,
             loan_available=has_loan,
             loan_exchanges=loan_exchanges,
+            loan_details=loan_details,
             best_loan_exchange=best_loan,
             best_loan_rate=best_rate,
             dex_liquidity_usd=dex_liquidity,
             hot_wallet_krw=hot_wallet,
             network_speed=network_speed,
             network_time=network_time,
+            bridge_required=bridge_required,
+            bridge_info=bridge_info,
+            bridge_name=bridge_name,
+            exchange_networks=exchange_networks,
+            best_transfer_route=best_transfer_route,
+            fastest_transfer_time=fastest_transfer_time,
+            predicted_result=predicted_result,
+            similar_cases=similar_cases,
             actions=actions,
             warnings=warnings
         )
