@@ -80,6 +80,9 @@ class ExchangeMarket:
     deposit_enabled: bool = False
     withdraw_enabled: bool = False
     networks: List[str] = field(default_factory=list)
+    # 핫월렛 정보
+    hot_wallet_usd: Optional[float] = None  # 핫월렛 총 잔고 (USD)
+    hot_wallet_count: int = 0  # 핫월렛 지갑 수
 
 
 @dataclass
@@ -195,6 +198,12 @@ class ListingStrategyAnalyzer:
         transfer_analysis = results[6] if not isinstance(results[6], Exception) else None
         listing_intel = results[7] if not isinstance(results[7], Exception) else None
         
+        # 거래소별 핫월렛 조회 (listing_intel에서 거래소 목록 추출)
+        exchange_hot_wallets = {}
+        if listing_intel and listing_intel.exchanges:
+            exchange_list = list(listing_intel.exchanges.keys())
+            exchange_hot_wallets = await self._get_exchange_hot_wallets(exchange_list)
+        
         # 전략 결정
         return self._determine_strategy(
             symbol=symbol,
@@ -205,7 +214,8 @@ class ListingStrategyAnalyzer:
             network_info=network_info,
             similar_cases=similar_cases,
             transfer_analysis=transfer_analysis,
-            listing_intel=listing_intel
+            listing_intel=listing_intel,
+            exchange_hot_wallets=exchange_hot_wallets
         )
     
     async def _get_gap_info(self, symbol: str) -> Dict:
@@ -338,6 +348,38 @@ class ListingStrategyAnalyzer:
         except Exception as e:
             logger.error(f"Hot wallet 조회 실패: {e}")
             return None
+    
+    async def _get_exchange_hot_wallets(self, exchanges: List[str]) -> Dict[str, Dict]:
+        """거래소별 핫월렛 잔고 조회
+        
+        Returns:
+            {"binance": {"total_usd": 1000000, "wallet_count": 5}, ...}
+        """
+        result = {}
+        try:
+            from collectors.hot_wallet_tracker import HotWalletTracker
+            
+            tracker = HotWalletTracker()
+            try:
+                for exchange in exchanges:
+                    ex_lower = exchange.lower()
+                    try:
+                        wallet_result = await tracker.get_exchange_balance(ex_lower)
+                        if wallet_result:
+                            result[ex_lower] = {
+                                "total_usd": wallet_result.total_balance_usd,
+                                "wallet_count": len(wallet_result.balances),
+                                "chains": wallet_result.chains_checked,
+                            }
+                    except Exception as e:
+                        logger.debug(f"{exchange} 핫월렛 조회 실패: {e}")
+            finally:
+                await tracker.close()
+                
+        except Exception as e:
+            logger.error(f"Exchange hot wallets 조회 실패: {e}")
+        
+        return result
     
     async def _get_network_info(self, symbol: str) -> Dict:
         """네트워크 정보 조회"""
@@ -486,7 +528,8 @@ class ListingStrategyAnalyzer:
         network_info: Dict,
         similar_cases: List[SimilarCase] = None,
         transfer_analysis = None,
-        listing_intel = None
+        listing_intel = None,
+        exchange_hot_wallets: Dict[str, Dict] = None
     ) -> StrategyRecommendation:
         """전략 결정 로직
         
@@ -705,8 +748,14 @@ class ListingStrategyAnalyzer:
             price_change_24h_pct = listing_intel.price_change_24h_pct
             platforms = listing_intel.platforms or []
             
-            # 거래소별 마켓 정보 (입출금 상태 포함)
+            # 거래소별 마켓 정보 (입출금 상태 + 핫월렛 포함)
+            if exchange_hot_wallets is None:
+                exchange_hot_wallets = {}
+            
             for ex_name, ex_status in (listing_intel.exchanges or {}).items():
+                # 핫월렛 정보 연결
+                hw_info = exchange_hot_wallets.get(ex_name.lower(), {})
+                
                 exchange_markets.append(ExchangeMarket(
                     exchange=ex_name,
                     has_spot=ex_status.has_spot,
@@ -715,7 +764,9 @@ class ListingStrategyAnalyzer:
                     futures_pairs=ex_status.futures_pairs,
                     deposit_enabled=ex_status.deposit_enabled,
                     withdraw_enabled=ex_status.withdraw_enabled,
-                    networks=ex_status.networks or []
+                    networks=ex_status.networks or [],
+                    hot_wallet_usd=hw_info.get("total_usd"),
+                    hot_wallet_count=hw_info.get("wallet_count", 0)
                 ))
         
         return StrategyRecommendation(

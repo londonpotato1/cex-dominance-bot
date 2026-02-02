@@ -217,7 +217,7 @@ def _render_strategy_result(rec):
         </div>'''
     )
     
-    # === 2. 거래소별 마켓 + 입출금 상태 ===
+    # === 2. 거래소별 마켓 + 입출금 상태 + 핫월렛 ===
     exchange_markets = getattr(rec, 'exchange_markets', []) or []
     if exchange_markets:
         rows_html = ""
@@ -229,18 +229,36 @@ def _render_strategy_result(rec):
             networks = getattr(em, 'networks', []) or []
             net_str = ", ".join(networks[:3]) if networks else "-"
             
+            # 핫월렛 잔고 표시
+            hw_usd = getattr(em, 'hot_wallet_usd', None)
+            hw_count = getattr(em, 'hot_wallet_count', 0)
+            if hw_usd and hw_usd > 0:
+                if hw_usd >= 1e9:
+                    hw_str = f"${hw_usd/1e9:.1f}B"
+                elif hw_usd >= 1e6:
+                    hw_str = f"${hw_usd/1e6:.1f}M"
+                elif hw_usd >= 1e3:
+                    hw_str = f"${hw_usd/1e3:.0f}K"
+                else:
+                    hw_str = f"${hw_usd:.0f}"
+                hw_color = "#3fb950" if hw_usd >= 1e6 else "#f0883e" if hw_usd >= 100000 else "#8b949e"
+            else:
+                hw_str = "-"
+                hw_color = "#4a5568"
+            
             rows_html += f'''<tr style="border-bottom:1px solid #2d3748;">
                 <td style="padding:8px 12px;color:#fff;font-weight:500;">{em.exchange.upper()}</td>
                 <td style="padding:8px;text-align:center;">{spot_icon}</td>
                 <td style="padding:8px;text-align:center;">{futures_icon}</td>
                 <td style="padding:8px;text-align:center;">{dep_icon}</td>
                 <td style="padding:8px;text-align:center;">{wd_icon}</td>
+                <td style="padding:8px;text-align:right;color:{hw_color};font-weight:500;">{hw_str}</td>
                 <td style="padding:8px;color:#8b949e;font-size:0.85rem;">{net_str}</td>
             </tr>'''
         
         render_html(
             f'''<div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:8px;padding:12px;margin-bottom:8px;">
-            <div style="font-size:0.85rem;color:#8b949e;margin-bottom:8px;">🏦 거래소 현황 <span style="color:#4a5568;font-size:0.75rem;">(현물/선물/입금/출금)</span></div>
+            <div style="font-size:0.85rem;color:#8b949e;margin-bottom:8px;">🏦 거래소 현황 <span style="color:#4a5568;font-size:0.75rem;">(현물/선물/입금/출금/핫월렛)</span></div>
             <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
             <tr style="color:#8b949e;background:#0d1117;">
                 <th style="text-align:left;padding:8px 12px;">거래소</th>
@@ -248,6 +266,7 @@ def _render_strategy_result(rec):
                 <th style="padding:8px;text-align:center;">선물</th>
                 <th style="padding:8px;text-align:center;">입금</th>
                 <th style="padding:8px;text-align:center;">출금</th>
+                <th style="padding:8px;text-align:right;">핫월렛</th>
                 <th style="padding:8px;text-align:left;">네트워크</th>
             </tr>
             {rows_html}

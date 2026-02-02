@@ -745,13 +745,26 @@ class HotWalletTracker:
         return url_template.replace("{api_key}", self._alchemy_key)
 
     def _load_hot_wallets(self) -> dict:
-        """hot_wallets.yaml 로드."""
-        path = self._config_dir / "hot_wallets.yaml"
-        if not path.exists():
-            logger.warning("hot_wallets.yaml 미발견")
+        """hot_wallets.yaml 또는 hot_wallets.json 로드."""
+        # JSON 우선 (최신 데이터)
+        json_path = self._config_dir / "hot_wallets.json"
+        if json_path.exists():
+            try:
+                import json as json_module
+                with open(json_path, encoding="utf-8") as f:
+                    data = json_module.load(f)
+                    logger.info("hot_wallets.json 로드 완료: %d exchanges", len(data.get("exchanges", {})))
+                    return data
+            except Exception as e:
+                logger.warning("hot_wallets.json 파싱 실패: %s", e)
+        
+        # YAML fallback
+        yaml_path = self._config_dir / "hot_wallets.yaml"
+        if not yaml_path.exists():
+            logger.warning("hot_wallets.yaml/json 미발견")
             return {}
         try:
-            with open(path, encoding="utf-8") as f:
+            with open(yaml_path, encoding="utf-8") as f:
                 return yaml.safe_load(f) or {}
         except Exception as e:
             logger.warning("hot_wallets.yaml 파싱 실패: %s", e)
