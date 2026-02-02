@@ -228,14 +228,49 @@ class BacktestEngine:
             market_condition=listing.market_condition,
         )
 
-        # Supply 분류
-        supply_result = await self._classifier.classify(supply_input)
+        # v19: CSV의 supply_label이 있으면 직접 사용 (AI 추출 데이터 지원)
+        if listing.supply_label and listing.supply_label.strip():
+            label_map = {
+                "constrained": SupplyClassification.CONSTRAINED,
+                "smooth": SupplyClassification.SMOOTH,
+                "neutral": SupplyClassification.NEUTRAL,
+            }
+            classification = label_map.get(listing.supply_label.strip().lower(), SupplyClassification.UNKNOWN)
+            if classification != SupplyClassification.UNKNOWN:
+                from analysis.supply_classifier import SupplyResult
+                supply_result = SupplyResult(
+                    classification=classification,
+                    total_score=0.5 if classification == SupplyClassification.CONSTRAINED else -0.5,
+                    confidence=0.7,  # AI 추출 데이터는 중간 신뢰도
+                    factors=[],
+                    turnover_ratio=listing.turnover_ratio,
+                    warnings=["supply_label from CSV (AI extracted)"],
+                )
+            else:
+                supply_result = await self._classifier.classify(supply_input)
+        else:
+            # Supply 분류 (기존 로직)
+            supply_result = await self._classifier.classify(supply_input)
 
-        # 시나리오 생성 (LIKELY만)
+        # v18: ListingTypeResult 생성 (직상장 별도 처리용)
+        from analysis.listing_type import ListingTypeResult
+        listing_type_enum = ListingType.UNKNOWN
+        if listing.listing_type:
+            type_map = {"TGE": ListingType.TGE, "DIRECT": ListingType.DIRECT, "SIDE": ListingType.SIDE, "직상장": ListingType.DIRECT}
+            listing_type_enum = type_map.get(listing.listing_type, ListingType.UNKNOWN)
+        listing_type_result = ListingTypeResult(
+            listing_type=listing_type_enum,
+            confidence=1.0,
+            top_exchange="",
+            reason="historical_data",
+        )
+
+        # 시나리오 생성 (LIKELY만) - v18: listing_type_result 전달
         card = self._planner.generate_card(
             symbol=listing.symbol,
             exchange=listing.exchange,
             supply_result=supply_result,
+            listing_type_result=listing_type_result,
             hedge_type=listing.hedge_type,
             market_condition=listing.market_condition,
             scenario_type="likely",

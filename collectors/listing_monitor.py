@@ -1,7 +1,11 @@
 """상장 공지 모니터링 모듈.
 
-업비트/빗썸의 신규 상장 공지를 자동으로 감지.
+업비트/빗썸/바이낸스의 신규 상장 공지를 자동으로 감지.
 기존 notice_fetcher.py보다 가벼운 독립 모듈.
+
+v2: 바이낸스 상장 공지 추가 (2026-02-02)
+    - Seed Tag / 현물 / 선물 상장 감지
+    - 한국 거래소 따리 전략 연동
 
 사용법:
     monitor = ListingMonitor(on_listing=my_callback)
@@ -35,6 +39,16 @@ except ImportError:
     cloudscraper = None  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+# v2: 바이낸스 공지 수집기 import
+try:
+    from collectors.binance_notice import BinanceNoticeFetcher, BinanceNotice, BinanceListingStrategy
+    _HAS_BINANCE = True
+except ImportError:
+    _HAS_BINANCE = False
+    BinanceNoticeFetcher = None  # type: ignore
+    BinanceNotice = None  # type: ignore
+    BinanceListingStrategy = None  # type: ignore
 
 # 공지 URL
 _UPBIT_NOTICE_URL = "https://upbit.com/service_center/notice"
@@ -105,12 +119,14 @@ class MonitorState:
     """모니터링 상태 (영속성)."""
     last_upbit_ids: set[str] = field(default_factory=set)
     last_bithumb_ids: set[str] = field(default_factory=set)
+    last_binance_codes: set[str] = field(default_factory=set)  # v2: 바이낸스 추가
     last_check_time: str | None = None
 
     def to_dict(self) -> dict:
         return {
             "last_upbit_ids": list(self.last_upbit_ids),
             "last_bithumb_ids": list(self.last_bithumb_ids),
+            "last_binance_codes": list(self.last_binance_codes),
             "last_check_time": self.last_check_time,
         }
 
@@ -119,6 +135,7 @@ class MonitorState:
         return cls(
             last_upbit_ids=set(data.get("last_upbit_ids", [])),
             last_bithumb_ids=set(data.get("last_bithumb_ids", [])),
+            last_binance_codes=set(data.get("last_binance_codes", [])),
             last_check_time=data.get("last_check_time"),
         )
 
@@ -243,15 +260,18 @@ class ListingMonitor:
         try:
             upbit_notices = await self._fetch_upbit()
             bithumb_notices = await self._fetch_bithumb()
+            binance_notices = await self._fetch_binance()  # v2: 바이낸스 추가
 
             self._state.last_upbit_ids = {n.notice_id for n in upbit_notices}
             self._state.last_bithumb_ids = {n.notice_id for n in bithumb_notices}
+            self._state.last_binance_codes = {n.code for n in binance_notices}  # v2
             self._baseline_set = True
 
             logger.info(
-                "[ListingMonitor] 베이스라인 설정: upbit=%d, bithumb=%d",
+                "[ListingMonitor] 베이스라인 설정: upbit=%d, bithumb=%d, binance=%d",
                 len(self._state.last_upbit_ids),
                 len(self._state.last_bithumb_ids),
+                len(self._state.last_binance_codes),
             )
             self._save_state()
         except Exception as e:
@@ -307,6 +327,44 @@ class ListingMonitor:
                             await self._on_listing(listing)
         except Exception as e:
             logger.warning("[ListingMonitor] 빗썸 체크 에러: %s", e)
+
+        # v2: 바이낸스 체크
+        try:
+            binance_notices = await self._fetch_binance()
+            for notice in binance_notices:
+                if notice.code in self._state.last_binance_codes:
+                    continue
+
+                self._state.last_binance_codes.add(notice.code)
+                logger.info("[ListingMonitor] 바이낸스 신규: %s", notice.title[:50])
+
+                # 상장 관련 공지인지 확인 (Seed Tag, 현물 상장, 선물 상장)
+                if notice.symbols and (notice.has_spot or notice.seed_tag):
+                    # ListingNotice로 변환
+                    listing = ListingNotice(
+                        notice_id=notice.code,
+                        title=notice.title,
+                        url=notice.url,
+                        exchange="binance",
+                        symbols=notice.symbols,
+                    )
+                    new_listings.append(listing)
+                    
+                    # 전략 분석
+                    strategy = BinanceListingStrategy(
+                        symbol=notice.symbols[0],
+                        notice=notice,
+                    ).analyze() if BinanceListingStrategy else None
+                    
+                    logger.critical(
+                        "[ListingMonitor] 바이낸스 상장 감지! %s (score=%d)",
+                        notice.symbols,
+                        strategy.score if strategy else 0,
+                    )
+                    if self._on_listing:
+                        await self._on_listing(listing)
+        except Exception as e:
+            logger.warning("[ListingMonitor] 바이낸스 체크 에러: %s", e)
 
         # 상태 업데이트
         self._state.last_check_time = datetime.now(
@@ -504,6 +562,26 @@ class ListingMonitor:
         except Exception as e:
             logger.warning("[ListingMonitor] fetch 에러: %s", e)
         return None
+
+    # -------------------------------------------------------------------------
+    # v2: 바이낸스 크롤링
+    # -------------------------------------------------------------------------
+
+    async def _fetch_binance(self) -> list:
+        """바이낸스 상장 공지 조회."""
+        if not _HAS_BINANCE or not BinanceNoticeFetcher:
+            return []
+        
+        try:
+            fetcher = BinanceNoticeFetcher()
+            try:
+                notices = await fetcher.fetch_all_listings(page_size=10)
+                return notices
+            finally:
+                await fetcher.close()
+        except Exception as e:
+            logger.warning("[ListingMonitor] 바이낸스 fetch 에러: %s", e)
+            return []
 
     # -------------------------------------------------------------------------
     # 파싱 유틸
