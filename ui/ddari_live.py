@@ -485,7 +485,7 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
             📊 입출금 중단 코인 분석
         </span>
         <span style="font-size:0.8rem;color:#8b949e;margin-left:0.5rem;">
-            따리 전략 참고용
+            따리 전략 참고용 (클릭해서 펼치기)
         </span>
     </div>
     """, unsafe_allow_html=True)
@@ -498,42 +498,46 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
         # 스코어 색상
         score_color = "#3fb950" if result.go_score >= 70 else "#d29922" if result.go_score >= 50 else "#f85149"
         
-        # 기본 정보
-        price_str = f"${result.current_price_usd:.4f}" if result.current_price_usd else "N/A"
-        mc_str = f"${result.market_cap_usd/1e6:.1f}M" if result.market_cap_usd else "N/A"
-        fdv_str = f"${result.fdv_usd/1e6:.1f}M" if result.fdv_usd else "N/A"
-        vol_str = f"${result.volume_24h_usd/1e6:.1f}M" if result.volume_24h_usd else "N/A"
-        circ_str = f"{result.circulating_percent:.1f}%" if result.circulating_percent else "N/A"
-        
-        # 체인 정보
-        chains = ", ".join(result.platforms[:3]) if result.platforms else "N/A"
-        
-        # 거래소 현황 테이블
-        exchange_rows = ""
-        if result.exchange_markets:
-            for ex in result.exchange_markets[:4]:
-                spot_icon = "🟢" if ex.has_spot else "🔴"
-                futures_icon = "🟢" if ex.has_futures else "🔴"
-                dep_icon = "🟢" if ex.deposit_enabled else "⚪"
-                wd_icon = "🟢" if ex.withdraw_enabled else "⚪"
-                nets = ", ".join(ex.networks[:2]) if ex.networks else "-"
-                exchange_rows += f'''<tr style="border-bottom:1px solid #30363d;">
-                    <td style="padding:4px 6px;color:#c9d1d9;font-size:0.8rem;">{ex.exchange.upper()}</td>
-                    <td style="padding:4px;text-align:center;font-size:0.8rem;">{spot_icon}</td>
-                    <td style="padding:4px;text-align:center;font-size:0.8rem;">{futures_icon}</td>
-                    <td style="padding:4px;text-align:center;font-size:0.8rem;">{dep_icon}</td>
-                    <td style="padding:4px;text-align:center;font-size:0.8rem;">{wd_icon}</td>
-                    <td style="padding:4px;color:#8b949e;font-size:0.75rem;">{nets}</td>
-                </tr>'''
-        
         # 거래소 정보
         exchange_name = "업비트" if notice.exchange.value == "upbit" else "빗썸"
-        exchange_color = "#00bfff" if notice.exchange.value == "upbit" else "#f0883e"
+        suspend_time = notice.published_at.strftime("%m/%d %H:%M") if notice.published_at else ""
         
-        # 입출막 시점
-        suspend_time = notice.published_at.strftime("%m/%d %H:%M") if notice.published_at else "N/A"
+        # Expander 제목
+        expander_title = f"{exchange_name} | {notice.get_type_text()} | {symbol} ({result.name or ''}) | {result.go_score}점 | {suspend_time}"
         
-        render_html(f'''
+        with st.expander(expander_title, expanded=False):
+            # 기본 정보
+            price_str = f"${result.current_price_usd:.4f}" if result.current_price_usd else "N/A"
+            mc_str = f"${result.market_cap_usd/1e6:.1f}M" if result.market_cap_usd else "N/A"
+            fdv_str = f"${result.fdv_usd/1e6:.1f}M" if result.fdv_usd else "N/A"
+            vol_str = f"${result.volume_24h_usd/1e6:.1f}M" if result.volume_24h_usd else "N/A"
+            circ_str = f"{result.circulating_percent:.1f}%" if result.circulating_percent else "N/A"
+            
+            # 체인 정보
+            chains = ", ".join(result.platforms[:3]) if result.platforms else "N/A"
+            
+            # 거래소 현황 테이블
+            exchange_rows = ""
+            if result.exchange_markets:
+                for ex in result.exchange_markets[:4]:
+                    spot_icon = "🟢" if ex.has_spot else "🔴"
+                    futures_icon = "🟢" if ex.has_futures else "🔴"
+                    dep_icon = "🟢" if ex.deposit_enabled else "⚪"
+                    wd_icon = "🟢" if ex.withdraw_enabled else "⚪"
+                    nets = ", ".join(ex.networks[:2]) if ex.networks else "-"
+                    exchange_rows += f'''<tr style="border-bottom:1px solid #30363d;">
+                        <td style="padding:4px 6px;color:#c9d1d9;font-size:0.8rem;">{ex.exchange.upper()}</td>
+                        <td style="padding:4px;text-align:center;font-size:0.8rem;">{spot_icon}</td>
+                        <td style="padding:4px;text-align:center;font-size:0.8rem;">{futures_icon}</td>
+                        <td style="padding:4px;text-align:center;font-size:0.8rem;">{dep_icon}</td>
+                        <td style="padding:4px;text-align:center;font-size:0.8rem;">{wd_icon}</td>
+                        <td style="padding:4px;color:#8b949e;font-size:0.75rem;">{nets}</td>
+                    </tr>'''
+            
+            # 거래소 정보
+            exchange_color = "#00bfff" if notice.exchange.value == "upbit" else "#f0883e"
+            
+            render_html(f'''
         <div style="background:#0d1117;border:2px solid {exchange_color};border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
             
             <!-- 헤더 -->
