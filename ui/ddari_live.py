@@ -256,6 +256,13 @@ def _render_binance_alerts_section() -> None:
     import streamlit as st
     import asyncio
     
+    # 10초 자동 새로고침 (핫월렛 업데이트용)
+    try:
+        from streamlit_autorefresh import st_autorefresh
+        st_autorefresh(interval=10000, limit=None, key="binance_refresh")
+    except ImportError:
+        pass  # 패키지 없으면 무시
+    
     if not _HAS_BINANCE:
         return
     
@@ -295,6 +302,42 @@ def _render_binance_alerts_section() -> None:
             return loop.run_until_complete(_fetch())
         except Exception as e:
             return None
+    
+    @st.cache_data(ttl=10)  # 10초마다 갱신
+    def fetch_exchange_hot_wallets(exchanges: tuple) -> dict:
+        """거래소별 핫월렛 잔고 조회 (10초 캐시)"""
+        async def _fetch():
+            result = {}
+            try:
+                from collectors.hot_wallet_tracker import HotWalletTracker
+                tracker = HotWalletTracker()
+                try:
+                    for ex in exchanges:
+                        ex_lower = ex.lower()
+                        try:
+                            wallet_result = await asyncio.wait_for(
+                                tracker.get_exchange_balance(ex_lower),
+                                timeout=3.0  # 3초 타임아웃
+                            )
+                            if wallet_result and wallet_result.total_balance_usd > 0:
+                                result[ex_lower] = {
+                                    "total_usd": wallet_result.total_balance_usd,
+                                    "wallet_count": len(wallet_result.balances),
+                                }
+                        except:
+                            pass
+                finally:
+                    await tracker.close()
+            except:
+                pass
+            return result
+        
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(_fetch())
+        except:
+            return {}
     
     notices = fetch_binance_notices()
     
@@ -424,21 +467,47 @@ def _render_binance_alerts_section() -> None:
         if not deposit_time_str:
             deposit_time_str = "입금 대기 ⏳"
     
-    # 거래소 테이블 생성
+    # 거래소 테이블 생성 (핫월렛 포함)
     exchange_rows_html = ""
+    hot_wallets = {}
     if intel and intel.exchanges:
+        # 핫월렛 조회 (10초 캐시)
+        ex_list = tuple(intel.exchanges.keys())
+        hot_wallets = fetch_exchange_hot_wallets(ex_list)
+        
         for ex_name, ex_status in intel.exchanges.items():
             spot_icon = "🟢" if ex_status.has_spot else "🔴"
             futures_icon = "🟢" if ex_status.has_futures else "🔴"
             dep_icon = "🟢" if ex_status.deposit_enabled else "⚪"
             wd_icon = "🟢" if ex_status.withdraw_enabled else "⚪"
             nets = ", ".join(ex_status.networks[:3]) if ex_status.networks else "-"
+            
+            # 핫월렛 잔고 표시
+            hw_info = hot_wallets.get(ex_name.lower(), {})
+            hw_usd = hw_info.get("total_usd", 0)
+            if hw_usd >= 1e9:
+                hw_str = f"${hw_usd/1e9:.1f}B"
+                hw_color = "#3fb950"
+            elif hw_usd >= 1e6:
+                hw_str = f"${hw_usd/1e6:.1f}M"
+                hw_color = "#3fb950"
+            elif hw_usd >= 100000:
+                hw_str = f"${hw_usd/1e3:.0f}K"
+                hw_color = "#f0883e"
+            elif hw_usd > 0:
+                hw_str = f"${hw_usd:.0f}"
+                hw_color = "#8b949e"
+            else:
+                hw_str = "-"
+                hw_color = "#4a5568"
+            
             exchange_rows_html += f'''<tr style="border-bottom:1px solid #30363d;">
                 <td style="padding:6px 8px;color:#fff;font-weight:500;">{ex_name.upper()}</td>
                 <td style="padding:6px;text-align:center;">{spot_icon}</td>
                 <td style="padding:6px;text-align:center;">{futures_icon}</td>
                 <td style="padding:6px;text-align:center;">{dep_icon}</td>
                 <td style="padding:6px;text-align:center;">{wd_icon}</td>
+                <td style="padding:6px;text-align:right;color:{hw_color};font-weight:500;">{hw_str}</td>
                 <td style="padding:6px;color:#8b949e;font-size:0.8rem;">{nets}</td>
             </tr>'''
     
@@ -528,9 +597,10 @@ def _render_binance_alerts_section() -> None:
                         <th style="padding:6px;text-align:center;">선물</th>
                         <th style="padding:6px;text-align:center;">입금</th>
                         <th style="padding:6px;text-align:center;">출금</th>
+                        <th style="padding:6px;text-align:right;">핫월렛</th>
                         <th style="padding:6px;text-align:left;">네트워크</th>
                     </tr>
-                    {exchange_rows_html if exchange_rows_html else '<tr><td colspan="6" style="padding:8px;text-align:center;color:#8b949e;">거래소 정보 없음</td></tr>'}
+                    {exchange_rows_html if exchange_rows_html else '<tr><td colspan="7" style="padding:8px;text-align:center;color:#8b949e;">거래소 정보 없음</td></tr>'}
                 </table>
             </div>
         </div>

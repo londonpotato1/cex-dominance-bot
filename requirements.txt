@@ -23,6 +23,7 @@ PyJWT>=2.8.0
 
 # 웹 대시보드
 streamlit>=1.33.0
+streamlit-autorefresh>=1.0.1
 plotly>=5.18.0
 pandas>=2.0.0
 
