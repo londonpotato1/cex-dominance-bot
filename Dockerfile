@@ -34,8 +34,8 @@ RUN playwright install-deps chromium
 # 앱 복사
 COPY . .
 
-# 포트
+# 포트 (Railway는 $PORT 환경변수 사용)
 EXPOSE 8501
 
-# 실행
-CMD ["bash", "start.sh"]
+# 실행 (shell form으로 환경변수 확장)
+CMD streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0
