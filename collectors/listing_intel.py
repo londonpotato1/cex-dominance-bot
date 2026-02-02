@@ -281,29 +281,31 @@ class ListingIntelCollector:
         status = ExchangeStatus(exchange="okx")
         
         try:
-            # 현물 체크 (정확한 매칭: ZAMA-USDT)
+            # 현물 체크 (정확한 매칭 + 거래 가능 상태 확인)
             async with session.get(
-                "https://www.okx.com/api/v5/public/instruments?instType=SPOT"
+                f"https://www.okx.com/api/v5/public/instruments?instType=SPOT&instId={intel.symbol}-USDT"
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     for s in data.get("data", []):
                         inst_id = s.get("instId", "")
+                        state = s.get("state", "")
                         base_ccy = s.get("baseCcy", "")
-                        # 정확한 매칭: baseCcy가 일치하거나 instId가 SYMBOL-USDT
-                        if base_ccy.upper() == intel.symbol or inst_id.upper() == f"{intel.symbol}-USDT" or inst_id.upper() == f"{intel.symbol}-USDC":
+                        # 정확한 매칭 + state가 live여야 실제 거래 가능
+                        if base_ccy.upper() == intel.symbol and state == "live":
                             status.has_spot = True
                             status.spot_pairs.append(inst_id)
             
-            # 선물 체크 (정확한 매칭: ZAMA-USDT-SWAP)
+            # 선물 체크 (정확한 매칭 + 거래 가능 상태)
             async with session.get(
-                "https://www.okx.com/api/v5/public/instruments?instType=SWAP"
+                f"https://www.okx.com/api/v5/public/instruments?instType=SWAP&instId={intel.symbol}-USDT-SWAP"
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     for s in data.get("data", []):
                         inst_id = s.get("instId", "")
-                        if inst_id.upper().startswith(f"{intel.symbol}-USDT") or inst_id.upper().startswith(f"{intel.symbol}-USD"):
+                        state = s.get("state", "")
+                        if state == "live":
                             status.has_futures = True
                             status.futures_pairs.append(inst_id)
             
@@ -367,21 +369,28 @@ class ListingIntelCollector:
         status = ExchangeStatus(exchange="gate")
         
         try:
-            # 현물 체크
+            # 현물 체크 (trade_status가 tradable이어야 양방향 거래 가능)
             async with session.get(
                 f"https://api.gateio.ws/api/v4/spot/currency_pairs/{intel.symbol}_USDT"
             ) as resp:
                 if resp.status == 200:
-                    status.has_spot = True
-                    status.spot_pairs.append(f"{intel.symbol}_USDT")
+                    data = await resp.json()
+                    trade_status = data.get("trade_status", "")
+                    # tradable = 양방향 거래 가능, sellable = 매도만 가능
+                    if trade_status == "tradable":
+                        status.has_spot = True
+                        status.spot_pairs.append(f"{intel.symbol}_USDT")
             
             # 선물 체크
             async with session.get(
                 f"https://api.gateio.ws/api/v4/futures/usdt/contracts/{intel.symbol}_USDT"
             ) as resp:
                 if resp.status == 200:
-                    status.has_futures = True
-                    status.futures_pairs.append(f"{intel.symbol}_USDT")
+                    data = await resp.json()
+                    # in_delisting이 아니어야 거래 가능
+                    if not data.get("in_delisting", False):
+                        status.has_futures = True
+                        status.futures_pairs.append(f"{intel.symbol}_USDT")
                     
         except Exception as e:
             logger.warning("[Intel] Gate 에러: %s", e)
