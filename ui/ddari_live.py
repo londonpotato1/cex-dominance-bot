@@ -60,6 +60,108 @@ except ImportError:
 
 
 # ------------------------------------------------------------------
+# 따리 판단 기준 함수들 (DDARI_FUNDAMENTALS.md 기반)
+# ------------------------------------------------------------------
+
+def evaluate_circulating(circ_pct: float | None) -> tuple[str, str, str]:
+    """유통량 평가.
+    
+    Returns: (emoji, color, comment)
+    """
+    if circ_pct is None:
+        return "⚪", "#8b949e", "데이터 없음"
+    
+    if circ_pct <= 20:
+        return "🟢", "#3fb950", f"물량 적음 - 흥 가능성 ↑"
+    elif circ_pct <= 40:
+        return "🟡", "#d29922", f"물량 보통"
+    elif circ_pct <= 60:
+        return "🟠", "#f0883e", f"물량 다소 많음"
+    else:
+        return "🔴", "#f85149", f"물량 많음 - 흥하기 어려움"
+
+
+def evaluate_market_cap(mc_usd: float | None) -> tuple[str, str, str]:
+    """시총 평가.
+    
+    Returns: (emoji, color, comment)
+    """
+    if mc_usd is None:
+        return "⚪", "#8b949e", "데이터 없음"
+    
+    mc_m = mc_usd / 1e6
+    
+    if mc_m < 30:
+        return "🟢", "#3fb950", f"소형급 - 변동성 큼, 펌핑 가능"
+    elif mc_m < 100:
+        return "🟡", "#d29922", f"중소형급 - 적당한 변동성"
+    elif mc_m < 300:
+        return "🟠", "#f0883e", f"중형급 - 안정적"
+    else:
+        return "🔴", "#f85149", f"대형급 - 큰 펌핑 어려움"
+
+
+def evaluate_fdv_ratio(fdv_usd: float | None, mc_usd: float | None) -> tuple[str, str, str]:
+    """FDV/MC 비율 평가 (잠재 물량).
+    
+    Returns: (emoji, color, comment)
+    """
+    if fdv_usd is None or mc_usd is None or mc_usd == 0:
+        return "⚪", "#8b949e", "데이터 없음"
+    
+    ratio = fdv_usd / mc_usd
+    
+    if ratio < 2:
+        return "🔴", "#f85149", f"유통량 {100/ratio:.0f}% - 대부분 유통 중"
+    elif ratio < 3:
+        return "🟠", "#f0883e", f"FDV {ratio:.1f}x - 잠재 물량 보통"
+    elif ratio < 5:
+        return "🟡", "#d29922", f"FDV {ratio:.1f}x - 잠재 물량 있음"
+    else:
+        return "🟢", "#3fb950", f"FDV {ratio:.1f}x - 유통량 적음 (물량 잠김)"
+
+
+def evaluate_volume_24h(vol_usd: float | None, mc_usd: float | None) -> tuple[str, str, str]:
+    """24시간 거래량 평가.
+    
+    Returns: (emoji, color, comment)
+    """
+    if vol_usd is None:
+        return "⚪", "#8b949e", "데이터 없음"
+    
+    vol_m = vol_usd / 1e6
+    
+    # 거래량/시총 비율도 고려
+    if mc_usd and mc_usd > 0:
+        vol_ratio = vol_usd / mc_usd * 100
+        if vol_ratio > 50:
+            return "🟢", "#3fb950", f"거래 활발 (시총의 {vol_ratio:.0f}%)"
+        elif vol_ratio > 20:
+            return "🟡", "#d29922", f"거래 보통 (시총의 {vol_ratio:.0f}%)"
+        else:
+            return "🟠", "#f0883e", f"거래 저조 (시총의 {vol_ratio:.0f}%)"
+    
+    if vol_m > 50:
+        return "🟢", "#3fb950", f"거래량 높음"
+    elif vol_m > 10:
+        return "🟡", "#d29922", f"거래량 보통"
+    else:
+        return "🟠", "#f0883e", f"거래량 낮음"
+
+
+def get_market_condition_comment(is_bull: bool = True) -> str:
+    """시황에 따른 코멘트.
+    
+    Args:
+        is_bull: True=불장, False=하락장
+    """
+    if is_bull:
+        return "📈 불장 - 흥따리 확률 ↑"
+    else:
+        return "📉 하락장 - 선따리 신중하게"
+
+
+# ------------------------------------------------------------------
 # v2: 바이낸스 상장 알림 섹션
 # ------------------------------------------------------------------
 
@@ -192,6 +294,18 @@ def _render_binance_alerts_section() -> None:
     mc_str = f"${intel.market_cap_usd/1e6:.1f}M" if intel and intel.market_cap_usd else "N/A"
     fdv_str = f"${intel.fdv_usd/1e6:.1f}M" if intel and intel.fdv_usd else "N/A"
     
+    # 📊 따리 판단 평가 (DDARI_FUNDAMENTALS 기반)
+    circ_emoji, circ_color, circ_comment = evaluate_circulating(intel.circulating_percent if intel else None)
+    mc_emoji, mc_color, mc_comment = evaluate_market_cap(intel.market_cap_usd if intel else None)
+    fdv_emoji, fdv_color, fdv_comment = evaluate_fdv_ratio(
+        intel.fdv_usd if intel else None, 
+        intel.market_cap_usd if intel else None
+    )
+    vol_emoji, vol_color, vol_comment = evaluate_volume_24h(
+        intel.volume_24h_usd if intel and hasattr(intel, 'volume_24h_usd') else None,
+        intel.market_cap_usd if intel else None
+    )
+    
     # 공지 시간, 상장 시간 (한국시간)
     notice_time_str = ""
     listing_time_str = ""
@@ -274,7 +388,7 @@ def _render_binance_alerts_section() -> None:
         <div style="margin-bottom:0.75rem;">
             <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
                 📊 토크노믹스
-                <span style="font-size:0.7rem;font-weight:400;color:#8b949e;">코인 기본 정보</span>
+                <span style="font-size:0.7rem;font-weight:400;color:#8b949e;">코인 기본 정보 + 따리 판단</span>
             </div>
             <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:0.5rem;background:#161b22;padding:0.75rem;border-radius:8px;">
                 <div style="text-align:center;">
@@ -282,20 +396,23 @@ def _render_binance_alerts_section() -> None:
                     <div style="font-size:1rem;font-weight:600;color:#fff;">{price_str}</div>
                 </div>
                 <div style="text-align:center;">
-                    <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">시가총액</div>
-                    <div style="font-size:1rem;font-weight:600;color:#58a6ff;">{mc_str}</div>
+                    <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">시가총액 {mc_emoji}</div>
+                    <div style="font-size:1rem;font-weight:600;color:{mc_color};">{mc_str}</div>
+                    <div style="font-size:0.65rem;color:{mc_color};margin-top:2px;">{mc_comment}</div>
                 </div>
                 <div style="text-align:center;">
-                    <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">FDV</div>
-                    <div style="font-size:1rem;font-weight:600;color:#a371f7;">{fdv_str}</div>
+                    <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">FDV {fdv_emoji}</div>
+                    <div style="font-size:1rem;font-weight:600;color:{fdv_color};">{fdv_str}</div>
+                    <div style="font-size:0.65rem;color:{fdv_color};margin-top:2px;">{fdv_comment}</div>
                 </div>
                 <div style="text-align:center;">
                     <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">총 공급량</div>
                     <div style="font-size:1rem;font-weight:600;color:#3fb950;">{total_supply_str}</div>
                 </div>
                 <div style="text-align:center;">
-                    <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">유통량</div>
-                    <div style="font-size:1rem;font-weight:600;color:#f0883e;">{circ_pct_str}</div>
+                    <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">유통량 {circ_emoji}</div>
+                    <div style="font-size:1rem;font-weight:600;color:{circ_color};">{circ_pct_str}</div>
+                    <div style="font-size:0.65rem;color:{circ_color};margin-top:2px;">{circ_comment}</div>
                 </div>
             </div>
         </div>
@@ -457,6 +574,12 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
             vol_str = f"${result.volume_24h_usd/1e6:.1f}M" if result.volume_24h_usd else "N/A"
             circ_str = f"{result.circulating_percent:.1f}%" if result.circulating_percent else "N/A"
             
+            # 📊 따리 판단 평가
+            circ_emoji, circ_color, circ_comment = evaluate_circulating(result.circulating_percent)
+            mc_emoji, mc_color, mc_comment = evaluate_market_cap(result.market_cap_usd)
+            fdv_emoji, fdv_color, fdv_comment = evaluate_fdv_ratio(result.fdv_usd, result.market_cap_usd)
+            vol_emoji, vol_color, vol_comment = evaluate_volume_24h(result.volume_24h_usd, result.market_cap_usd)
+            
             # 체인 정보
             chains = ", ".join(result.platforms[:3]) if result.platforms else "N/A"
             
@@ -499,15 +622,31 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
                 </div>
             </div>
             
-            <!-- 토크노믹스 -->
+            <!-- 토크노믹스 + 따리 판단 -->
             <div style="margin-bottom:0.75rem;">
-                <div style="font-size:0.8rem;color:#8b949e;margin-bottom:0.25rem;">📊 토크노믹스</div>
+                <div style="font-size:0.8rem;color:#8b949e;margin-bottom:0.25rem;">📊 토크노믹스 + 따리 판단</div>
                 <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0.5rem;text-align:center;">
                     <div><div style="color:#8b949e;font-size:0.7rem;">현재가</div><div style="color:#fff;font-weight:600;">{price_str}</div></div>
-                    <div><div style="color:#8b949e;font-size:0.7rem;">시가총액</div><div style="color:#fff;font-weight:600;">{mc_str}</div></div>
-                    <div><div style="color:#8b949e;font-size:0.7rem;">FDV</div><div style="color:#fff;font-weight:600;">{fdv_str}</div></div>
-                    <div><div style="color:#8b949e;font-size:0.7rem;">24h 거래량</div><div style="color:#fff;font-weight:600;">{vol_str}</div></div>
-                    <div><div style="color:#8b949e;font-size:0.7rem;">유통량</div><div style="color:#3fb950;font-weight:600;">{circ_str}</div></div>
+                    <div>
+                        <div style="color:#8b949e;font-size:0.7rem;">시가총액 {mc_emoji}</div>
+                        <div style="color:{mc_color};font-weight:600;">{mc_str}</div>
+                        <div style="color:{mc_color};font-size:0.55rem;">{mc_comment}</div>
+                    </div>
+                    <div>
+                        <div style="color:#8b949e;font-size:0.7rem;">FDV {fdv_emoji}</div>
+                        <div style="color:{fdv_color};font-weight:600;">{fdv_str}</div>
+                        <div style="color:{fdv_color};font-size:0.55rem;">{fdv_comment}</div>
+                    </div>
+                    <div>
+                        <div style="color:#8b949e;font-size:0.7rem;">24h 거래량 {vol_emoji}</div>
+                        <div style="color:{vol_color};font-weight:600;">{vol_str}</div>
+                        <div style="color:{vol_color};font-size:0.55rem;">{vol_comment}</div>
+                    </div>
+                    <div>
+                        <div style="color:#8b949e;font-size:0.7rem;">유통량 {circ_emoji}</div>
+                        <div style="color:{circ_color};font-weight:600;">{circ_str}</div>
+                        <div style="color:{circ_color};font-size:0.55rem;">{circ_comment}</div>
+                    </div>
                 </div>
             </div>
             
