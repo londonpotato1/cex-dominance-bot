@@ -18,49 +18,61 @@ def render_ddari_tab() -> None:
     from ui.ddari_learning_guide import render_learning_guide_tab
     from ui.ddari_common import render_html
 
-    # 탭 스타일 커스터마이징 (폰트 크게, 정중앙 정렬) + 공백 제거
+    # 라디오 탭 스타일 커스터마이징
     render_html('''
     <style>
-    /* 탭 컨테이너 정중앙 정렬 - 강제 */
-    .stTabs [data-baseweb="tab-list"] {
-        display: flex !important;
-        justify-content: center !important;
-        width: 100% !important;
-        gap: 3rem !important;
+    /* 라디오 버튼 → 탭 스타일 */
+    div[data-testid="stHorizontalBlock"] div[data-testid="stRadio"] > div {
+        gap: 0 !important;
     }
-    /* 탭 버튼 폰트 크게 */
-    .stTabs [data-baseweb="tab"] {
-        font-size: 1.15rem !important;
+    div[data-testid="stRadio"] > div > label {
+        background: #1a1f2e !important;
+        border: 1px solid #333 !important;
+        padding: 0.6rem 1.5rem !important;
+        font-size: 1.1rem !important;
         font-weight: 600 !important;
-        padding: 0.5rem 1.5rem !important;
+        cursor: pointer !important;
+        transition: all 0.2s !important;
     }
-    /* 선택된 탭 강조 */
-    .stTabs [aria-selected="true"] {
-        font-size: 1.2rem !important;
+    div[data-testid="stRadio"] > div > label:first-child {
+        border-radius: 8px 0 0 8px !important;
+    }
+    div[data-testid="stRadio"] > div > label:last-child {
+        border-radius: 0 8px 8px 0 !important;
+    }
+    div[data-testid="stRadio"] > div > label:hover {
+        background: #2a2f3e !important;
+    }
+    div[data-testid="stRadio"] > div > label[data-checked="true"] {
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6) !important;
+        border-color: #3b82f6 !important;
         font-weight: 700 !important;
     }
-    /* 탭 아래 컨텐츠 마진 제거 */
-    .stTabs [data-baseweb="tab-panel"] {
-        padding-top: 0.5rem !important;
-    }
-    /* Streamlit 기본 블록 마진 제거 */
-    .stTabs .element-container {
-        margin-bottom: 0 !important;
-    }
-    .stTabs .stMarkdown {
-        margin-bottom: 0 !important;
+    /* 라디오 원형 숨기기 */
+    div[data-testid="stRadio"] input {
+        display: none !important;
     }
     </style>
     ''')
 
-    # 3개 서브탭 생성
-    dashboard_tab, analysis_tab, guide_tab = st.tabs([
-        "📊 대시보드",
-        "🎯 분석센터",
-        "📖 학습가이드"
-    ])
-
-    with dashboard_tab:
+    # 탭 선택 (lazy loading용)
+    if 'active_tab' not in st.session_state:
+        st.session_state.active_tab = "📊 대시보드"
+    
+    # 탭 버튼 (중앙 정렬)
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col2:
+        selected_tab = st.radio(
+            "탭 선택",
+            ["📊 대시보드", "🎯 분석센터", "📖 학습가이드"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="tab_selector"
+        )
+        st.session_state.active_tab = selected_tab
+    
+    # 선택된 탭만 렌더링 (Lazy Loading)
+    if st.session_state.active_tab == "📊 대시보드":
         # 탭 설명 + 우측 hover 가이드 (공백 완전 제거)
         render_html(
             '''<div style="position:relative;margin:0;padding:0;">
@@ -91,11 +103,11 @@ def render_ddari_tab() -> None:
         
         render_live_tab()
 
-    with analysis_tab:
+    elif st.session_state.active_tab == "🎯 분석센터":
         # 탭 설명
         render_html(
             '''<div style="background:linear-gradient(135deg, #1a2e1a 0%, #163e16 100%);
-                border:1px solid #4ade80;border-radius:12px;padding:1rem;margin-bottom:1rem;">
+                border:1px solid #4ade80;border-radius:8px;padding:0.5rem 0.75rem;margin-bottom:0.5rem;">
                 <div style="font-size:0.9rem;color:#4ade80;font-weight:600;">🎯 분석센터</div>
                 <div style="font-size:0.8rem;color:#9ca3af;margin-top:0.25rem;">
                     전략 분석기, 갭 모니터링, 상장 히스토리, 시나리오 예측, VC/MM 정보를 통합 제공합니다.
@@ -104,11 +116,11 @@ def render_ddari_tab() -> None:
         )
         render_analysis_center_tab()
 
-    with guide_tab:
+    elif st.session_state.active_tab == "📖 학습가이드":
         # 탭 설명
         render_html(
             '''<div style="background:linear-gradient(135deg, #2e1a2e 0%, #3e163e 100%);
-                border:1px solid #a78bfa;border-radius:12px;padding:1rem;margin-bottom:1rem;">
+                border:1px solid #a78bfa;border-radius:8px;padding:0.5rem 0.75rem;margin-bottom:0.5rem;">
                 <div style="font-size:0.9rem;color:#a78bfa;font-weight:600;">📖 학습가이드</div>
                 <div style="font-size:0.8rem;color:#9ca3af;margin-top:0.25rem;">
                     따리 트레이딩의 기초부터 고급 전략까지, 시스템 사용법과 FAQ를 확인하세요.
