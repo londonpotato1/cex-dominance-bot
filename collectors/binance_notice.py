@@ -118,6 +118,49 @@ class BinanceNotice:
         for sym in futures_match:
             if sym not in self.symbols and sym not in ['USD']:
                 self.symbols.append(sym)
+        
+        # 상장 시간 계산 (공지 발표 후 예상 시간)
+        # Seed Tag: 보통 공지 후 4-6시간 뒤 상장
+        # 일반 현물: 보통 공지에 명시된 시간 (UTC 기준)
+        self._estimate_listing_time()
+    
+    def _estimate_listing_time(self):
+        """상장 시간 예측."""
+        from datetime import timedelta
+        
+        if not self.release_date:
+            return
+        
+        # Seed Tag / Pre-Market: 공지 후 약 5-6시간 뒤 (바이낸스 패턴)
+        if self.seed_tag or self.listing_type == BinanceListingType.PRE_MARKET:
+            # 보통 UTC 10:00 또는 14:00에 상장
+            release_hour = self.release_date.hour
+            
+            # 공지가 UTC 04-08시면 → UTC 10:00 (KST 19:00) 상장
+            if 4 <= release_hour < 10:
+                target_hour = 10
+            # 공지가 UTC 08-14시면 → UTC 14:00 (KST 23:00) 상장
+            elif 10 <= release_hour < 16:
+                target_hour = 14
+            # 그 외 → 다음날 UTC 10:00
+            else:
+                target_hour = 10
+                self.listing_time = self.release_date.replace(
+                    hour=target_hour, minute=0, second=0, microsecond=0
+                ) + timedelta(days=1)
+                return
+            
+            self.listing_time = self.release_date.replace(
+                hour=target_hour, minute=0, second=0, microsecond=0
+            )
+            
+            # 만약 예측 시간이 공지 시간보다 이전이면 다음날로
+            if self.listing_time <= self.release_date:
+                self.listing_time += timedelta(days=1)
+        
+        # 일반 현물/선물: 공지 후 약 1-2시간 (즉시 상장 패턴)
+        elif self.has_spot or self.has_futures:
+            self.listing_time = self.release_date + timedelta(hours=1)
 
 
 class BinanceNoticeFetcher:
