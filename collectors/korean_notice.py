@@ -279,12 +279,25 @@ class KoreanNoticeFetcher:
                         notice.notice_type = notice_type
                         notices.append(notice)
                 
-                logger.info(f"[KoreanNotice] 업비트 입출금 중단 코인 {len(notices)}개 감지")
+                logger.info(f"[KoreanNotice] 업비트 API - 입출금 중단 코인 {len(notices)}개 감지")
             
         except ImportError as e:
             logger.warning(f"[KoreanNotice] JWT 라이브러리 없음: {e}")
         except Exception as e:
             logger.warning("[KoreanNotice] 업비트 API 조회 실패: %s", e)
+        
+        # 크롤링으로 예정된 공지도 추가 (API는 현재 상태만 반환)
+        try:
+            crawl_notices = await self._fetch_upbit_notices_crawl(limit)
+            # 중복 제거하고 합치기
+            existing_symbols = {n.symbols[0] if n.symbols else "" for n in notices}
+            for cn in crawl_notices:
+                if cn.symbols and cn.symbols[0] not in existing_symbols:
+                    notices.append(cn)
+                    existing_symbols.add(cn.symbols[0])
+            logger.info(f"[KoreanNotice] 업비트 크롤링 추가 후 총 {len(notices)}개")
+        except Exception as e:
+            logger.debug(f"[KoreanNotice] 업비트 크롤링 실패 (무시): {e}")
         
         return notices[:limit]
     
