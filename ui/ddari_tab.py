@@ -18,29 +18,37 @@ def render_ddari_tab() -> None:
     from ui.ddari_learning_guide import render_learning_guide_tab
     from ui.ddari_common import render_html
 
-    # 탭 스타일 커스터마이징 (폰트 크게, 정중앙 정렬)
+    # 탭 스타일 커스터마이징 (폰트 크게, 정중앙 정렬) + 공백 제거
     render_html('''
     <style>
-    /* 탭 컨테이너 정중앙 정렬 */
-    div[data-testid="stTabs"] > div[role="tablist"] {
+    /* 탭 컨테이너 정중앙 정렬 - 강제 */
+    .stTabs [data-baseweb="tab-list"] {
         display: flex !important;
         justify-content: center !important;
         width: 100% !important;
-        gap: 2rem !important;
-        border-bottom: 1px solid #333 !important;
-        padding-bottom: 0.5rem !important;
-        margin-bottom: 0.5rem !important;
+        gap: 3rem !important;
     }
     /* 탭 버튼 폰트 크게 */
-    div[data-testid="stTabs"] button[role="tab"] {
+    .stTabs [data-baseweb="tab"] {
         font-size: 1.15rem !important;
         font-weight: 600 !important;
         padding: 0.5rem 1.5rem !important;
     }
     /* 선택된 탭 강조 */
-    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+    .stTabs [aria-selected="true"] {
         font-size: 1.2rem !important;
         font-weight: 700 !important;
+    }
+    /* 탭 아래 컨텐츠 마진 제거 */
+    .stTabs [data-baseweb="tab-panel"] {
+        padding-top: 0.5rem !important;
+    }
+    /* Streamlit 기본 블록 마진 제거 */
+    .stTabs .element-container {
+        margin-bottom: 0 !important;
+    }
+    .stTabs .stMarkdown {
+        margin-bottom: 0 !important;
     }
     </style>
     ''')
@@ -53,9 +61,9 @@ def render_ddari_tab() -> None:
     ])
 
     with dashboard_tab:
-        # 탭 설명 + 우측 hover 가이드 (공백 최소화)
+        # 탭 설명 + 우측 hover 가이드 (공백 완전 제거)
         render_html(
-            '''<div style="position:relative;margin-bottom:0.25rem;">
+            '''<div style="position:relative;margin:0;padding:0;">
                 <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
                     border:1px solid #3b82f6;border-radius:8px;padding:0.5rem 0.75rem;">
                     <div style="font-size:0.9rem;color:#60a5fa;font-weight:600;">📊 대시보드</div>
