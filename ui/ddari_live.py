@@ -814,6 +814,51 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
             
         </div>
         ''')
+            
+            # 🤖 Claude AI 종합 분석 (입출금 중단 코인)
+            if _HAS_ANTHROPIC:
+                # 거래소 현황 요약
+                spot_exchanges = []
+                futures_exchanges = []
+                deposit_enabled_list = []
+                if result.exchange_markets:
+                    for ex in result.exchange_markets:
+                        if ex.has_spot:
+                            spot_exchanges.append(ex.exchange)
+                        if ex.has_futures:
+                            futures_exchanges.append(ex.exchange)
+                        if ex.deposit_enabled:
+                            deposit_enabled_list.append(ex.exchange)
+                
+                analysis_data = {
+                    'symbol': symbol,
+                    'name': result.name or '',
+                    'price': price_str,
+                    'market_cap': mc_str,
+                    'fdv': fdv_str,
+                    'circulating_percent': result.circulating_percent,
+                    'volume_24h': vol_str,
+                    'chains': chains,
+                    'spot_exchanges': ', '.join(spot_exchanges) if spot_exchanges else '없음',
+                    'futures_exchanges': ', '.join(futures_exchanges) if futures_exchanges else '없음',
+                    'deposit_enabled': ', '.join(deposit_enabled_list) if deposit_enabled_list else '없음',
+                    'listing_type': f'{exchange_name} 입출금 중단',
+                }
+                
+                claude_analysis = analyze_with_claude(analysis_data)
+                
+                if claude_analysis:
+                    render_html(f'''
+                    <div style="background:linear-gradient(135deg, #1a1b26 0%, #161b22 100%);border:1px solid #7c3aed;border-radius:8px;padding:0.75rem;margin-top:0.5rem;">
+                        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+                            <span style="font-size:1rem;">🤖</span>
+                            <span style="font-size:0.8rem;font-weight:600;color:#a78bfa;">Claude AI 분석</span>
+                        </div>
+                        <div style="color:#e2e8f0;font-size:0.75rem;line-height:1.5;">
+                            {claude_analysis}
+                        </div>
+                    </div>
+                    ''')
 
 
 # ------------------------------------------------------------------
