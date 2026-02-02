@@ -248,28 +248,41 @@ class BinanceNotice:
         if 'binance alpha' in content.lower():
             self.has_alpha = True
             
-            # 알파 상장 시간 파싱: "Binance Alpha at YYYY-MM-DD HH:MM (UTC)"
-            alpha_time_match = re.search(
-                r'[Bb]inance\s+[Aa]lpha[^0-9]*(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*\(?UTC\)?',
-                content
-            )
-            if alpha_time_match:
-                try:
-                    date_str = alpha_time_match.group(1)
-                    hour = int(alpha_time_match.group(2))
-                    minute = int(alpha_time_match.group(3))
-                    alpha_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(
-                        hour=hour, minute=minute, tzinfo=utc
-                    )
-                    self.alpha_time = alpha_dt.astimezone(kst).replace(tzinfo=None)
-                except:
-                    pass
+            # "time will be announced later" 체크 먼저!
+            time_announced_later = 'announced later' in content.lower() or 'will be announced' in content.lower()
             
-            # "time will be announced later" 등 노트 파싱
-            if 'announced later' in content.lower() or 'will be announced' in content.lower():
-                self.alpha_note = "시간 추후 공지"
-            elif not self.alpha_time:
-                self.alpha_note = "알파 상장 예정"
+            if time_announced_later:
+                # 알파 시간이 공지에 없음 → 스팟 상장 1시간 전으로 추정
+                if self.listing_time:
+                    self.alpha_time = self.listing_time - timedelta(hours=1)
+                    self.alpha_note = "추정 (스팟 1시간 전)"
+                else:
+                    self.alpha_note = "시간 추후 공지"
+            else:
+                # 알파 상장 시간이 명시된 경우: "Binance Alpha at YYYY-MM-DD HH:MM (UTC)"
+                alpha_time_match = re.search(
+                    r'[Bb]inance\s+[Aa]lpha[^0-9]*(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*\(?UTC\)?',
+                    content
+                )
+                if alpha_time_match:
+                    try:
+                        date_str = alpha_time_match.group(1)
+                        hour = int(alpha_time_match.group(2))
+                        minute = int(alpha_time_match.group(3))
+                        alpha_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(
+                            hour=hour, minute=minute, tzinfo=utc
+                        )
+                        self.alpha_time = alpha_dt.astimezone(kst).replace(tzinfo=None)
+                    except:
+                        pass
+                
+                if not self.alpha_time:
+                    # 시간 파싱 실패 시 스팟 1시간 전으로 추정
+                    if self.listing_time:
+                        self.alpha_time = self.listing_time - timedelta(hours=1)
+                        self.alpha_note = "추정 (스팟 1시간 전)"
+                    else:
+                        self.alpha_note = "알파 상장 예정"
 
 
 class BinanceNoticeFetcher:

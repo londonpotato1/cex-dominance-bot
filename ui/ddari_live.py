@@ -501,7 +501,12 @@ def _render_binance_alerts_section() -> None:
     alpha_str = ""
     if latest and hasattr(latest, 'has_alpha') and latest.has_alpha:
         if latest.alpha_time:
-            alpha_str = f"알파: {latest.alpha_time.strftime('%m/%d %H:%M')}"
+            time_str = latest.alpha_time.strftime('%m/%d %H:%M')
+            # 추정 표시 추가
+            if latest.alpha_note and "추정" in latest.alpha_note:
+                alpha_str = f"알파: {time_str} (추정)"
+            else:
+                alpha_str = f"알파: {time_str}"
         elif latest.alpha_note:
             alpha_str = f"알파: {latest.alpha_note}"
         else:
