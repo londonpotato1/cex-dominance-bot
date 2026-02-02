@@ -436,7 +436,7 @@ def _render_korean_notices_section() -> None:
         ''')
     
     # 감지된 심볼들에 대한 분석 카드 (입출금 관련 공지만)
-    analyzed_symbols = set()
+    analyzed_notices = {}  # symbol -> notice 매핑
     for notice in notices:  # 모든 공지 체크
         if notice.symbols and notice.notice_type in [
             NoticeType.DEPOSIT_SUSPEND, NoticeType.DEPOSIT_RESUME,
@@ -445,16 +445,20 @@ def _render_korean_notices_section() -> None:
         ]:
             for sym in notice.symbols:
                 # 주요 코인만 필터링 (너무 마이너한 코인 제외)
-                if sym not in analyzed_symbols and sym not in ['P', 'BM', 'A']:
-                    analyzed_symbols.add(sym)
+                if sym not in analyzed_notices and sym not in ['P', 'BM', 'A']:
+                    analyzed_notices[sym] = notice
     
-    if analyzed_symbols:
+    if analyzed_notices:
         # 최대 5개까지 분석 카드 표시
-        _render_korean_coin_analysis(list(analyzed_symbols)[:5])
+        _render_korean_coin_analysis(dict(list(analyzed_notices.items())[:5]))
 
 
-def _render_korean_coin_analysis(symbols: list) -> None:
-    """한국 공지에서 감지된 코인들의 상세 분석 카드 렌더링 (ZAMA 스타일)."""
+def _render_korean_coin_analysis(symbol_notices: dict) -> None:
+    """한국 공지에서 감지된 코인들의 상세 분석 카드 렌더링 (ZAMA 스타일).
+    
+    Args:
+        symbol_notices: {symbol: notice} 매핑
+    """
     import streamlit as st
     import asyncio
     from collectors.listing_strategy import ListingStrategyAnalyzer
@@ -486,7 +490,7 @@ def _render_korean_coin_analysis(symbols: list) -> None:
     </div>
     """, unsafe_allow_html=True)
     
-    for symbol in symbols:
+    for symbol, notice in symbol_notices.items():
         result = fetch_analysis(symbol)
         if not result:
             continue
@@ -522,15 +526,24 @@ def _render_korean_coin_analysis(symbols: list) -> None:
                     <td style="padding:4px;color:#8b949e;font-size:0.75rem;">{nets}</td>
                 </tr>'''
         
+        # 거래소 정보
+        exchange_name = "업비트" if notice.exchange.value == "upbit" else "빗썸"
+        exchange_color = "#00bfff" if notice.exchange.value == "upbit" else "#f0883e"
+        
+        # 입출막 시점
+        suspend_time = notice.published_at.strftime("%m/%d %H:%M") if notice.published_at else "N/A"
+        
         render_html(f'''
-        <div style="background:#0d1117;border:2px solid #f0883e;border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+        <div style="background:#0d1117;border:2px solid {exchange_color};border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
             
             <!-- 헤더 -->
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;padding-bottom:0.5rem;border-bottom:1px solid #30363d;">
-                <div style="display:flex;align-items:center;gap:0.75rem;">
-                    <span style="background:#f0883e;color:#fff;padding:4px 10px;border-radius:6px;font-size:0.75rem;font-weight:600;">🔴 입출금 중단</span>
+                <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                    <span style="background:{exchange_color};color:#fff;padding:4px 10px;border-radius:6px;font-size:0.75rem;font-weight:600;">{exchange_name}</span>
+                    <span style="background:#f85149;color:#fff;padding:4px 10px;border-radius:6px;font-size:0.75rem;font-weight:600;">🔴 {notice.get_type_text()}</span>
                     <span style="font-size:1.2rem;font-weight:700;color:#fff;">{symbol}</span>
                     <span style="color:#8b949e;font-size:0.9rem;">{result.name or ""}</span>
+                    <span style="color:#d29922;font-size:0.8rem;">📅 {suspend_time}</span>
                 </div>
                 <div style="text-align:center;">
                     <div style="font-size:1.5rem;font-weight:700;color:{score_color};">{result.go_score}</div>
