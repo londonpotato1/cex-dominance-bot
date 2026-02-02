@@ -25,11 +25,6 @@ def render_strategy_analysis_section():
     if 'strategy_result' not in st.session_state:
         st.session_state.strategy_result = None
     
-    # 전략 분석기 메인 (가이드는 ddari_analysis_center.py에서 통합 제공)
-    render_html(
-        '''<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1rem;margin-bottom:0.75rem;"><div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">🎯 전략 분석기</div><p style="font-size:0.75rem;color:#9ca3af;margin:0;">상장 예정 코인 심볼을 입력하고 분석 버튼을 누르세요. GO Score와 추천 전략을 확인할 수 있습니다.</p></div>'''
-    )
-    
     # 심볼 입력 (session_state에서 유지)
     col1, col2 = st.columns([3, 1])
     with col1:

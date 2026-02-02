@@ -867,14 +867,14 @@ def main():
 
     config = load_config()
 
-    # Health 배너 (최상단)
-    render_health_banner(st)
-
     # 메인 컨텐츠: 따리분석 (탭 없이 바로)
     render_ddari_tab()
 
     # 하단 시장 상태바 (CEX Dominance 요약)
     _render_market_status_bar(config)
+    
+    # Health 배너 (하단으로 이동)
+    render_health_banner(st)
 
 
 def _render_market_status_bar(config):

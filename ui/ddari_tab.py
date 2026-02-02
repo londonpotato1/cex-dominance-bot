@@ -18,6 +18,28 @@ def render_ddari_tab() -> None:
     from ui.ddari_learning_guide import render_learning_guide_tab
     from ui.ddari_common import render_html
 
+    # 탭 스타일 커스터마이징 (폰트 크게, 중앙 정렬)
+    render_html('''
+    <style>
+    /* 탭 컨테이너 중앙 정렬 */
+    div[data-testid="stTabs"] > div[role="tablist"] {
+        justify-content: center !important;
+        gap: 1rem !important;
+    }
+    /* 탭 버튼 폰트 크게 */
+    div[data-testid="stTabs"] button[role="tab"] {
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        padding: 0.75rem 1.5rem !important;
+    }
+    /* 선택된 탭 강조 */
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+        font-size: 1.2rem !important;
+        font-weight: 700 !important;
+    }
+    </style>
+    ''')
+
     # 3개 서브탭 생성
     dashboard_tab, analysis_tab, guide_tab = st.tabs([
         "📊 대시보드",
