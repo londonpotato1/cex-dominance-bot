@@ -179,12 +179,24 @@ st.markdown("""
     }
 
     .main .block-container {
-        padding: 0.5rem 2rem 1rem 2rem !important;
-        max-width: 1400px;
+        padding: 0.25rem 1rem 0.5rem 1rem !important;
+        max-width: 1600px;
     }
 
-    /* Remove top padding */
+    /* Remove top padding + Compact layout */
     .block-container { padding-top: 0 !important; }
+    
+    /* 전역 폰트 사이즈 증가 */
+    html, body, .stApp { font-size: 15px !important; }
+    
+    /* 마진/패딩 축소 */
+    .element-container { margin-bottom: 0.25rem !important; }
+    .stMarkdown { margin-bottom: 0 !important; }
+    div[data-testid="column"] { padding: 0 0.25rem !important; }
+    
+    /* Streamlit 기본 여백 제거 */
+    .st-emotion-cache-1y4p8pa { padding: 0 !important; }
+    .st-emotion-cache-z5fcl4 { padding: 0.5rem 1rem !important; }
     .stApp > header { display: none !important; }
     section[data-testid="stSidebar"] { display: none !important; }
     div[data-testid="stToolbar"] { display: none !important; }
@@ -228,13 +240,13 @@ st.markdown("""
         text-transform: uppercase;
     }
 
-    /* Total Market Banner */
+    /* Total Market Banner - 컴팩트 */
     .market-banner {
         background: linear-gradient(135deg, rgba(0, 212, 255, 0.08), rgba(168, 85, 247, 0.08));
         border: 1px solid rgba(0, 212, 255, 0.15);
-        border-radius: 16px;
-        padding: 1rem 1.5rem;
-        margin-bottom: 1rem;
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -291,13 +303,13 @@ st.markdown("""
         text-transform: uppercase;
     }
 
-    /* Ticker Section */
+    /* Ticker Section - 컴팩트 */
     .ticker-section {
         background: var(--card-bg);
         border: 1px solid var(--card-border);
-        border-radius: 16px;
-        padding: 1rem;
-        margin-bottom: 1rem;
+        border-radius: 12px;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
     }
 
     .ticker-header {

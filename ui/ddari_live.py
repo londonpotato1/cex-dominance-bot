@@ -193,10 +193,10 @@ def _render_binance_alerts_section() -> None:
             </tr>'''
     
     render_html(f'''
-    <div style="background:#0d1117;border:2px solid {border_color};border-radius:16px;padding:1.5rem;margin-bottom:1rem;">
+    <div style="background:#0d1117;border:2px solid {border_color};border-radius:12px;padding:1rem;margin-bottom:0.5rem;">
         
         <!-- 헤더: 뱃지 + 코인명 + 스코어 -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid #30363d;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid #30363d;">
             <div>
                 <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
                     <span style="background:{badge_color};color:#fff;padding:4px 12px;border-radius:6px;font-size:0.8rem;font-weight:600;">
@@ -218,12 +218,12 @@ def _render_binance_alerts_section() -> None:
         </div>
         
         <!-- 토크노믹스 섹션 -->
-        <div style="margin-bottom:1.5rem;">
-            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
+        <div style="margin-bottom:0.75rem;">
+            <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
                 📊 토크노믹스
-                <span style="font-size:0.75rem;font-weight:400;color:#8b949e;">코인 기본 정보</span>
+                <span style="font-size:0.7rem;font-weight:400;color:#8b949e;">코인 기본 정보</span>
             </div>
-            <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:1rem;background:#161b22;padding:1rem;border-radius:12px;">
+            <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:0.5rem;background:#161b22;padding:0.75rem;border-radius:8px;">
                 <div style="text-align:center;">
                     <div style="font-size:0.7rem;color:#8b949e;margin-bottom:0.25rem;">현재가</div>
                     <div style="font-size:1rem;font-weight:600;color:#fff;">{price_str}</div>
@@ -248,33 +248,33 @@ def _render_binance_alerts_section() -> None:
         </div>
         
         <!-- 체인/네트워크 -->
-        <div style="margin-bottom:1.5rem;">
-            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
+        <div style="margin-bottom:0.75rem;">
+            <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
                 🔗 지원 체인
-                <span style="font-size:0.75rem;font-weight:400;color:#8b949e;">입출금 가능 네트워크</span>
+                <span style="font-size:0.7rem;font-weight:400;color:#8b949e;">입출금 가능 네트워크</span>
             </div>
-            <div style="background:#161b22;padding:0.75rem 1rem;border-radius:8px;display:flex;gap:0.75rem;flex-wrap:wrap;">
+            <div style="background:#161b22;padding:0.5rem 0.75rem;border-radius:6px;display:flex;gap:0.5rem;flex-wrap:wrap;">
                 {' '.join([f'<span style="background:#21262d;color:#58a6ff;padding:4px 12px;border-radius:6px;font-size:0.85rem;">{p}</span>' for p in (platforms_html.split(' · ') if platforms_html else ['N/A'])]) }
             </div>
         </div>
         
         <!-- 거래소 현황 테이블 -->
-        <div style="margin-bottom:1.5rem;">
-            <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
+        <div style="margin-bottom:0.75rem;">
+            <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
                 🏦 거래소 현황
-                <span style="font-size:0.75rem;font-weight:400;color:#8b949e;">현물/선물 상장 및 입출금 상태</span>
+                <span style="font-size:0.7rem;font-weight:400;color:#8b949e;">현물/선물 상장 및 입출금 상태</span>
             </div>
-            <div style="background:#161b22;border-radius:12px;overflow:hidden;">
-                <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+            <div style="background:#161b22;border-radius:8px;overflow:hidden;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
                     <tr style="background:#21262d;color:#8b949e;">
-                        <th style="text-align:left;padding:10px 8px;">거래소</th>
-                        <th style="padding:10px;text-align:center;">현물</th>
-                        <th style="padding:10px;text-align:center;">선물</th>
-                        <th style="padding:10px;text-align:center;">입금</th>
-                        <th style="padding:10px;text-align:center;">출금</th>
-                        <th style="padding:10px;text-align:left;">네트워크</th>
+                        <th style="text-align:left;padding:6px 8px;">거래소</th>
+                        <th style="padding:6px;text-align:center;">현물</th>
+                        <th style="padding:6px;text-align:center;">선물</th>
+                        <th style="padding:6px;text-align:center;">입금</th>
+                        <th style="padding:6px;text-align:center;">출금</th>
+                        <th style="padding:6px;text-align:left;">네트워크</th>
                     </tr>
-                    {exchange_rows_html if exchange_rows_html else '<tr><td colspan="6" style="padding:12px;text-align:center;color:#8b949e;">거래소 정보 없음</td></tr>'}
+                    {exchange_rows_html if exchange_rows_html else '<tr><td colspan="6" style="padding:8px;text-align:center;color:#8b949e;">거래소 정보 없음</td></tr>'}
                 </table>
             </div>
         </div>
