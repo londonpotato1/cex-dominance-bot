@@ -40,13 +40,22 @@ except ImportError:
     BinanceNoticeFetcher = None
     BinanceListingStrategy = None
 
+# v3: 상장 인텔리전스 수집기
+try:
+    from collectors.listing_intel import ListingIntelCollector, ListingIntel
+    _HAS_INTEL = True
+except ImportError:
+    _HAS_INTEL = False
+    ListingIntelCollector = None
+    ListingIntel = None
+
 
 # ------------------------------------------------------------------
 # v2: 바이낸스 상장 알림 섹션
 # ------------------------------------------------------------------
 
 def _render_binance_alerts_section() -> None:
-    """바이낸스 상장 알림 섹션 렌더링."""
+    """바이낸스 상장 알림 섹션 렌더링 (v3: 종합 인텔리전스 포함)."""
     import streamlit as st
     import asyncio
     
@@ -71,6 +80,25 @@ def _render_binance_alerts_section() -> None:
         except Exception as e:
             return []
     
+    @st.cache_data(ttl=300)
+    def fetch_listing_intel(symbol: str):
+        if not _HAS_INTEL or not ListingIntelCollector:
+            return None
+        
+        async def _fetch():
+            collector = ListingIntelCollector()
+            try:
+                return await collector.collect(symbol)
+            finally:
+                await collector.close()
+        
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(_fetch())
+        except Exception as e:
+            return None
+    
     notices = fetch_binance_notices()
     
     # 중요한 공지만 필터 (Seed Tag, 현물 상장)
@@ -81,11 +109,15 @@ def _render_binance_alerts_section() -> None:
     
     # 최신 공지만 표시
     latest = important[0]
+    symbol = latest.symbols[0] if latest.symbols else None
     
     # 전략 분석
     strategy = None
-    if latest.symbols and BinanceListingStrategy:
-        strategy = BinanceListingStrategy(symbol=latest.symbols[0], notice=latest).analyze()
+    if symbol and BinanceListingStrategy:
+        strategy = BinanceListingStrategy(symbol=symbol, notice=latest).analyze()
+    
+    # 종합 인텔리전스 수집
+    intel = fetch_listing_intel(symbol) if symbol else None
     
     # 유형별 색상
     if latest.seed_tag:
@@ -101,15 +133,46 @@ def _render_binance_alerts_section() -> None:
         badge_text = "📢 공지"
         border_color = "#6b7280"
     
+    # 거래소 상태 HTML 생성
+    exchange_html = ""
+    if intel and intel.exchanges:
+        ex_items = []
+        for ex_name, ex_status in intel.exchanges.items():
+            spot_icon = "✅" if ex_status.has_spot else "❌"
+            futures_icon = "✅" if ex_status.has_futures else "❌"
+            ex_items.append(f"<span style='margin-right:8px;'>{ex_name.upper()}: S{spot_icon} F{futures_icon}</span>")
+        exchange_html = " ".join(ex_items)
+    
+    # 토크노믹스 HTML
+    tokenomics_html = ""
+    if intel:
+        parts = []
+        if intel.total_supply:
+            parts.append(f"Total: {intel.total_supply/1e9:.1f}B")
+        if intel.circulating_percent:
+            parts.append(f"Circ: {intel.circulating_percent:.0f}%")
+        if intel.futures_price_usd:
+            parts.append(f"Price: ${intel.futures_price_usd:.4f}")
+        tokenomics_html = " · ".join(parts)
+    
+    # 체인/플랫폼 HTML
+    platforms_html = ""
+    if intel and intel.platforms:
+        platform_short = {"ethereum": "ETH", "binance-smart-chain": "BSC", "solana": "SOL", "arbitrum": "ARB", "polygon": "MATIC"}
+        platforms = [platform_short.get(p, p.upper()[:4]) for p in intel.platforms[:4]]
+        platforms_html = " · ".join(platforms)
+    
     # 전략 액션
     actions_html = ""
     if strategy and strategy.actions:
-        actions_html = "<br>".join([f"<small>{a}</small>" for a in strategy.actions[:2]])
+        actions_html = " | ".join([f"{a}" for a in strategy.actions[:2]])
     
     render_html(f'''
     <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        border:2px solid {border_color};border-radius:12px;padding:0.75rem 1rem;margin-bottom:0.75rem;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;">
+        border:2px solid {border_color};border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+        
+        <!-- 헤더 -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
             <div style="flex:1;">
                 <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;">
                     <span style="background:{badge_color};color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;">
@@ -117,21 +180,26 @@ def _render_binance_alerts_section() -> None:
                     </span>
                     <span style="font-size:0.7rem;color:#6b7280;">바이낸스</span>
                 </div>
-                <div style="font-size:0.9rem;font-weight:600;color:#fff;">
-                    {', '.join(latest.symbols) if latest.symbols else 'N/A'}
-                </div>
-                <div style="font-size:0.75rem;color:#9ca3af;margin-top:0.2rem;">
-                    {latest.title[:60]}{'...' if len(latest.title) > 60 else ''}
+                <div style="font-size:1.1rem;font-weight:700;color:#fff;">
+                    {symbol if symbol else 'N/A'} {f'<span style="font-size:0.75rem;font-weight:400;color:#9ca3af;">({intel.name})</span>' if intel and intel.name else ''}
                 </div>
             </div>
             <div style="text-align:right;">
-                <div style="font-size:1.2rem;font-weight:700;color:{border_color};">
+                <div style="font-size:1.4rem;font-weight:700;color:{border_color};">
                     {strategy.score if strategy else 0}점
                 </div>
                 <div style="font-size:0.7rem;color:#6b7280;">따리 스코어</div>
             </div>
         </div>
-        {f'<div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid rgba(255,255,255,0.1);color:#a5b4fc;font-size:0.75rem;">{actions_html}</div>' if actions_html else ''}
+        
+        <!-- 토크노믹스 & 체인 -->
+        {f'<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.5rem;font-size:0.75rem;"><span style="color:#60a5fa;">📊 {tokenomics_html}</span><span style="color:#a78bfa;">🔗 {platforms_html}</span></div>' if tokenomics_html or platforms_html else ''}
+        
+        <!-- 거래소 상태 -->
+        {f'<div style="background:rgba(0,0,0,0.3);border-radius:8px;padding:0.5rem;margin-bottom:0.5rem;font-size:0.7rem;color:#9ca3af;">🏦 {exchange_html}</div>' if exchange_html else ''}
+        
+        <!-- 전략 액션 -->
+        {f'<div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:0.5rem;color:#fbbf24;font-size:0.75rem;">🎯 {actions_html}</div>' if actions_html else ''}
     </div>
     ''')
 
