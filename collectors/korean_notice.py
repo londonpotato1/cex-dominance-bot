@@ -216,30 +216,36 @@ class KoreanNoticeFetcher:
         
         try:
             from playwright.async_api import async_playwright
+            import asyncio as _asyncio
             
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
                 page = await browser.new_page()
                 
                 # 업비트 공지 페이지 접속
-                await page.goto("https://upbit.com/service_center/notice", wait_until="networkidle", timeout=30000)
-                await page.wait_for_selector(".NoticeList", timeout=10000)
+                await page.goto("https://upbit.com/service_center/notice", timeout=30000)
                 
-                # 공지 목록 파싱
-                items = await page.query_selector_all(".NoticeList .NoticeItem")
+                # JS 렌더링 대기
+                await _asyncio.sleep(5)
                 
-                for i, item in enumerate(items[:limit]):
+                # 공지 목록 파싱 (테이블 행)
+                rows = await page.query_selector_all("tbody tr")
+                
+                for i, row in enumerate(rows[:limit]):
                     try:
-                        # 제목
-                        title_el = await item.query_selector(".NoticeItem__title")
-                        title = await title_el.inner_text() if title_el else ""
+                        # 셀 가져오기
+                        cells = await row.query_selector_all("td")
+                        if len(cells) < 2:
+                            continue
                         
-                        # 날짜
-                        date_el = await item.query_selector(".NoticeItem__date")
-                        date_str = await date_el.inner_text() if date_el else ""
+                        # 제목 (첫 번째 셀)
+                        title = await cells[0].inner_text()
+                        
+                        # 날짜 (마지막 셀)
+                        date_str = await cells[-1].inner_text()
                         
                         # 링크
-                        link_el = await item.query_selector("a")
+                        link_el = await row.query_selector("a")
                         href = await link_el.get_attribute("href") if link_el else ""
                         notice_id = href.split("id=")[-1] if "id=" in href else f"upbit_{i}"
                         url = f"https://upbit.com{href}" if href.startswith("/") else href
