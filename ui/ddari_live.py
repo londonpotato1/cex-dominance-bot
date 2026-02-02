@@ -409,6 +409,12 @@ def _render_korean_notices_section() -> None:
         symbols_str = ", ".join(notice.symbols) if notice.symbols else ""
         date_str = notice.published_at.strftime("%m/%d")
         
+        # 분석 버튼 (심볼이 있는 경우)
+        analyze_btn = ""
+        if notice.symbols:
+            symbol = notice.symbols[0]
+            analyze_btn = f'<a href="?tab=analysis&symbol={symbol}" style="background:#238636;color:#fff;padding:4px 12px;border-radius:6px;font-size:0.75rem;font-weight:600;text-decoration:none;margin-left:auto;">📊 {symbol} 분석</a>'
+        
         render_html(f'''
         <div style="background:#161b22;border:1px solid #30363d;border-left:3px solid {type_color};border-radius:8px;padding:0.75rem 1rem;margin-bottom:0.5rem;">
             <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -418,13 +424,92 @@ def _render_korean_notices_section() -> None:
                     <span style="background:{type_color}22;color:{type_color};padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">{notice.get_type_text()}</span>
                     {f'<span style="color:#58a6ff;font-weight:600;">{symbols_str}</span>' if symbols_str else ''}
                 </div>
-                <span style="color:#8b949e;font-size:0.8rem;">{date_str}</span>
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                    <span style="color:#8b949e;font-size:0.8rem;">{date_str}</span>
+                    {analyze_btn}
+                </div>
             </div>
             <div style="margin-top:0.5rem;color:#c9d1d9;font-size:0.85rem;">
                 <a href="{notice.url}" target="_blank" style="color:inherit;text-decoration:none;">{notice.title[:60]}{'...' if len(notice.title) > 60 else ''}</a>
             </div>
         </div>
         ''')
+    
+    # 감지된 심볼들에 대한 분석 카드 (입출금 관련 공지만)
+    analyzed_symbols = set()
+    for notice in notices[:5]:
+        if notice.symbols and notice.notice_type in [
+            NoticeType.DEPOSIT_SUSPEND, NoticeType.DEPOSIT_RESUME,
+            NoticeType.WITHDRAW_SUSPEND, NoticeType.WITHDRAW_RESUME,
+            NoticeType.NETWORK_ISSUE
+        ]:
+            for sym in notice.symbols:
+                if sym not in analyzed_symbols:
+                    analyzed_symbols.add(sym)
+    
+    if analyzed_symbols:
+        _render_korean_coin_analysis(list(analyzed_symbols)[:3])
+
+
+def _render_korean_coin_analysis(symbols: list) -> None:
+    """한국 공지에서 감지된 코인들의 간단한 분석 카드 렌더링."""
+    import streamlit as st
+    import asyncio
+    from collectors.listing_strategy import ListingStrategyAnalyzer
+    
+    @st.cache_data(ttl=300)
+    def fetch_analysis(symbol: str):
+        async def _analyze():
+            analyzer = ListingStrategyAnalyzer()
+            try:
+                return await analyzer.analyze(symbol)
+            except Exception as e:
+                return None
+        
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(_analyze())
+        except:
+            return None
+    
+    st.markdown("""
+    <div style="margin-top:1rem;margin-bottom:0.5rem;">
+        <span style="font-size:0.9rem;font-weight:600;color:#8b949e;">
+            📊 감지된 코인 분석
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    cols = st.columns(len(symbols))
+    
+    for i, symbol in enumerate(symbols):
+        with cols[i]:
+            result = fetch_analysis(symbol)
+            if result:
+                score_color = "#3fb950" if result.go_score >= 70 else "#d29922" if result.go_score >= 50 else "#f85149"
+                price_str = f"${result.current_price_usd:.4f}" if result.current_price_usd else "N/A"
+                mc_str = f"${result.market_cap_usd/1e6:.1f}M" if result.market_cap_usd else "N/A"
+                
+                render_html(f'''
+                <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:0.75rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                        <span style="font-size:1rem;font-weight:600;color:#fff;">{symbol}</span>
+                        <span style="background:{score_color};color:#fff;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">{result.go_score}점</span>
+                    </div>
+                    <div style="font-size:0.8rem;color:#8b949e;">
+                        <div>💵 {price_str}</div>
+                        <div>📊 시총 {mc_str}</div>
+                        <div>🎯 {result.strategy_name[:15] if result.strategy_name else "분석중"}...</div>
+                    </div>
+                </div>
+                ''')
+            else:
+                render_html(f'''
+                <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:0.75rem;text-align:center;">
+                    <span style="color:#8b949e;">{symbol} 분석 중...</span>
+                </div>
+                ''')
 
 
 # ------------------------------------------------------------------
