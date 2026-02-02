@@ -135,7 +135,7 @@ class TransferAnalysis:
     symbol: str
     
     # 브릿지 필요 여부
-    bridge_required: bool
+    bridge_required: bool = False
     bridge_reason: Optional[str] = None
     recommended_bridge: Optional[BridgeInfo] = None
     
