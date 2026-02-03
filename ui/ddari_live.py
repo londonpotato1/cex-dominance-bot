@@ -556,8 +556,32 @@ def _render_binance_alerts_section() -> None:
                 <td style="padding:6px;color:#8b949e;font-size:0.8rem;">{nets}</td>
             </tr>'''
     
+    # 상장 시간 + 24시간 지났는지 체크 → 접기
+    is_listing_expired = False
+    listing_datetime = None
+    if latest and hasattr(latest, 'listing_time') and latest.listing_time:
+        listing_datetime = latest.listing_time
+        # timezone-aware로 변환
+        if listing_datetime.tzinfo is None:
+            listing_datetime = listing_datetime.replace(tzinfo=kst)
+        now_kst = datetime.now(kst)
+        hours_since_listing = (now_kst - listing_datetime).total_seconds() / 3600
+        if hours_since_listing > 24:
+            is_listing_expired = True
+    
+    # 접힌 상태 여부에 따라 details 태그 속성 결정
+    details_open = "" if is_listing_expired else "open"
+    expired_label = " (상장 24h 경과)" if is_listing_expired else ""
+    
     render_html(f'''
-    <div style="background:#0d1117;border:2px solid {border_color};border-radius:12px;padding:1rem;margin-bottom:0.5rem;">
+    <details {details_open} style="margin-bottom:0.5rem;">
+    <summary style="cursor:pointer;padding:0.5rem;background:#161b22;border:1px solid {border_color};border-radius:8px;color:#fff;font-weight:600;list-style:none;display:flex;align-items:center;gap:0.5rem;">
+        <span style="background:{badge_color};color:#fff;padding:2px 8px;border-radius:4px;font-size:0.75rem;">{badge_text}</span>
+        <span>{symbol if symbol else 'N/A'}</span>
+        <span style="color:#8b949e;font-size:0.85rem;">{listing_time_str}</span>
+        <span style="color:#8b949e;font-size:0.75rem;margin-left:auto;">{expired_label}▼</span>
+    </summary>
+    <div style="background:#0d1117;border:2px solid {border_color};border-top:none;border-radius:0 0 12px 12px;padding:1rem;">
         
         <!-- 헤더: 뱃지 + 코인명 + 스코어 -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid #30363d;">
@@ -662,6 +686,7 @@ def _render_binance_alerts_section() -> None:
             </div>
         </div>''' if actions_html else ''}
     </div>
+    </details>
     ''')
     
     # 🤖 Claude AI 종합 분석
