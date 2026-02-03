@@ -101,7 +101,7 @@ class KoreanNotice:
         title_lower = title.lower()
         
         # 신규 상장
-        if any(kw in title for kw in ['마켓 추가', '원화 마켓 유의사항', '신규 상장', '거래 지원']):
+        if any(kw in title for kw in ['마켓 추가', '원화 마켓 유의사항', '신규 상장', '거래 지원', '신규 거래지원', '거래지원 안내']):
             self.notice_type = NoticeType.LISTING
         
         # 상장 폐지
