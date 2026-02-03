@@ -739,6 +739,73 @@ def _render_binance_alerts_section() -> None:
 # v4: 한국 거래소 공지 섹션
 # ------------------------------------------------------------------
 
+def _render_korean_listing_card(notice) -> None:
+    """한국 거래소 신규 상장 공지 카드 렌더링 (파란색 강조)."""
+    import streamlit as st
+    from collectors.listing_strategy import ListingStrategyAnalyzer
+    import asyncio
+    
+    symbol = notice.symbols[0] if notice.symbols else "N/A"
+    exchange_name = "업비트" if notice.exchange.value == "upbit" else "빗썸"
+    exchange_color = "#0066ff" if notice.exchange.value == "upbit" else "#f0883e"
+    listing_time = notice.published_at.strftime("%m/%d %H:%M") if notice.published_at else ""
+    
+    # 분석 데이터 가져오기
+    @st.cache_data(ttl=300)
+    def fetch_analysis(sym: str):
+        async def _analyze():
+            analyzer = ListingStrategyAnalyzer()
+            try:
+                return await analyzer.analyze(sym)
+            except:
+                return None
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(_analyze())
+        except:
+            return None
+    
+    result = fetch_analysis(symbol)
+    score = result.go_score if result else 0
+    score_color = "#3fb950" if score >= 70 else "#d29922" if score >= 50 else "#f85149"
+    
+    render_html(f'''
+    <div style="background:#0d1117;border:2px solid {exchange_color};border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+            <div>
+                <span style="background:{exchange_color};color:#fff;padding:4px 12px;border-radius:6px;font-size:0.85rem;font-weight:600;">
+                    🚀 {exchange_name} 신규 상장
+                </span>
+                <span style="color:#8b949e;font-size:0.85rem;margin-left:12px;">📅 {listing_time}</span>
+            </div>
+            <div style="text-align:center;background:#161b22;padding:0.75rem 1rem;border-radius:8px;">
+                <div style="font-size:1.5rem;font-weight:700;color:{score_color};">{score}</div>
+                <div style="font-size:0.7rem;color:#8b949e;">따리 스코어</div>
+            </div>
+        </div>
+        <div style="font-size:1.75rem;font-weight:700;color:#fff;margin-bottom:0.5rem;">
+            {symbol}
+            <span style="font-size:1rem;font-weight:400;color:#8b949e;margin-left:0.5rem;">{result.name if result else ''}</span>
+        </div>
+        <div style="color:#58a6ff;font-size:0.9rem;margin-bottom:0.5rem;">
+            {notice.title[:60]}{'...' if len(notice.title) > 60 else ''}
+        </div>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.75rem;">
+            <span style="background:#21262d;color:#c9d1d9;padding:4px 10px;border-radius:4px;font-size:0.8rem;">
+                💰 시총: {f"${result.market_cap_usd/1e6:.1f}M" if result and result.market_cap_usd else "N/A"}
+            </span>
+            <span style="background:#21262d;color:#c9d1d9;padding:4px 10px;border-radius:4px;font-size:0.8rem;">
+                📊 FDV: {f"${result.fdv_usd/1e6:.1f}M" if result and result.fdv_usd else "N/A"}
+            </span>
+            <span style="background:#21262d;color:#c9d1d9;padding:4px 10px;border-radius:4px;font-size:0.8rem;">
+                🔄 유통량: {f"{result.circulating_percent:.1f}%" if result and result.circulating_percent else "N/A"}
+            </span>
+        </div>
+    </div>
+    ''')
+
+
 def _render_korean_notices_section() -> None:
     """한국 거래소(업비트/빗썸) 공지 섹션 렌더링."""
     import streamlit as st
@@ -768,6 +835,11 @@ def _render_korean_notices_section() -> None:
     
     if not notices:
         return
+    
+    # 🚀 신규 상장 공지 먼저 표시 (파란색 카드)
+    listing_notices = [n for n in notices if n.notice_type == NoticeType.LISTING]
+    for notice in listing_notices[:2]:  # 최대 2개
+        _render_korean_listing_card(notice)
     
     # 감지된 심볼들에 대한 분석 카드 (입출금 관련 공지만)
     analyzed_notices = {}  # symbol -> notice 매핑
