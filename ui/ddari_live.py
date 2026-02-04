@@ -574,6 +574,18 @@ def _render_binance_alerts_section() -> None:
     details_open = "" if is_listing_expired else "open"
     expired_label = " (상장 24h 경과)" if is_listing_expired else ""
     
+    # 전략 액션 섹션 (중첩 f-string 방지)
+    actions_section = ""
+    if actions_html:
+        actions_section = f'''<div style="background:#21262d;border-left:4px solid {border_color};padding:1rem;border-radius:0 8px 8px 0;">
+            <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">&#127919; 추천 액션</div>
+            <div style="color:#f0883e;font-size:0.9rem;">{actions_html}</div>
+            <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #30363d;font-size:0.8rem;color:#8b949e;">
+                <span style="color:#3fb950;font-weight:600;">&#127793; Seed Tag란?</span> 
+                바이낸스가 신규/혁신 프로젝트에 붙이는 라벨. 변동성 높지만 <span style="color:#f0883e;">업빗/빗썸 상장 가능성 높음</span> &#8594; 따리 대기!
+            </div>
+        </div>'''
+    
     render_html(f'''
     <details {details_open} style="margin-bottom:0.5rem;">
     <summary style="cursor:pointer;padding:0.5rem;background:#161b22;border:1px solid {border_color};border-radius:8px;color:#fff;font-weight:600;list-style:none;display:flex;align-items:center;gap:0.5rem;">
@@ -678,14 +690,7 @@ def _render_binance_alerts_section() -> None:
         </div>
         
         <!-- 전략 액션 -->
-        {f'''<div style="background:#21262d;border-left:4px solid {border_color};padding:1rem;border-radius:0 8px 8px 0;">
-            <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">&#127919; 추천 액션</div>
-            <div style="color:#f0883e;font-size:0.9rem;">{actions_html}</div>
-            <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #30363d;font-size:0.8rem;color:#8b949e;">
-                <span style="color:#3fb950;font-weight:600;">&#127793; Seed Tag란?</span> 
-                바이낸스가 신규/혁신 프로젝트에 붙이는 라벨. 변동성 높지만 <span style="color:#f0883e;">업빗/빗썸 상장 가능성 높음</span> &#8594; 따리 대기!
-            </div>
-        </div>''' if actions_html else ''}
+        {actions_section}
     </div>
     </details>
     ''')
