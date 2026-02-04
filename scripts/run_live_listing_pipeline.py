@@ -20,6 +20,14 @@ from scripts.listing_outcome_tracker import run_tracker
 
 logging.basicConfig(level=logging.INFO)
 
+try:
+    from collectors.binance_notice import BinanceNoticeFetcher, BinanceNotice
+    _HAS_BINANCE = True
+except ImportError:
+    _HAS_BINANCE = False
+    BinanceNoticeFetcher = None
+    BinanceNotice = None
+
 
 def _parse_chains(raw: str | None) -> list[str] | None:
     if not raw:
@@ -33,6 +41,65 @@ def _exchange_name(raw: str) -> str:
     if raw.lower() == "bithumb":
         return "Bithumb"
     return raw
+
+
+def _format_ts(dt_val) -> str | None:
+    if not dt_val:
+        return None
+    try:
+        return dt_val.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return None
+
+
+def _store_binance_notice(notice: "BinanceNotice") -> None:
+    exchange = "Binance"
+    notice_type = getattr(getattr(notice, "listing_type", None), "value", "listing")
+    notice_ts = _format_ts(getattr(notice, "release_date", None))
+    source = getattr(notice, "url", None) or f"binance:{getattr(notice, 'code', '')}"
+    symbols = list(getattr(notice, "symbols", []) or [])
+
+    raw = {
+        "symbols": symbols,
+        "listing_type": notice_type,
+        "listing_time": _format_ts(getattr(notice, "listing_time", None)),
+        "deposit_time": _format_ts(getattr(notice, "deposit_time", None)),
+        "withdraw_time": _format_ts(getattr(notice, "withdraw_time", None)),
+        "pairs": list(getattr(notice, "pairs", []) or []),
+        "seed_tag": bool(getattr(notice, "seed_tag", False)),
+        "has_spot": bool(getattr(notice, "has_spot", False)),
+        "has_futures": bool(getattr(notice, "has_futures", False)),
+        "code": getattr(notice, "code", ""),
+    }
+
+    conn = get_conn()
+    try:
+        insert_notice_event(
+            conn=conn,
+            exchange=exchange,
+            notice_type=notice_type,
+            title=getattr(notice, "title", "") or "",
+            symbols=symbols,
+            notice_ts=notice_ts,
+            source=source,
+            severity="",
+            action="",
+            raw_json=raw,
+        )
+        if symbols:
+            listing_ts = raw.get("listing_time") or notice_ts
+            for sym in symbols:
+                insert_listing_event(
+                    conn=conn,
+                    symbol=sym,
+                    exchange=exchange,
+                    listing_type=notice_type,
+                    listing_ts=listing_ts,
+                    source=source,
+                    status="binance",
+                )
+    finally:
+        conn.close()
 
 
 async def on_notice(result: NoticeParseResult) -> None:
@@ -122,6 +189,29 @@ async def _prefetch_korean():
             await knf.close()
 
 
+async def _poll_binance(stop_event: asyncio.Event, interval_sec: int) -> None:
+    if not _HAS_BINANCE or not BinanceNoticeFetcher:
+        logging.warning("[run_live_listing_pipeline] Binance notice fetcher unavailable")
+        return
+    fetcher = BinanceNoticeFetcher()
+    seen_codes: set[str] = set()
+    try:
+        while not stop_event.is_set():
+            try:
+                notices = await fetcher.fetch_all_listings(page_size=20)
+                for notice in notices:
+                    code = getattr(notice, "code", "") or getattr(notice, "notice_id", "")
+                    if code in seen_codes:
+                        continue
+                    seen_codes.add(code)
+                    _store_binance_notice(notice)
+            except Exception as e:
+                logging.warning("[run_live_listing_pipeline] Binance poll failed: %s", e)
+            await asyncio.sleep(interval_sec)
+    finally:
+        await fetcher.close()
+
+
 async def _wallet_callback(event: DepositEvent) -> None:
     from collectors.storage import insert_wallet_flow
     conn = get_conn()
@@ -148,6 +238,7 @@ async def run(
     wallet_min_usd: float,
     outcome_window: int,
     wallet_chains: list[str] | None,
+    binance_interval: int,
 ):
     stop_event = asyncio.Event()
     fetcher = NoticeFetcher(on_listing=on_listing, on_notice=on_notice)
@@ -170,6 +261,7 @@ async def run(
             wallet.start_monitoring(interval_sec=wallet_interval, chains=wallet_chains),
             name="wallet_tracker",
         ),
+        asyncio.create_task(_poll_binance(stop_event, binance_interval), name="binance_poll"),
         asyncio.create_task(_stop_later(), name="stopper"),
         asyncio.to_thread(run_tracker, outcome_window, 20, outcome_duration),
     ]
@@ -184,6 +276,7 @@ def main():
     parser.add_argument("--wallet-min-usd", type=float, default=100_000)
     parser.add_argument("--outcome-window", type=int, default=60)
     parser.add_argument("--wallet-chains", type=str, default="", help="Comma-separated chains")
+    parser.add_argument("--binance-interval", type=int, default=120, help="Binance poll interval seconds")
     args = parser.parse_args()
 
     asyncio.run(
@@ -193,6 +286,7 @@ def main():
             args.wallet_min_usd,
             args.outcome_window,
             _parse_chains(args.wallet_chains),
+            args.binance_interval,
         )
     )
 

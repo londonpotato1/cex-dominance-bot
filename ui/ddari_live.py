@@ -746,7 +746,7 @@ def _render_binance_alerts_section() -> None:
 # ------------------------------------------------------------------
 
 def _render_korean_listing_card(notice) -> None:
-    """한국 거래소 신규 상장 공지 카드 렌더링 (파란색 강조)."""
+    """한국 거래소 신규 상장 공지 카드 렌더링 (바이낸스 카드와 동일한 구조)."""
     import streamlit as st
     from collectors.listing_strategy import ListingStrategyAnalyzer
     import asyncio
@@ -776,37 +776,118 @@ def _render_korean_listing_card(notice) -> None:
     score = result.go_score if result else 0
     score_color = "#3fb950" if score >= 70 else "#d29922" if score >= 50 else "#f85149"
     
+    # 토크노믹스 데이터 준비
+    price_str = "N/A"
+    if result and result.current_price_usd:
+        p = result.current_price_usd
+        price_str = f"${p:.6f}" if p < 0.01 else f"${p:.4f}" if p < 1 else f"${p:.2f}"
+    
+    mc_str = f"${result.market_cap_usd/1e6:.1f}M" if result and result.market_cap_usd else "N/A"
+    fdv_str = f"${result.fdv_usd/1e6:.1f}M" if result and result.fdv_usd else "N/A"
+    circ_str = f"{result.circulating_percent:.1f}%" if result and result.circulating_percent else "N/A"
+    vol_str = f"${result.volume_24h_usd/1e6:.1f}M" if result and result.volume_24h_usd else "N/A"
+    
+    # 체인 정보
+    platforms = result.platforms if result else []
+    platforms_html = " ".join([f'<span style="background:#21262d;color:#58a6ff;padding:4px 10px;border-radius:4px;font-size:0.8rem;margin-right:4px;">{p.upper()}</span>' for p in platforms[:5]]) if platforms else '<span style="color:#8b949e;">N/A</span>'
+    
+    # 거래소 현황 테이블
+    exchange_rows = ""
+    if result and result.exchange_markets:
+        for em in result.exchange_markets:
+            spot_icon = "&#128994;" if em.has_spot else "&#128308;"
+            futures_icon = "&#128994;" if em.has_futures else "&#128308;"
+            dep_icon = "&#128994;" if getattr(em, 'deposit_enabled', False) else "&#9898;"
+            wd_icon = "&#128994;" if getattr(em, 'withdraw_enabled', False) else "&#9898;"
+            exchange_rows += f'''<tr style="border-bottom:1px solid #30363d;">
+                <td style="padding:6px;color:#fff;">{em.exchange.upper()}</td>
+                <td style="padding:6px;text-align:center;">{spot_icon}</td>
+                <td style="padding:6px;text-align:center;">{futures_icon}</td>
+                <td style="padding:6px;text-align:center;">{dep_icon}</td>
+                <td style="padding:6px;text-align:center;">{wd_icon}</td>
+            </tr>'''
+    
+    # 추천 액션
+    action_text = result.strategy_detail if result and result.strategy_detail else "분석 중..."
+    
     render_html(f'''
     <div style="background:#0d1117;border:2px solid {exchange_color};border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+        <!-- 헤더 -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid #30363d;">
             <div>
-                <span style="background:{exchange_color};color:#fff;padding:4px 12px;border-radius:6px;font-size:0.85rem;font-weight:600;">
-                    &#128640; {exchange_name} 신규 상장
-                </span>
-                <span style="color:#8b949e;font-size:0.85rem;margin-left:12px;">&#128197; {listing_time}</span>
+                <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
+                    <span style="background:{exchange_color};color:#fff;padding:4px 12px;border-radius:6px;font-size:0.85rem;font-weight:600;">
+                        &#128640; {exchange_name} &#49888;&#44508; &#49345;&#51109;
+                    </span>
+                    <span style="color:#8b949e;font-size:0.85rem;">&#128197; {listing_time}</span>
+                </div>
+                <div style="font-size:1.5rem;font-weight:700;color:#fff;">
+                    {symbol}
+                    <span style="font-size:1rem;font-weight:400;color:#8b949e;margin-left:0.5rem;">{result.name if result else ''}</span>
+                </div>
             </div>
-            <div style="text-align:center;background:#161b22;padding:0.75rem 1rem;border-radius:8px;">
-                <div style="font-size:1.5rem;font-weight:700;color:{score_color};">{score}</div>
-                <div style="font-size:0.7rem;color:#8b949e;">따리 스코어</div>
+            <div style="text-align:center;background:#161b22;padding:1rem 1.5rem;border-radius:12px;">
+                <div style="font-size:2rem;font-weight:700;color:{score_color};">{score}</div>
+                <div style="font-size:0.8rem;color:#8b949e;">&#46384;&#47532; &#49828;&#53076;&#50612;</div>
             </div>
         </div>
-        <div style="font-size:1.75rem;font-weight:700;color:#fff;margin-bottom:0.5rem;">
-            {symbol}
-            <span style="font-size:1rem;font-weight:400;color:#8b949e;margin-left:0.5rem;">{result.name if result else ''}</span>
+        
+        <!-- &#53664;&#53356;&#45432;&#48121;&#49828; -->
+        <div style="margin-bottom:0.75rem;">
+            <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">&#128202; &#49892;&#49884;&#44036; &#49884;&#51109; &#45936;&#51060;&#53552;</div>
+            <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:0.5rem;background:#161b22;padding:0.75rem;border-radius:8px;">
+                <div style="text-align:center;">
+                    <div style="font-size:0.7rem;color:#8b949e;">&#54788;&#51116;&#44032;</div>
+                    <div style="font-size:1rem;font-weight:600;color:#fff;">{price_str}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:0.7rem;color:#8b949e;">&#49884;&#52509; (MC)</div>
+                    <div style="font-size:1rem;font-weight:600;color:#fff;">{mc_str}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:0.7rem;color:#8b949e;">FDV</div>
+                    <div style="font-size:1rem;font-weight:600;color:#fff;">{fdv_str}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:0.7rem;color:#8b949e;">24h &#44144;&#47000;&#47049;</div>
+                    <div style="font-size:1rem;font-weight:600;color:#fff;">{vol_str}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:0.7rem;color:#8b949e;">&#50976;&#53685;&#47049;</div>
+                    <div style="font-size:1rem;font-weight:600;color:#fff;">{circ_str}</div>
+                </div>
+            </div>
         </div>
-        <div style="color:#58a6ff;font-size:0.9rem;margin-bottom:0.5rem;">
-            {notice.title[:60]}{'...' if len(notice.title) > 60 else ''}
+        
+        <!-- &#51648;&#50896; &#52404;&#51064; -->
+        <div style="margin-bottom:0.75rem;">
+            <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">&#128279; &#51648;&#50896; &#52404;&#51064;</div>
+            <div style="background:#161b22;padding:0.5rem;border-radius:6px;">
+                {platforms_html}
+            </div>
         </div>
-        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.75rem;">
-            <span style="background:#21262d;color:#c9d1d9;padding:4px 10px;border-radius:4px;font-size:0.8rem;">
-                &#128176; 시총: {f"${result.market_cap_usd/1e6:.1f}M" if result and result.market_cap_usd else "N/A"}
-            </span>
-            <span style="background:#21262d;color:#c9d1d9;padding:4px 10px;border-radius:4px;font-size:0.8rem;">
-                &#128202; FDV: {f"${result.fdv_usd/1e6:.1f}M" if result and result.fdv_usd else "N/A"}
-            </span>
-            <span style="background:#21262d;color:#c9d1d9;padding:4px 10px;border-radius:4px;font-size:0.8rem;">
-                &#128260; 유통량: {f"{result.circulating_percent:.1f}%" if result and result.circulating_percent else "N/A"}
-            </span>
+        
+        <!-- &#44144;&#47000;&#49548; &#54788;&#54889; -->
+        <div style="margin-bottom:0.75rem;">
+            <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">&#127970; &#44144;&#47000;&#49548; &#54788;&#54889;</div>
+            <div style="background:#161b22;border-radius:8px;overflow:hidden;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+                    <tr style="background:#21262d;color:#8b949e;">
+                        <th style="padding:6px;text-align:left;">&#44144;&#47000;&#49548;</th>
+                        <th style="padding:6px;text-align:center;">&#54788;&#47932;</th>
+                        <th style="padding:6px;text-align:center;">&#49440;&#47932;</th>
+                        <th style="padding:6px;text-align:center;">&#51077;&#44552;</th>
+                        <th style="padding:6px;text-align:center;">&#52636;&#44552;</th>
+                    </tr>
+                    {exchange_rows if exchange_rows else '<tr><td colspan="5" style="padding:8px;text-align:center;color:#8b949e;">&#44144;&#47000;&#49548; &#51221;&#48372; &#50630;&#51020;</td></tr>'}
+                </table>
+            </div>
+        </div>
+        
+        <!-- &#52628;&#52380; &#50529;&#49496; -->
+        <div style="background:#21262d;border-left:4px solid {exchange_color};padding:1rem;border-radius:0 8px 8px 0;">
+            <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">&#127919; &#52628;&#52380; &#50529;&#49496;</div>
+            <div style="color:#c9d1d9;font-size:0.9rem;">{action_text}</div>
         </div>
     </div>
     ''')

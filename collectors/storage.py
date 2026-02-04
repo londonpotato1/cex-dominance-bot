@@ -194,6 +194,53 @@ def insert_market_snapshot(
     conn.commit()
 
 
+def insert_funding_rate(
+    conn: sqlite3.Connection,
+    symbol: str,
+    exchange: str,
+    ts: Optional[str],
+    funding_rate: float,
+    open_interest: Optional[float] = None,
+) -> None:
+    exchange_id = get_or_create_exchange(conn, exchange)
+    asset_id = get_or_create_asset(conn, symbol, None)
+    cur = conn.cursor()
+    ts_val = ts or _now_kst_str()
+    cur.execute(
+        """
+        INSERT INTO funding_rates (
+          asset_id, exchange_id, ts, funding_rate, open_interest
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (asset_id, exchange_id, ts_val, funding_rate, open_interest),
+    )
+    conn.commit()
+
+
+def insert_dex_liquidity_snapshot(
+    conn: sqlite3.Connection,
+    symbol: str,
+    chain: Optional[str],
+    dex_name: Optional[str],
+    ts: Optional[str],
+    liquidity_usd: Optional[float],
+    volume_24h_usd: Optional[float],
+    pool_count: Optional[int],
+) -> None:
+    asset_id = get_or_create_asset(conn, symbol, chain)
+    cur = conn.cursor()
+    ts_val = ts or _now_kst_str()
+    cur.execute(
+        """
+        INSERT INTO dex_liquidity_snapshots (
+          asset_id, chain, dex_name, ts, liquidity_usd, volume_24h_usd, pool_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (asset_id, chain, dex_name, ts_val, liquidity_usd, volume_24h_usd, pool_count),
+    )
+    conn.commit()
+
+
 def insert_listing_outcome(
     conn: sqlite3.Connection,
     listing_event_id: int,
