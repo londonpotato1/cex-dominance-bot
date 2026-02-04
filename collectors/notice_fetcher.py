@@ -13,6 +13,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
+import inspect
 from typing import TYPE_CHECKING
 from concurrent.futures import ThreadPoolExecutor
 
@@ -89,6 +90,7 @@ class NoticeFetcher:
     def __init__(
         self,
         on_listing: callable | None = None,
+        on_notice: callable | None = None,
         upbit_interval: float = 30.0,
         bithumb_interval: float = 30.0,
     ) -> None:
@@ -99,6 +101,7 @@ class NoticeFetcher:
             bithumb_interval: 빗썸 폴링 간격 (초).
         """
         self._on_listing = on_listing
+        self._on_notice = on_notice
         self._upbit_interval = upbit_interval
         self._bithumb_interval = bithumb_interval
         self._parser = UnifiedNoticeParser()
@@ -171,6 +174,13 @@ class NoticeFetcher:
                 await self._playwright.stop()
             logger.info("[NoticeFetcher] 브라우저 종료 완료")
 
+    async def _call_callback(self, cb, result: NoticeParseResult) -> None:
+        if cb is None:
+            return
+        res = cb(result)
+        if inspect.isawaitable(res):
+            await res
+
     # ------------------------------------------------------------------
     # 업비트 공지 폴링
     # ------------------------------------------------------------------
@@ -238,13 +248,17 @@ class NoticeFetcher:
                         notice_url=notice.url,
                     )
 
+                    # notify all notices
+                    if self._on_notice:
+                        await self._call_callback(self._on_notice, result)
+
                     if result.notice_type == "listing" and result.symbols:
                         logger.critical(
                             "[NoticeFetcher] 업비트 상장 감지! 심볼: %s",
                             result.symbols,
                         )
                         if self._on_listing:
-                            await self._on_listing(result)
+                            await self._call_callback(self._on_listing, result)
 
             except Exception as e:
                 logger.warning("[NoticeFetcher] 업비트 폴링 에러: %s", e)
@@ -395,13 +409,16 @@ class NoticeFetcher:
                         notice_url=notice.url,
                     )
 
+                    if self._on_notice:
+                        await self._call_callback(self._on_notice, result)
+
                     if result.notice_type == "listing" and result.symbols:
                         logger.critical(
                             "[NoticeFetcher] 빗썸 상장 감지! 심볼: %s",
                             result.symbols,
                         )
                         if self._on_listing:
-                            await self._on_listing(result)
+                            await self._call_callback(self._on_listing, result)
 
             except Exception as e:
                 logger.warning("[NoticeFetcher] 빗썸 폴링 에러: %s", e)

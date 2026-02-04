@@ -8,5 +8,4 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #453 | 2:07 AM | 🔵 | Aggregator Architecture - 1-Second to 1-Minute Trade Data Rollup | ~712 |
-| #382 | 1:19 AM | 🔵 | Market Monitor New Listing Detection and Analysis Pipeline | ~676 |
 </claude-mem-context>

@@ -1,0 +1,17 @@
+symbol,exchange,case_date,profit_pct,result_label
+XION,Bithumb,2025-11-26,50.86,대흥따리
+BOB,Bithumb,2025-12-03,31.18,대흥따리
+TRAC,Bithumb,2025-12-03,27.61,흥따리
+PLUME,Upbit,2025-11-26,17.94,흥따리
+MIRA,Upbit,2025-12-07,13.05,흥따리
+ZKP,Upbit,2025-12-26,12.38,흥따리
+SENT,Upbit,2026-01-29,12.02,흥따리
+BREV,Upbit,2026-01-07,6.33,흥따리
+SAPIEN,Bithumb,2025-12-06,5.62,보통
+WET,Upbit,2025-12-15,0.13,보통
+ZK,Upbit,2026-01-06,-0.46,망따리
+DEXE,Bithumb,2025-12-19,-0.61,망따리
+EDEN,Bithumb,2025-12-16,-1.68,망따리
+ALLO,Bithumb,2025-12-09,-2.03,망따리
+THQ,Bithumb,2025-12-23,-11.07,망따리
+ELSA,Upbit,2026-01-22,-34.25,망따리

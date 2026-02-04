@@ -1,0 +1,18 @@
+case_date,exchange,symbol,profit_pct,market_cap,deposit_amount,max_premium_pct,hedge_type,network_chain,withdrawal_open,listing_type,entry_method,exit_method,funding_rate,premium_range,dex_used,chain_used,deposit_krw_exact,notes_manual,status
+2025-11-26,업비트,PLUME,17.94,,50억,,spot_futures,,,,,,,,,,,,TODO
+2025-11-26,빗썸,XION,50.86,,,10.0,spot_futures,,,상장,,,,,,,,,TODO
+2025-12-03,빗썸,BOB,31.18,,,,spot_futures,,,상장,,,,,,,,,TODO
+2025-12-03,빗썸,TRAC,27.61,,,,,,,상장,,,,,,,,,TODO
+2025-12-06,빗썸,SAPIEN,5.62,,,3.0,spot_futures,,,,,,,,,,,,TODO
+2025-12-07,업빗썸,MIRA,13.05,,,15.0,spot_futures,BSC,,상장,,,,,,,,,TODO
+2024-12-11,빗썸,MOVE,,,,,spot_futures,ETH,,TGE,,,,,,,,,TODO
+2025-12-09,빗썸,ALLO,-2.03,25M,약 40억,0.5,spot_futures,,,,,,,,,,,,TODO
+2025-12-15,업빗썸,WET,0.13,,,,futures,,,상장,,,,,,,,,TODO
+2025-12-16,빗썸,EDEN,-1.68,12M,,,spot_futures,,True,,,,,,,,,,TODO
+2025-12-19,빗썸,DEXE,-0.61,,,,spot_futures,,,,,,,,,,,,TODO
+2025-12-23,빗썸,THQ,-11.07,,,,,,,,,,,,,,,,TODO
+2025-12-26,업빗썸,ZKP,12.38,,,,spot_futures,ZK,,상장,,,,,,,,,TODO
+2026-01-06,업비트,ZK,-0.46,,,,spot_futures,ZK,,상장,,,,,,,,,TODO
+2026-01-07,업빗썸,BREV,6.33,,,4.5,spot_futures,,,상장,,,,,,,,,TODO
+2026-01-22,업비트,ELSA,-34.25,,,,,,,TGE,,,,,,,,,TODO
+2026-01-29,업빗썸,SENT,12.02,,,,spot_futures,,,상장,,,,,,,,,TODO
