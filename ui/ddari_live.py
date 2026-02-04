@@ -557,7 +557,7 @@ def _render_binance_alerts_section() -> None:
                 <td style="padding:6px;color:#8b949e;font-size:0.8rem;">{nets}</td>
             </tr>'''
     
-    # 상장 시간 + 24시간 지났는지 체크 → 접기
+    # 상장 시간 + 24시간 지났는지 체크 &#8594; 접기
     is_listing_expired = False
     listing_datetime = None
     if latest and hasattr(latest, 'listing_time') and latest.listing_time:
@@ -683,7 +683,7 @@ def _render_binance_alerts_section() -> None:
             <div style="color:#f0883e;font-size:0.9rem;">{actions_html}</div>
             <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #30363d;font-size:0.8rem;color:#8b949e;">
                 <span style="color:#3fb950;font-weight:600;">&#127793; Seed Tag란?</span> 
-                바이낸스가 신규/혁신 프로젝트에 붙이는 라벨. 변동성 높지만 <span style="color:#f0883e;">업빗/빗썸 상장 가능성 높음</span> → 따리 대기!
+                바이낸스가 신규/혁신 프로젝트에 붙이는 라벨. 변동성 높지만 <span style="color:#f0883e;">업빗/빗썸 상장 가능성 높음</span> &#8594; 따리 대기!
             </div>
         </div>''' if actions_html else ''}
     </div>
@@ -2170,7 +2170,7 @@ def _render_realtime_gap_section() -> None:
                                         background:{COLORS["bg_card"]};padding:0.5rem 0.75rem;border-radius:6px;">
                                 <div>
                                     <span style="color:{COLORS["text_secondary"]};">{gap.spot_exchange}</span>
-                                    <span style="color:{COLORS["text_muted"]};"> → </span>
+                                    <span style="color:{COLORS["text_muted"]};"> &#8594; </span>
                                     <span style="color:{COLORS["text_secondary"]};">{gap.futures_exchange}</span>
                                     {krw_text}
                                 </div>
@@ -2215,7 +2215,7 @@ def _render_realtime_gap_section() -> None:
             💡 <b>현선갭</b> = (선물가격 - 현물가격) / 현물가격 × 100
         </p>
         <p style="font-size:0.75rem;color:{COLORS["text_muted"]};margin-top:0.25rem;">
-            양수: 선물 프리미엄 | 음수: 선물 디스카운트 | 갭이 클수록 헷징 어려움 → GO 신호
+            양수: 선물 프리미엄 | 음수: 선물 디스카운트 | 갭이 클수록 헷징 어려움 &#8594; GO 신호
         </p>
     </div>
     """
@@ -2439,7 +2439,7 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
             gap_color = "#4ade80" if gap.gap_percent > 0 else "#f87171"
             result_html += f'''
             <div style="display:flex;justify-content:space-between;padding:0.3rem 0;font-size:0.75rem;">
-                <span style="color:#9ca3af;">{gap.spot_exchange}→{gap.futures_exchange}</span>
+                <span style="color:#9ca3af;">{gap.spot_exchange}&#8594;{gap.futures_exchange}</span>
                 <span style="color:{gap_color};font-weight:600;">{gap.gap_percent:+.2f}%</span>
             </div>
             '''
@@ -2534,7 +2534,7 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
                 prem_color = "#4ade80" if ob.net_premium > 0 else "#f87171"
                 result_html += f'''
                 <div style="display:flex;justify-content:space-between;padding:0.3rem 0;font-size:0.75rem;">
-                    <span style="color:#9ca3af;">{ob.buy_exchange}→{ob.sell_exchange}</span>
+                    <span style="color:#9ca3af;">{ob.buy_exchange}&#8594;{ob.sell_exchange}</span>
                     <span style="color:{prem_color};font-weight:600;">{ob.net_premium:+.2f}%</span>
                 </div>
                 '''
@@ -2606,7 +2606,7 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
                 <ol style="font-size:0.65rem;color:#9ca3af;margin:0;padding-left:1.2rem;">
                     <li>국내 현물 매수 (업비트/빗썸)</li>
                     <li>해외 선물 숏 진입 (헷징)</li>
-                    <li>국내→해외 전송</li>
+                    <li>국내&#8594;해외 전송</li>
                     <li>해외 현물 매도 + 숏 청산</li>
                 </ol>
             </div>
@@ -2623,7 +2623,7 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
     with st.expander("💡 판정 기준", expanded=False):
         st.markdown("""
         **현선갭 (Spot-Futures Gap)**
-        - 🟢 +3% 이상: GO (헷징 어려움 → 공급 제약)
+        - 🟢 +3% 이상: GO (헷징 어려움 &#8594; 공급 제약)
         - 🟡 +1~3%: CAUTION
         - 🔴 +1% 미만: NO-GO
         
@@ -2884,11 +2884,11 @@ def _render_funding_rate_bottom_bar() -> None:
     if position_bias == "long_heavy":
         bias_color = "#4ade80"
         bias_text = "롱↑"
-        meaning = "롱 과열 → 선물 > 현물"
+        meaning = "롱 과열 &#8594; 선물 > 현물"
     elif position_bias == "short_heavy":
         bias_color = "#f87171"
         bias_text = "숏↑"
-        meaning = "숏 과열 → 선물 < 현물"
+        meaning = "숏 과열 &#8594; 선물 < 현물"
     else:
         bias_color = "#9ca3af"
         bias_text = "중립"
@@ -2955,11 +2955,11 @@ def _render_funding_rate_compact() -> None:
     if position_bias == "long_heavy":
         bias_color = "#4ade80"
         bias_text = "롱↑"
-        meaning = "롱 과열 → 선물가 > 현물가"
+        meaning = "롱 과열 &#8594; 선물가 > 현물가"
     elif position_bias == "short_heavy":
         bias_color = "#f87171"
         bias_text = "숏↑"
-        meaning = "숏 과열 → 선물가 < 현물가"
+        meaning = "숏 과열 &#8594; 선물가 < 현물가"
     else:
         bias_color = "#9ca3af"
         bias_text = "중립"
