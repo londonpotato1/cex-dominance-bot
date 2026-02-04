@@ -222,6 +222,7 @@ def _render_strategy_result(rec):
     
     # === 2. 거래소별 마켓 + 입출금 상태 + 핫월렛 + 네트워크 (컴팩트) ===
     exchange_markets = getattr(rec, 'exchange_markets', []) or []
+    contracts = getattr(rec, 'contracts', {}) or {}
     
     # 핫월렛 DB에서 정보 가져오기
     hw_db = {}
@@ -236,6 +237,37 @@ def _render_strategy_result(rec):
                 }
     except Exception:
         pass
+    
+    # 핫월렛 토큰 잔액 조회 (contracts 정보 있을 때만)
+    hw_balances = {}
+    if contracts:
+        try:
+            from collectors.wallet_balance import get_exchange_token_balance, format_balance
+            # 주요 체인만 조회 (ethereum, base, arbitrum, bsc)
+            chain_mapping = {
+                'ethereum': 'ethereum',
+                'base': 'base', 
+                'arbitrum-one': 'arbitrum',
+                'binance-smart-chain': 'bsc',
+                'bsc': 'bsc',
+            }
+            for chain_name, contract_addr in contracts.items():
+                if chain_name.lower() in chain_mapping and contract_addr:
+                    chain_key = chain_mapping[chain_name.lower()]
+                    # 각 거래소별 잔액 조회
+                    for ex in ['binance', 'bybit', 'okx', 'gate']:
+                        if ex not in hw_balances:
+                            hw_balances[ex] = {'total': 0, 'chain': None}
+                        try:
+                            result = get_exchange_token_balance(ex, contract_addr, chain_key, decimals=18)
+                            if result and result.get('total', 0) > 0:
+                                hw_balances[ex]['total'] += result['total']
+                                hw_balances[ex]['chain'] = chain_key
+                        except Exception:
+                            pass
+                    break  # 첫 번째 지원 체인만 조회
+        except Exception:
+            pass
     
     # 네트워크 DB에서 정보 가져오기
     net_db = {}
@@ -262,13 +294,30 @@ def _render_strategy_result(rec):
             else:
                 net_str = net_db.get(ex_lower, "-")
             
-            # 핫월렛 정보 (DB에서)
+            # 핫월렛 정보 (잔액 또는 지갑수)
+            hw_balance_info = hw_balances.get(ex_lower, {})
             hw_info = hw_db.get(ex_lower, {})
-            if hw_info:
+            
+            if hw_balance_info.get('total', 0) > 0:
+                # 토큰 잔액 표시
+                bal = hw_balance_info['total']
+                if bal >= 1_000_000:
+                    bal_str = f"{bal/1e6:.1f}M"
+                elif bal >= 1_000:
+                    bal_str = f"{bal/1e3:.1f}K"
+                else:
+                    bal_str = f"{bal:,.0f}"
+                arkham_link = hw_info.get('arkham', '')
+                if arkham_link:
+                    hw_str = f'<a href="{arkham_link}" target="_blank" style="color:#4ade80;text-decoration:none;font-weight:600;">{bal_str} &#128176;</a>'
+                else:
+                    hw_str = f'<span style="color:#4ade80;font-weight:600;">{bal_str}</span>'
+            elif hw_info:
+                # 지갑 개수만 표시 (잔액 조회 안 됨)
                 hw_count = hw_info.get('count', 0)
                 arkham_link = hw_info.get('arkham', '')
                 if arkham_link:
-                    hw_str = f'<a href="{arkham_link}" target="_blank" style="color:#58a6ff;text-decoration:none;">{hw_count}개 🔗</a>'
+                    hw_str = f'<a href="{arkham_link}" target="_blank" style="color:#58a6ff;text-decoration:none;">{hw_count}개 &#128279;</a>'
                 else:
                     hw_str = f'{hw_count}개'
             else:
