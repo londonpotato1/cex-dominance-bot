@@ -220,11 +220,27 @@ def _render_strategy_result(rec):
         </div>'''
     )
     
-    # === 2. 거래소별 마켓 + 입출금 상태 (컴팩트) ===
+    # === 2. 거래소별 마켓 + 입출금 상태 + 핫월렛 (컴팩트) ===
     exchange_markets = getattr(rec, 'exchange_markets', []) or []
+    
+    # 핫월렛 DB에서 정보 가져오기
+    hw_db = {}
+    try:
+        from collectors.hot_wallet_db import get_hot_wallets, get_arkham_link
+        for ex in ['binance', 'bybit', 'okx', 'gate', 'bitget', 'htx', 'mexc', 'kucoin', 'upbit', 'bithumb']:
+            wallets = get_hot_wallets(ex)
+            if wallets:
+                hw_db[ex] = {
+                    'count': len(wallets),
+                    'arkham': get_arkham_link(ex)
+                }
+    except Exception:
+        pass
+    
     if exchange_markets:
         rows_html = ""
         for em in exchange_markets:
+            ex_lower = em.exchange.lower()
             spot_icon = "🟢" if em.has_spot else "🔴"
             futures_icon = "🟢" if em.has_futures else "🔴"
             dep_icon = "🟢" if getattr(em, 'deposit_enabled', False) else "⚪"
@@ -232,12 +248,25 @@ def _render_strategy_result(rec):
             networks = getattr(em, 'networks', []) or []
             net_str = ", ".join(networks[:2]) if networks else "-"
             
+            # 핫월렛 정보 (DB에서)
+            hw_info = hw_db.get(ex_lower, {})
+            if hw_info:
+                hw_count = hw_info.get('count', 0)
+                arkham_link = hw_info.get('arkham', '')
+                if arkham_link:
+                    hw_str = f'<a href="{arkham_link}" target="_blank" style="color:#58a6ff;text-decoration:none;">{hw_count}개 🔗</a>'
+                else:
+                    hw_str = f'{hw_count}개'
+            else:
+                hw_str = '-'
+            
             rows_html += f'''<tr style="border-bottom:1px solid #2d3748;">
                 <td style="padding:4px 6px;color:#fff;font-weight:500;font-size:0.8rem;">{em.exchange.upper()}</td>
                 <td style="padding:4px;text-align:center;">{spot_icon}</td>
                 <td style="padding:4px;text-align:center;">{futures_icon}</td>
                 <td style="padding:4px;text-align:center;">{dep_icon}</td>
                 <td style="padding:4px;text-align:center;">{wd_icon}</td>
+                <td style="padding:4px;text-align:center;font-size:0.75rem;">{hw_str}</td>
                 <td style="padding:4px;color:#6b7280;font-size:0.75rem;">{net_str}</td>
             </tr>'''
         
@@ -251,15 +280,13 @@ def _render_strategy_result(rec):
                 <th style="padding:4px;text-align:center;">선물</th>
                 <th style="padding:4px;text-align:center;">입금</th>
                 <th style="padding:4px;text-align:center;">출금</th>
+                <th style="padding:4px;text-align:center;">핫월렛</th>
                 <th style="padding:4px;">네트워크</th>
             </tr>
             {rows_html}
             </table>
             </div>'''
         )
-    
-    # === 2.5 핫월렛 추적 섹션 ===
-    _render_hot_wallet_section(platforms)
     
     # === 3. 전략 추천 (컴팩트) ===
     render_html(
