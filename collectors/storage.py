@@ -232,3 +232,33 @@ def insert_listing_outcome(
         ),
     )
     conn.commit()
+
+
+def insert_wallet_flow(
+    conn: sqlite3.Connection,
+    exchange: str,
+    symbol: str,
+    chain: str | None,
+    direction: str,
+    amount: float,
+    usd_value: float | None,
+    tx_hash: str | None,
+    ts: str,
+    source: str = "manual",
+) -> None:
+    exchange_id = get_or_create_exchange(conn, exchange)
+    asset_id = get_or_create_asset(conn, symbol, chain)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO wallet_flows (
+          exchange_id, asset_id, chain, address, direction,
+          amount, usd_value, tx_hash, ts, source
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            exchange_id, asset_id, chain, None, direction,
+            amount, usd_value, tx_hash, ts, source,
+        ),
+    )
+    conn.commit()
