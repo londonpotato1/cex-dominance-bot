@@ -156,16 +156,16 @@ def evaluate_circulating(circ_pct: float | None) -> tuple[str, str, str]:
     Returns: (emoji, color, comment)
     """
     if circ_pct is None:
-        return "⚪", "#8b949e", "데이터 없음"
+        return "&#9898;", "#8b949e", "데이터 없음"
     
     if circ_pct <= 20:
-        return "🟢", "#3fb950", f"물량 적음 - 흥 가능성 ↑"
+        return "&#128994;", "#3fb950", f"물량 적음 - 흥 가능성 &#8593;"
     elif circ_pct <= 40:
-        return "🟡", "#d29922", f"물량 보통"
+        return "&#128993;", "#d29922", f"물량 보통"
     elif circ_pct <= 60:
-        return "🟠", "#f0883e", f"물량 다소 많음"
+        return "&#128992;", "#f0883e", f"물량 다소 많음"
     else:
-        return "🔴", "#f85149", f"물량 많음 - 흥하기 어려움"
+        return "&#128308;", "#f85149", f"물량 많음 - 흥하기 어려움"
 
 
 def evaluate_market_cap(mc_usd: float | None) -> tuple[str, str, str]:
@@ -174,18 +174,18 @@ def evaluate_market_cap(mc_usd: float | None) -> tuple[str, str, str]:
     Returns: (emoji, color, comment)
     """
     if mc_usd is None:
-        return "⚪", "#8b949e", "데이터 없음"
+        return "&#9898;", "#8b949e", "데이터 없음"
     
     mc_m = mc_usd / 1e6
     
     if mc_m < 30:
-        return "🟢", "#3fb950", f"소형급 - 변동성 큼, 펌핑 가능"
+        return "&#128994;", "#3fb950", f"소형급 - 변동성 큼, 펌핑 가능"
     elif mc_m < 100:
-        return "🟡", "#d29922", f"중소형급 - 적당한 변동성"
+        return "&#128993;", "#d29922", f"중소형급 - 적당한 변동성"
     elif mc_m < 300:
-        return "🟠", "#f0883e", f"중형급 - 안정적"
+        return "&#128992;", "#f0883e", f"중형급 - 안정적"
     else:
-        return "🔴", "#f85149", f"대형급 - 큰 펌핑 어려움"
+        return "&#128308;", "#f85149", f"대형급 - 큰 펌핑 어려움"
 
 
 def evaluate_fdv_ratio(fdv_usd: float | None, mc_usd: float | None) -> tuple[str, str, str]:
@@ -194,18 +194,18 @@ def evaluate_fdv_ratio(fdv_usd: float | None, mc_usd: float | None) -> tuple[str
     Returns: (emoji, color, comment)
     """
     if fdv_usd is None or mc_usd is None or mc_usd == 0:
-        return "⚪", "#8b949e", "데이터 없음"
+        return "&#9898;", "#8b949e", "데이터 없음"
     
     ratio = fdv_usd / mc_usd
     
     if ratio < 2:
-        return "🔴", "#f85149", f"유통량 {100/ratio:.0f}% - 대부분 유통 중"
+        return "&#128308;", "#f85149", f"유통량 {100/ratio:.0f}% - 대부분 유통 중"
     elif ratio < 3:
-        return "🟠", "#f0883e", f"FDV {ratio:.1f}x - 잠재 물량 보통"
+        return "&#128992;", "#f0883e", f"FDV {ratio:.1f}x - 잠재 물량 보통"
     elif ratio < 5:
-        return "🟡", "#d29922", f"FDV {ratio:.1f}x - 잠재 물량 있음"
+        return "&#128993;", "#d29922", f"FDV {ratio:.1f}x - 잠재 물량 있음"
     else:
-        return "🟢", "#3fb950", f"FDV {ratio:.1f}x - 유통량 적음 (물량 잠김)"
+        return "&#128994;", "#3fb950", f"FDV {ratio:.1f}x - 유통량 적음 (물량 잠김)"
 
 
 def evaluate_volume_24h(vol_usd: float | None, mc_usd: float | None) -> tuple[str, str, str]:
@@ -214,7 +214,7 @@ def evaluate_volume_24h(vol_usd: float | None, mc_usd: float | None) -> tuple[st
     Returns: (emoji, color, comment)
     """
     if vol_usd is None:
-        return "⚪", "#8b949e", "데이터 없음"
+        return "&#9898;", "#8b949e", "데이터 없음"
     
     vol_m = vol_usd / 1e6
     
@@ -222,18 +222,18 @@ def evaluate_volume_24h(vol_usd: float | None, mc_usd: float | None) -> tuple[st
     if mc_usd and mc_usd > 0:
         vol_ratio = vol_usd / mc_usd * 100
         if vol_ratio > 50:
-            return "🟢", "#3fb950", f"거래 활발 (시총의 {vol_ratio:.0f}%)"
+            return "&#128994;", "#3fb950", f"거래 활발 (시총의 {vol_ratio:.0f}%)"
         elif vol_ratio > 20:
-            return "🟡", "#d29922", f"거래 보통 (시총의 {vol_ratio:.0f}%)"
+            return "&#128993;", "#d29922", f"거래 보통 (시총의 {vol_ratio:.0f}%)"
         else:
-            return "🟠", "#f0883e", f"거래 저조 (시총의 {vol_ratio:.0f}%)"
+            return "&#128992;", "#f0883e", f"거래 저조 (시총의 {vol_ratio:.0f}%)"
     
     if vol_m > 50:
-        return "🟢", "#3fb950", f"거래량 높음"
+        return "&#128994;", "#3fb950", f"거래량 높음"
     elif vol_m > 10:
-        return "🟡", "#d29922", f"거래량 보통"
+        return "&#128993;", "#d29922", f"거래량 보통"
     else:
-        return "🟠", "#f0883e", f"거래량 낮음"
+        return "&#128992;", "#f0883e", f"거래량 낮음"
 
 
 def get_market_condition_comment(is_bull: bool = True) -> str:
@@ -243,9 +243,9 @@ def get_market_condition_comment(is_bull: bool = True) -> str:
         is_bull: True=불장, False=하락장
     """
     if is_bull:
-        return "📈 불장 - 흥따리 확률 ↑"
+        return "&#128200; 불장 - 흥따리 확률 &#8593;"
     else:
-        return "📉 하락장 - 선따리 신중하게"
+        return "&#128201; 하락장 - 선따리 신중하게"
 
 
 # ------------------------------------------------------------------
@@ -366,15 +366,15 @@ def _render_binance_alerts_section() -> None:
     # 유형별 색상
     if latest.seed_tag:
         badge_color = "#f59e0b"
-        badge_text = "🌱 Seed Tag"
+        badge_text = "&#127793; Seed Tag"
         border_color = "#f59e0b"
     elif latest.has_spot:
         badge_color = "#3b82f6"
-        badge_text = "📈 현물 상장"
+        badge_text = "&#128200; 현물 상장"
         border_color = "#3b82f6"
     else:
         badge_color = "#6b7280"
-        badge_text = "📢 공지"
+        badge_text = "&#128226; 공지"
         border_color = "#6b7280"
     
     # 거래소 상태 HTML 생성
@@ -382,8 +382,8 @@ def _render_binance_alerts_section() -> None:
     if intel and intel.exchanges:
         ex_items = []
         for ex_name, ex_status in intel.exchanges.items():
-            spot_icon = "✅" if ex_status.has_spot else "❌"
-            futures_icon = "✅" if ex_status.has_futures else "❌"
+            spot_icon = "&#9989;" if ex_status.has_spot else "&#10060;"
+            futures_icon = "&#9989;" if ex_status.has_futures else "&#10060;"
             ex_items.append(f"<span style='margin-right:8px;'>{ex_name.upper()}: S{spot_icon} F{futures_icon}</span>")
         exchange_html = " ".join(ex_items)
     
@@ -427,7 +427,7 @@ def _render_binance_alerts_section() -> None:
     mc_str = f"${intel.market_cap_usd/1e6:.1f}M" if intel and intel.market_cap_usd else "N/A"
     fdv_str = f"${intel.fdv_usd/1e6:.1f}M" if intel and intel.fdv_usd else "N/A"
     
-    # 📊 따리 판단 평가 (DDARI_FUNDAMENTALS 기반)
+    # &#128202; 따리 판단 평가 (DDARI_FUNDAMENTALS 기반)
     circ_emoji, circ_color, circ_comment = evaluate_circulating(intel.circulating_percent if intel else None)
     mc_emoji, mc_color, mc_comment = evaluate_market_cap(intel.market_cap_usd if intel else None)
     fdv_emoji, fdv_color, fdv_comment = evaluate_fdv_ratio(
@@ -493,10 +493,10 @@ def _render_binance_alerts_section() -> None:
     if not deposit_time_str and intel and intel.exchanges:
         for ex_name, ex_status in intel.exchanges.items():
             if ex_status.deposit_enabled and ex_status.deposit_networks:
-                deposit_time_str = "입금 가능 ✅"
+                deposit_time_str = "입금 가능 &#9989;"
                 break
         if not deposit_time_str:
-            deposit_time_str = "입금 대기 ⏳"
+            deposit_time_str = "입금 대기 &#9203;"
     
     # 바이낸스 알파 정보
     alpha_str = ""
@@ -522,10 +522,10 @@ def _render_binance_alerts_section() -> None:
         hot_wallets = fetch_exchange_hot_wallets(ex_list)
         
         for ex_name, ex_status in intel.exchanges.items():
-            spot_icon = "🟢" if ex_status.has_spot else "🔴"
-            futures_icon = "🟢" if ex_status.has_futures else "🔴"
-            dep_icon = "🟢" if ex_status.deposit_enabled else "⚪"
-            wd_icon = "🟢" if ex_status.withdraw_enabled else "⚪"
+            spot_icon = "&#128994;" if ex_status.has_spot else "&#128308;"
+            futures_icon = "&#128994;" if ex_status.has_futures else "&#128308;"
+            dep_icon = "&#128994;" if ex_status.deposit_enabled else "&#9898;"
+            wd_icon = "&#128994;" if ex_status.withdraw_enabled else "&#9898;"
             nets = ", ".join(ex_status.networks[:3]) if ex_status.networks else "-"
             
             # 핫월렛 잔고 표시
@@ -580,7 +580,7 @@ def _render_binance_alerts_section() -> None:
         <span style="background:{badge_color};color:#fff;padding:2px 8px;border-radius:4px;font-size:0.75rem;">{badge_text}</span>
         <span>{symbol if symbol else 'N/A'}</span>
         <span style="color:#8b949e;font-size:0.85rem;">{listing_time_str}</span>
-        <span style="color:#8b949e;font-size:0.75rem;margin-left:auto;">{expired_label}▼</span>
+        <span style="color:#8b949e;font-size:0.75rem;margin-left:auto;">{expired_label}&#9660;</span>
     </summary>
     <div style="background:#0d1117;border:2px solid {border_color};border-top:none;border-radius:0 0 12px 12px;padding:1rem;">
         
@@ -591,12 +591,12 @@ def _render_binance_alerts_section() -> None:
                     <span style="background:{badge_color};color:#fff;padding:4px 12px;border-radius:6px;font-size:0.8rem;font-weight:600;">
                         {badge_text}
                     </span>
-                    <a href="{latest.url}" target="_blank" style="color:#58a6ff;font-size:1rem;text-decoration:none;">바이낸스 공지 🔗</a>
-                    {f'<span style="color:#58a6ff;font-size:0.9rem;margin-left:8px;">📅 공지: {notice_time_str}</span>' if notice_time_str else ''}
-                    {f'<span style="color:#3fb950;font-size:1.1rem;font-weight:700;margin-left:12px;">🚀 상장: {listing_time_str}</span>' if listing_time_str else ''}
-                    {f'<span style="color:#f0883e;font-size:0.9rem;margin-left:8px;">💰 {deposit_time_str}</span>' if deposit_time_str else ''}
-                    {f'<span style="color:#a855f7;font-size:0.9rem;margin-left:8px;">📤 {withdraw_time_str}</span>' if withdraw_time_str else ''}
-                    {f'<span style="color:#ec4899;font-size:0.9rem;margin-left:8px;">🅰️ {alpha_str}</span>' if alpha_str else ''}
+                    <a href="{latest.url}" target="_blank" style="color:#58a6ff;font-size:1rem;text-decoration:none;">바이낸스 공지 &#128279;</a>
+                    {f'<span style="color:#58a6ff;font-size:0.9rem;margin-left:8px;">&#128197; 공지: {notice_time_str}</span>' if notice_time_str else ''}
+                    {f'<span style="color:#3fb950;font-size:1.1rem;font-weight:700;margin-left:12px;">&#128640; 상장: {listing_time_str}</span>' if listing_time_str else ''}
+                    {f'<span style="color:#f0883e;font-size:0.9rem;margin-left:8px;">&#128176; {deposit_time_str}</span>' if deposit_time_str else ''}
+                    {f'<span style="color:#a855f7;font-size:0.9rem;margin-left:8px;">&#128228; {withdraw_time_str}</span>' if withdraw_time_str else ''}
+                    {f'<span style="color:#ec4899;font-size:0.9rem;margin-left:8px;">&#127344;&#65039; {alpha_str}</span>' if alpha_str else ''}
                 </div>
                 <div style="font-size:1.5rem;font-weight:700;color:#fff;">
                     {symbol if symbol else 'N/A'}
@@ -614,7 +614,7 @@ def _render_binance_alerts_section() -> None:
         <!-- 토크노믹스 섹션 -->
         <div style="margin-bottom:0.75rem;">
             <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
-                📊 토크노믹스
+                &#128202; 토크노믹스
                 <span style="font-size:0.7rem;font-weight:400;color:#8b949e;">코인 기본 정보 + 따리 판단</span>
             </div>
             <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:0.5rem;background:#161b22;padding:0.75rem;border-radius:8px;">
@@ -647,7 +647,7 @@ def _render_binance_alerts_section() -> None:
         <!-- 체인/네트워크 -->
         <div style="margin-bottom:0.75rem;">
             <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
-                🔗 지원 체인
+                &#128279; 지원 체인
                 <span style="font-size:0.7rem;font-weight:400;color:#8b949e;">입출금 가능 네트워크</span>
             </div>
             <div style="background:#161b22;padding:0.5rem 0.75rem;border-radius:6px;display:flex;gap:0.5rem;flex-wrap:wrap;">
@@ -658,7 +658,7 @@ def _render_binance_alerts_section() -> None:
         <!-- 거래소 현황 테이블 -->
         <div style="margin-bottom:0.75rem;">
             <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
-                🏦 거래소 현황
+                &#127974; 거래소 현황
                 <span style="font-size:0.7rem;font-weight:400;color:#8b949e;">현물/선물 상장 및 입출금 상태</span>
             </div>
             <div style="background:#161b22;border-radius:8px;overflow:hidden;">
@@ -690,7 +690,7 @@ def _render_binance_alerts_section() -> None:
     </details>
     ''')
     
-    # 🤖 Claude AI 종합 분석
+    # &#129302; Claude AI 종합 분석
     if _HAS_ANTHROPIC and symbol:
         # 거래소 현황 요약
         spot_exchanges = []
@@ -726,7 +726,7 @@ def _render_binance_alerts_section() -> None:
             render_html(f'''
             <div style="background:linear-gradient(135deg, #1a1b26 0%, #161b22 100%);border:1px solid #7c3aed;border-radius:12px;padding:1rem;margin-top:0.5rem;">
                 <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
-                    <span style="font-size:1.2rem;">🤖</span>
+                    <span style="font-size:1.2rem;">&#129302;</span>
                     <span style="font-size:0.9rem;font-weight:600;color:#a78bfa;">Claude AI 종합 분석</span>
                 </div>
                 <div style="color:#e2e8f0;font-size:0.85rem;line-height:1.6;">
@@ -776,9 +776,9 @@ def _render_korean_listing_card(notice) -> None:
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
             <div>
                 <span style="background:{exchange_color};color:#fff;padding:4px 12px;border-radius:6px;font-size:0.85rem;font-weight:600;">
-                    🚀 {exchange_name} 신규 상장
+                    &#128640; {exchange_name} 신규 상장
                 </span>
-                <span style="color:#8b949e;font-size:0.85rem;margin-left:12px;">📅 {listing_time}</span>
+                <span style="color:#8b949e;font-size:0.85rem;margin-left:12px;">&#128197; {listing_time}</span>
             </div>
             <div style="text-align:center;background:#161b22;padding:0.75rem 1rem;border-radius:8px;">
                 <div style="font-size:1.5rem;font-weight:700;color:{score_color};">{score}</div>
@@ -794,13 +794,13 @@ def _render_korean_listing_card(notice) -> None:
         </div>
         <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.75rem;">
             <span style="background:#21262d;color:#c9d1d9;padding:4px 10px;border-radius:4px;font-size:0.8rem;">
-                💰 시총: {f"${result.market_cap_usd/1e6:.1f}M" if result and result.market_cap_usd else "N/A"}
+                &#128176; 시총: {f"${result.market_cap_usd/1e6:.1f}M" if result and result.market_cap_usd else "N/A"}
             </span>
             <span style="background:#21262d;color:#c9d1d9;padding:4px 10px;border-radius:4px;font-size:0.8rem;">
-                📊 FDV: {f"${result.fdv_usd/1e6:.1f}M" if result and result.fdv_usd else "N/A"}
+                &#128202; FDV: {f"${result.fdv_usd/1e6:.1f}M" if result and result.fdv_usd else "N/A"}
             </span>
             <span style="background:#21262d;color:#c9d1d9;padding:4px 10px;border-radius:4px;font-size:0.8rem;">
-                🔄 유통량: {f"{result.circulating_percent:.1f}%" if result and result.circulating_percent else "N/A"}
+                &#128260; 유통량: {f"{result.circulating_percent:.1f}%" if result and result.circulating_percent else "N/A"}
             </span>
         </div>
     </div>
@@ -869,7 +869,7 @@ def _render_recent_db_listings() -> None:
         st.markdown("""
         <div style="margin-bottom:0.75rem;">
             <span style="font-size:1.1rem;font-weight:600;color:#fff;">
-                🔥 최근 상장 (48시간)
+                &#128293; 최근 상장 (48시간)
             </span>
             <span style="font-size:0.8rem;color:#8b949e;margin-left:0.5rem;">
                 업비트/빗썸 신규 상장
@@ -903,14 +903,14 @@ def _render_recent_db_listings() -> None:
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <div>
                         <span style="background:{ex_color};color:#fff;padding:4px 12px;border-radius:6px;font-size:0.85rem;font-weight:600;">
-                            🚀 {ex_display} 상장
+                            &#128640; {ex_display} 상장
                         </span>
                         <span style="font-size:1.5rem;font-weight:700;color:#fff;margin-left:12px;">
                             {symbol}
                         </span>
                     </div>
                     <div style="text-align:right;">
-                        <div style="color:#8b949e;font-size:0.85rem;">📅 {time_str}</div>
+                        <div style="color:#8b949e;font-size:0.85rem;">&#128197; {time_str}</div>
                     </div>
                 </div>
                 {f'<div style="color:#58a6ff;font-size:0.85rem;margin-top:0.5rem;">{title[:80] if title else ""}</div>' if title else ''}
@@ -950,7 +950,7 @@ def _render_korean_notices_section() -> None:
     if not notices:
         return
     
-    # 🚀 신규 상장 공지 먼저 표시 (파란색 카드)
+    # &#128640; 신규 상장 공지 먼저 표시 (파란색 카드)
     listing_notices = [n for n in notices if n.notice_type == NoticeType.LISTING]
     for notice in listing_notices[:2]:  # 최대 2개
         _render_korean_listing_card(notice)
@@ -1002,7 +1002,7 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
     st.markdown("""
     <div style="margin-top:1rem;margin-bottom:0.75rem;">
         <span style="font-size:1.1rem;font-weight:600;color:#fff;">
-            📊 입출금 중단 코인 분석
+            &#128202; 입출금 중단 코인 분석
         </span>
         <span style="font-size:0.8rem;color:#8b949e;margin-left:0.5rem;">
             따리 전략 참고용 (클릭해서 펼치기)
@@ -1033,7 +1033,7 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
             vol_str = f"${result.volume_24h_usd/1e6:.1f}M" if result.volume_24h_usd else "N/A"
             circ_str = f"{result.circulating_percent:.1f}%" if result.circulating_percent else "N/A"
             
-            # 📊 따리 판단 평가
+            # &#128202; 따리 판단 평가
             circ_emoji, circ_color, circ_comment = evaluate_circulating(result.circulating_percent)
             mc_emoji, mc_color, mc_comment = evaluate_market_cap(result.market_cap_usd)
             fdv_emoji, fdv_color, fdv_comment = evaluate_fdv_ratio(result.fdv_usd, result.market_cap_usd)
@@ -1046,10 +1046,10 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
             exchange_rows = ""
             if result.exchange_markets:
                 for ex in result.exchange_markets[:4]:
-                    spot_icon = "🟢" if ex.has_spot else "🔴"
-                    futures_icon = "🟢" if ex.has_futures else "🔴"
-                    dep_icon = "🟢" if ex.deposit_enabled else "⚪"
-                    wd_icon = "🟢" if ex.withdraw_enabled else "⚪"
+                    spot_icon = "&#128994;" if ex.has_spot else "&#128308;"
+                    futures_icon = "&#128994;" if ex.has_futures else "&#128308;"
+                    dep_icon = "&#128994;" if ex.deposit_enabled else "&#9898;"
+                    wd_icon = "&#128994;" if ex.withdraw_enabled else "&#9898;"
                     nets = ", ".join(ex.networks[:2]) if ex.networks else "-"
                     exchange_rows += f'''<tr style="border-bottom:1px solid #30363d;">
                         <td style="padding:4px 6px;color:#c9d1d9;font-size:0.8rem;">{ex.exchange.upper()}</td>
@@ -1070,10 +1070,10 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;padding-bottom:0.5rem;border-bottom:1px solid #30363d;">
                 <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
                     <span style="background:{exchange_color};color:#fff;padding:4px 10px;border-radius:6px;font-size:0.75rem;font-weight:600;">{exchange_name}</span>
-                    <span style="background:#f85149;color:#fff;padding:4px 10px;border-radius:6px;font-size:0.75rem;font-weight:600;">🔴 {notice.get_type_text()}</span>
+                    <span style="background:#f85149;color:#fff;padding:4px 10px;border-radius:6px;font-size:0.75rem;font-weight:600;">&#128308; {notice.get_type_text()}</span>
                     <span style="font-size:1.2rem;font-weight:700;color:#fff;">{symbol}</span>
                     <span style="color:#8b949e;font-size:0.9rem;">{result.name or ""}</span>
-                    <span style="color:#d29922;font-size:0.8rem;">📅 {suspend_time}</span>
+                    <span style="color:#d29922;font-size:0.8rem;">&#128197; {suspend_time}</span>
                 </div>
                 <div style="text-align:center;">
                     <div style="font-size:1.5rem;font-weight:700;color:{score_color};">{result.go_score}</div>
@@ -1083,7 +1083,7 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
             
             <!-- 토크노믹스 + 따리 판단 -->
             <div style="margin-bottom:0.75rem;">
-                <div style="font-size:0.8rem;color:#8b949e;margin-bottom:0.25rem;">📊 토크노믹스 + 따리 판단</div>
+                <div style="font-size:0.8rem;color:#8b949e;margin-bottom:0.25rem;">&#128202; 토크노믹스 + 따리 판단</div>
                 <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0.5rem;text-align:center;">
                     <div><div style="color:#8b949e;font-size:0.7rem;">현재가</div><div style="color:#fff;font-weight:600;">{price_str}</div></div>
                     <div>
@@ -1111,14 +1111,14 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
             
             <!-- 체인 -->
             <div style="margin-bottom:0.75rem;">
-                <span style="font-size:0.8rem;color:#8b949e;">🔗 체인:</span>
+                <span style="font-size:0.8rem;color:#8b949e;">&#128279; 체인:</span>
                 <span style="color:#58a6ff;font-size:0.85rem;margin-left:0.5rem;">{chains}</span>
             </div>
             
             <!-- 거래소 현황 테이블 -->
             {f"""
             <div style="margin-bottom:0.5rem;">
-                <div style="font-size:0.8rem;color:#8b949e;margin-bottom:0.25rem;">🏦 거래소 현황</div>
+                <div style="font-size:0.8rem;color:#8b949e;margin-bottom:0.25rem;">&#127974; 거래소 현황</div>
                 <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
                     <thead>
                         <tr style="border-bottom:1px solid #30363d;">
@@ -1137,13 +1137,13 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
             
             <!-- 전략 -->
             <div style="background:#161b22;border-radius:8px;padding:0.5rem 0.75rem;margin-top:0.5rem;">
-                <span style="color:#d29922;font-weight:600;">🎯 {result.strategy_name or "분석중"}</span>
+                <span style="color:#d29922;font-weight:600;">&#127919; {result.strategy_name or "분석중"}</span>
             </div>
             
         </div>
         ''')
             
-            # 🤖 Claude AI 종합 분석 (입출금 중단 코인)
+            # &#129302; Claude AI 종합 분석 (입출금 중단 코인)
             if _HAS_ANTHROPIC:
                 # 거래소 현황 요약
                 spot_exchanges = []
@@ -1179,7 +1179,7 @@ def _render_korean_coin_analysis(symbol_notices: dict) -> None:
                     render_html(f'''
                     <div style="background:linear-gradient(135deg, #1a1b26 0%, #161b22 100%);border:1px solid #7c3aed;border-radius:8px;padding:0.75rem;margin-top:0.5rem;">
                         <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
-                            <span style="font-size:1rem;">🤖</span>
+                            <span style="font-size:1rem;">&#129302;</span>
                             <span style="font-size:0.8rem;font-weight:600;color:#a78bfa;">Claude AI 분석</span>
                         </div>
                         <div style="color:#e2e8f0;font-size:0.75rem;line-height:1.5;">
@@ -1351,8 +1351,8 @@ def _render_confidence_bar(score: int) -> str:
     else:
         color = "#f87171"  # 빨강
     
-    bar = f'<span style="color:{color};">{"█" * filled}</span>'
-    bar += f'<span style="color:#374151;">{"░" * empty}</span>'
+    bar = f'<span style="color:{color};">{"&#9608;" * filled}</span>'
+    bar += f'<span style="color:#374151;">{"&#9617;" * empty}</span>'
     
     return f'{bar} <span style="color:{color};font-weight:600;">{score}%</span>'
 
@@ -1361,14 +1361,14 @@ def _render_traffic_light(can_proceed: bool, score: int, has_warnings: bool) -> 
     """신호등 HTML 생성."""
     if can_proceed:
         if score >= 70 and not has_warnings:
-            # 🟢 GO - 높은 신뢰도
-            return '<span style="font-size:1.8rem;">🟢</span> <span style="font-size:1.4rem;font-weight:700;color:#4ade80;">GO</span>'
+            # &#128994; GO - 높은 신뢰도
+            return '<span style="font-size:1.8rem;">&#128994;</span> <span style="font-size:1.4rem;font-weight:700;color:#4ade80;">GO</span>'
         else:
-            # 🟡 GO - 주의 필요
-            return '<span style="font-size:1.8rem;">🟡</span> <span style="font-size:1.4rem;font-weight:700;color:#fbbf24;">GO</span>'
+            # &#128993; GO - 주의 필요
+            return '<span style="font-size:1.8rem;">&#128993;</span> <span style="font-size:1.4rem;font-weight:700;color:#fbbf24;">GO</span>'
     else:
-        # 🔴 NO-GO
-        return '<span style="font-size:1.8rem;">🔴</span> <span style="font-size:1.4rem;font-weight:700;color:#f87171;">NO-GO</span>'
+        # &#128308; NO-GO
+        return '<span style="font-size:1.8rem;">&#128308;</span> <span style="font-size:1.4rem;font-weight:700;color:#f87171;">NO-GO</span>'
 
 
 def _build_strategy_summary_html(row: dict) -> str:
@@ -1441,12 +1441,12 @@ def _build_strategy_summary_html(row: dict) -> str:
     
     # 1. 추천 전략
     items_html.append(
-        f'<div>🎯 추천: <b style="color:{strategy_color};">{strategy_text}</b></div>'
+        f'<div>&#127919; 추천: <b style="color:{strategy_color};">{strategy_text}</b></div>'
     )
     
     # 2. 현선갭 (있을 때만)
     if gap_pct is not None:
-        gap_status = "낮음 ✅" if gap_pct < 2 else "보통" if gap_pct < 5 else "높음 ⚠️"
+        gap_status = "낮음 &#9989;" if gap_pct < 2 else "보통" if gap_pct < 5 else "높음 &#9888;&#65039;"
         hedge_info = ""
         if hedge_type and hedge_type != "none":
             # 헷지 방향 표시 (예: 바낸롱-바빗숏)
@@ -1455,25 +1455,25 @@ def _build_strategy_summary_html(row: dict) -> str:
             else:
                 hedge_info = f" · {hedge_type}"
         items_html.append(
-            f'<div>📈 현선갭: {gap_pct:.1f}% ({gap_status}){hedge_info}</div>'
+            f'<div>&#128200; 현선갭: {gap_pct:.1f}% ({gap_status}){hedge_info}</div>'
         )
     
     # 3. 론 정보
     if loan_available and best_loan_exchange:
         rate_str = f" ({best_loan_rate:.4f}%/h)" if best_loan_rate else ""
         items_html.append(
-            f'<div>💰 론: {best_loan_exchange} 가능{rate_str}</div>'
+            f'<div>&#128176; 론: {best_loan_exchange} 가능{rate_str}</div>'
         )
     elif loan_available:
-        items_html.append('<div>💰 론: 가능</div>')
+        items_html.append('<div>&#128176; 론: 가능</div>')
     else:
-        items_html.append('<div style="color:#9ca3af;">💰 론: 불가</div>')
+        items_html.append('<div style="color:#9ca3af;">&#128176; 론: 불가</div>')
     
     # 4. DEX 유동성 (있을 때만)
     if dex_liquidity_usd is not None:
         if dex_liquidity_usd >= 1_000_000:
             liq_str = f"${dex_liquidity_usd/1_000_000:.1f}M"
-            liq_status = "많음 ⚠️"
+            liq_status = "많음 &#9888;&#65039;"
             liq_color = "#fbbf24"
         elif dex_liquidity_usd >= 200_000:
             liq_str = f"${dex_liquidity_usd/1000:.0f}K"
@@ -1481,15 +1481,15 @@ def _build_strategy_summary_html(row: dict) -> str:
             liq_color = "#d1d5db"
         else:
             liq_str = f"${dex_liquidity_usd/1000:.0f}K"
-            liq_status = "적음 ✅"
+            liq_status = "적음 &#9989;"
             liq_color = "#4ade80"
         items_html.append(
-            f'<div>💧 DEX: <span style="color:{liq_color};">{liq_str} ({liq_status})</span></div>'
+            f'<div>&#128167; DEX: <span style="color:{liq_color};">{liq_str} ({liq_status})</span></div>'
         )
     
     # 5. 네트워크 (있을 때만)
     if network_chain:
-        speed_emoji = "⚡"
+        speed_emoji = "&#9889;"
         speed_text = ""
         if network_speed:
             speed_map = {
@@ -1514,7 +1514,7 @@ def _build_strategy_summary_html(row: dict) -> str:
     return f'''
             <div style="background:#1f2937;border-radius:8px;padding:0.75rem;margin-bottom:0.75rem;">
                 <div style="font-size:0.8rem;font-weight:600;color:#60a5fa;margin-bottom:0.5rem;">
-                    📋 전략 요약
+                    &#128203; 전략 요약
                 </div>
                 <div style="font-size:0.75rem;color:#d1d5db;line-height:1.6;">
                     {items_joined}
@@ -1563,18 +1563,18 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
     supply_score = row.get("supply_score")
     if supply_score is not None:
         if supply_score > 6:
-            supply_emoji, supply_text = "🔥", "흥따리"
+            supply_emoji, supply_text = "&#128293;", "흥따리"
         elif supply_score < 3:
-            supply_emoji, supply_text = "💀", "망따리"
+            supply_emoji, supply_text = "&#128128;", "망따리"
         else:
-            supply_emoji, supply_text = "😐", "보통"
+            supply_emoji, supply_text = "&#128528;", "보통"
     elif net_profit is not None:
         if net_profit > 3:
-            supply_emoji, supply_text = "🔥", "흥따리"
+            supply_emoji, supply_text = "&#128293;", "흥따리"
         elif net_profit < 0:
-            supply_emoji, supply_text = "💀", "망따리"
+            supply_emoji, supply_text = "&#128128;", "망따리"
         else:
-            supply_emoji, supply_text = "😐", "보통"
+            supply_emoji, supply_text = "&#128528;", "보통"
     else:
         supply_emoji, supply_text = "", ""
 
@@ -1638,14 +1638,14 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
                     +{net_profit:.2f}%
                 </div>
                 <div style="font-size:0.85rem;color:#86efac;margin-top:0.15rem;">
-                    ≈ ${profit_usd:.1f} <span style="font-size:0.7rem;color:#6b7280;">($1K 기준)</span>
+                    &#8776; ${profit_usd:.1f} <span style="font-size:0.7rem;color:#6b7280;">($1K 기준)</span>
                 </div>
             </div>
             
             <!-- 프리미엄 바 (시각화) -->
             <div style="margin-bottom:0.75rem;">
                 <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.3rem;">
-                    <span style="color:#9ca3af;">📈 김치프리미엄</span>
+                    <span style="color:#9ca3af;">&#128200; 김치프리미엄</span>
                     <span style="color:{premium_color};font-weight:700;">{premium:+.2f}%</span>
                 </div>
                 <div style="background:#1f2937;border-radius:4px;height:8px;overflow:hidden;">
@@ -1681,23 +1681,23 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
         render_html(card_html)
         
         # 상세 정보 접이식 (스코어 breakdown 포함)
-        with st.expander(f"📋 {symbol} 상세 정보 & GO 스코어 분석", expanded=False):
+        with st.expander(f"&#128203; {symbol} 상세 정보 & GO 스코어 분석", expanded=False):
             detail_cols = st.columns(2)
             with detail_cols[0]:
-                st.markdown("**⚠️ 주의사항**")
+                st.markdown("**&#9888;&#65039; 주의사항**")
                 if blockers:
                     for b in blockers[:3]:
-                        st.markdown(f"🚫 {b}")
+                        st.markdown(f"&#128683; {b}")
                 if warnings:
                     for w in warnings[:3]:
-                        st.markdown(f"⚠️ {w}")
+                        st.markdown(f"&#9888;&#65039; {w}")
                 if not blockers and not warnings:
-                    st.markdown("✅ 특이사항 없음")
+                    st.markdown("&#9989; 특이사항 없음")
             with detail_cols[1]:
-                st.markdown("**📊 GO 스코어 분석**")
+                st.markdown("**&#128202; GO 스코어 분석**")
                 st.markdown(f"**총점: {go_score}/100** ({score_label})")
                 for item, points, reason in score_breakdown:
-                    color = "🟢" if points > 0 else "🔴" if points < 0 else "⚪"
+                    color = "&#128994;" if points > 0 else "&#128308;" if points < 0 else "&#9898;"
                     sign = "+" if points > 0 else ""
                     st.markdown(f"{color} {item}: {sign}{points}점 ({reason})")
         
@@ -1723,9 +1723,9 @@ def _render_analysis_card(row: dict, vasp_matrix: dict, highlight: bool = False)
     # 경고사항 (간결하게)
     alert_text = ""
     if blockers:
-        alert_text = f'<span style="color:#f87171;font-size:0.75rem;">🚫 {blockers[0][:30]}</span>'
+        alert_text = f'<span style="color:#f87171;font-size:0.75rem;">&#128683; {blockers[0][:30]}</span>'
     elif warnings:
-        alert_text = f'<span style="color:#fbbf24;font-size:0.75rem;">⚠️ {warnings[0][:30]}</span>'
+        alert_text = f'<span style="color:#fbbf24;font-size:0.75rem;">&#9888;&#65039; {warnings[0][:30]}</span>'
 
     card_style = """background:linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%);
         border:1px solid #374151;border-radius:12px;padding:0.85rem;margin-bottom:0.5rem;"""
@@ -1764,7 +1764,7 @@ def _render_premium_chart_section(conn_id: int) -> None:
     """실시간 프리미엄 차트 섹션 (Phase 7 Week 4)."""
     import streamlit as st
 
-    render_html(f'<p style="{SECTION_HEADER_STYLE}">📈 프리미엄 추이 차트</p>')
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">&#128200; 프리미엄 추이 차트</p>')
 
     # 최근 24시간 프리미엄 히스토리 조회
     premium_history = fetch_premium_history_cached(conn_id, hours=24)
@@ -1825,7 +1825,7 @@ def _render_premium_chart_section(conn_id: int) -> None:
 
         except ImportError:
             # pandas 없으면 간단한 텍스트 표시
-            st.warning("pandas 미설치 — 차트 대신 텍스트로 표시합니다.")
+            st.warning("pandas 미설치 &#8212; 차트 대신 텍스트로 표시합니다.")
             premiums = data["premiums"]
             if premiums:
                 st.write(f"**{selected_symbol}** 프리미엄 데이터 ({len(premiums)}건)")
@@ -1885,32 +1885,32 @@ def _render_spot_futures_gap_card_html(data: dict) -> str:
     # 갭 색상
     if gap_pct > 3:
         gap_color = COLORS["success"]
-        gap_emoji = "🔥"
+        gap_emoji = "&#128293;"
     elif gap_pct > 1:
         gap_color = COLORS["info"]
-        gap_emoji = "✨"
+        gap_emoji = "&#10024;"
     elif gap_pct < -1:
         gap_color = COLORS["danger"]
-        gap_emoji = "📉"
+        gap_emoji = "&#128201;"
     else:
         gap_color = COLORS["neutral"]
-        gap_emoji = "➖"
+        gap_emoji = "&#10134;"
 
     # 헤지 전략 스타일
     hedge_styles = {
-        "long_global_short_domestic": {"name": "해외 롱 / 국내 숏", "emoji": "🔄"},
-        "short_global_long_domestic": {"name": "해외 숏 / 국내 롱", "emoji": "🔄"},
-        "no_hedge": {"name": "헤지 불가", "emoji": "🚫"},
+        "long_global_short_domestic": {"name": "해외 롱 / 국내 숏", "emoji": "&#128260;"},
+        "short_global_long_domestic": {"name": "해외 숏 / 국내 롱", "emoji": "&#128260;"},
+        "no_hedge": {"name": "헤지 불가", "emoji": "&#128683;"},
     }
-    hedge_style = hedge_styles.get(hedge_strategy, {"name": hedge_strategy, "emoji": "❓"})
+    hedge_style = hedge_styles.get(hedge_strategy, {"name": hedge_strategy, "emoji": "&#10067;"})
 
     # 수익성 배지
     profit_badge = ""
     if is_profitable:
-        profit_badge = f'<span style="{badge_style(COLORS["success"], size="0.7rem")}">💰 +{profit_pct:.2f}%</span>'
+        profit_badge = f'<span style="{badge_style(COLORS["success"], size="0.7rem")}">&#128176; +{profit_pct:.2f}%</span>'
 
     # 가격 포맷
-    domestic_str = f"₩{domestic_price:,.0f}" if domestic_price else "-"
+    domestic_str = f"&#8361;{domestic_price:,.0f}" if domestic_price else "-"
     global_str = f"${global_price:,.4f}" if global_price else "-"
 
     return f"""
@@ -1936,7 +1936,7 @@ def _render_spot_futures_gap_card_html(data: dict) -> str:
             </div>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:{COLORS["text_muted"]};">
-            <span>FX: ₩{fx_rate:,.0f}/USD</span>
+            <span>FX: &#8361;{fx_rate:,.0f}/USD</span>
             <span>{hedge_style['emoji']} {hedge_style['name']}</span>
         </div>
     </div>
@@ -1950,7 +1950,7 @@ def _render_spot_futures_gap_section(conn_id: int) -> None:
     if not PHASE8_AVAILABLE:
         return
 
-    render_html(f'<p style="{SECTION_HEADER_STYLE}">📊 현선갭 모니터</p>')
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">&#128202; 현선갭 모니터</p>')
 
     # 데이터 조회
     gap_data = _fetch_spot_futures_gap_cached(conn_id, limit=5)
@@ -1959,7 +1959,7 @@ def _render_spot_futures_gap_section(conn_id: int) -> None:
         info_html = f"""
         <div style="{CARD_STYLE}">
             <p style="font-size:0.9rem;font-weight:600;color:{COLORS["info"]};margin-bottom:0.5rem;">
-                🔄 현선갭 (Spot-Futures Gap)이란?
+                &#128260; 현선갭 (Spot-Futures Gap)이란?
             </p>
             <p style="font-size:0.8rem;color:{COLORS["text_secondary"]};margin-bottom:0.75rem;">
                 국내 거래소(업비트/빗썸) 현물 가격과 해외 거래소(바이낸스/바이빗) 선물 가격의 차이입니다.
@@ -1976,7 +1976,7 @@ def _render_spot_futures_gap_section(conn_id: int) -> None:
                 </div>
             </div>
             <p style="font-size:0.75rem;color:{COLORS["text_muted"]};">
-                💡 상장 감지 시 자동으로 갭 계산이 시작됩니다.
+                &#128161; 상장 감지 시 자동으로 갭 계산이 시작됩니다.
             </p>
         </div>
         """
@@ -1998,7 +1998,7 @@ def _render_funding_rate_section() -> None:
     """펀딩비 섹션 렌더링."""
     import streamlit as st
 
-    render_html(f'<p style="{SECTION_HEADER_STYLE}">💹 펀딩비 (Funding Rate)</p>')
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">&#128185; 펀딩비 (Funding Rate)</p>')
 
     funding_data = fetch_funding_rates_cached()
 
@@ -2006,7 +2006,7 @@ def _render_funding_rate_section() -> None:
         info_html = f"""
         <div style="{CARD_STYLE}">
             <p style="font-size:0.9rem;font-weight:600;color:{COLORS["info"]};margin-bottom:0.5rem;">
-                📊 펀딩비란?
+                &#128202; 펀딩비란?
             </p>
             <p style="font-size:0.8rem;color:{COLORS["text_secondary"]};margin-bottom:0.75rem;">
                 선물 거래소에서 롱/숏 포지션 밸런스를 맞추기 위해 8시간마다 지불하는 수수료입니다.
@@ -2022,7 +2022,7 @@ def _render_funding_rate_section() -> None:
                 </div>
             </div>
             <p style="font-size:0.75rem;color:{COLORS["text_muted"]};">
-                ⚠️ 펀딩비 데이터를 불러오지 못했습니다.
+                &#9888;&#65039; 펀딩비 데이터를 불러오지 못했습니다.
             </p>
         </div>
         """
@@ -2037,17 +2037,17 @@ def _render_funding_rate_section() -> None:
     # 쏠림 방향에 따른 스타일
     if position_bias == "long_heavy":
         bias_color = COLORS["success"]
-        bias_emoji = "📈"
+        bias_emoji = "&#128200;"
         bias_text = "롱 과다"
         bias_hint = "시장이 상승을 기대 중"
     elif position_bias == "short_heavy":
         bias_color = COLORS["danger"]
-        bias_emoji = "📉"
+        bias_emoji = "&#128201;"
         bias_text = "숏 과다"
         bias_hint = "시장이 하락을 기대 중"
     else:
         bias_color = COLORS["neutral"]
-        bias_emoji = "➖"
+        bias_emoji = "&#10134;"
         bias_text = "중립"
         bias_hint = "롱/숏 균형"
 
@@ -2070,7 +2070,7 @@ def _render_funding_rate_section() -> None:
             </div>
         </div>
         <p style="font-size:0.8rem;color:{COLORS["text_muted"]};margin-bottom:0.75rem;">
-            💡 {bias_hint}
+            &#128161; {bias_hint}
         </p>
         <div style="display:flex;flex-wrap:wrap;gap:0.75rem;">
     """
@@ -2115,7 +2115,7 @@ def _render_realtime_gap_section() -> None:
     """실시간 현선갭 조회 섹션."""
     import streamlit as st
 
-    render_html(f'<p style="{SECTION_HEADER_STYLE}">📊 실시간 현선갭 조회</p>')
+    render_html(f'<p style="{SECTION_HEADER_STYLE}">&#128202; 실시간 현선갭 조회</p>')
 
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -2126,7 +2126,7 @@ def _render_realtime_gap_section() -> None:
             label_visibility="collapsed",
         )
     with col2:
-        search_btn = st.button("🔍 조회", key="gap_search", use_container_width=True)
+        search_btn = st.button("&#128269; 조회", key="gap_search", use_container_width=True)
 
     if search_btn and symbol:
         symbol = symbol.upper().strip()
@@ -2163,7 +2163,7 @@ def _render_realtime_gap_section() -> None:
                     for gap in gaps[:5]:
                         gap_color = COLORS["success"] if gap.gap_percent > 0 else COLORS["danger"]
                         funding_text = f" | 펀딩: {gap.funding_rate*100:.4f}%" if gap.funding_rate else ""
-                        krw_text = f" (₩{gap.spot_krw_price:,.0f})" if gap.spot_krw_price else ""
+                        krw_text = f" (&#8361;{gap.spot_krw_price:,.0f})" if gap.spot_krw_price else ""
                         
                         result_html += f"""
                             <div style="display:flex;justify-content:space-between;align-items:center;
@@ -2192,7 +2192,7 @@ def _render_realtime_gap_section() -> None:
                                 <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.85rem;">
                         """
                         for ex, data in spot_prices.items():
-                            krw = f" (₩{data.krw_price:,.0f})" if data.krw_price else ""
+                            krw = f" (&#8361;{data.krw_price:,.0f})" if data.krw_price else ""
                             result_html += f'<span style="color:{COLORS["text_secondary"]};">{ex}: ${data.price:.4f}{krw}</span>'
                         for ex, data in futures_prices.items():
                             result_html += f'<span style="color:{COLORS["info"]};">{ex}(F): ${data.price:.4f}</span>'
@@ -2212,7 +2212,7 @@ def _render_realtime_gap_section() -> None:
     info_html = f"""
     <div style="{CARD_STYLE}margin-top:0.75rem;">
         <p style="font-size:0.8rem;color:{COLORS["text_secondary"]};">
-            💡 <b>현선갭</b> = (선물가격 - 현물가격) / 현물가격 × 100
+            &#128161; <b>현선갭</b> = (선물가격 - 현물가격) / 현물가격 × 100
         </p>
         <p style="font-size:0.75rem;color:{COLORS["text_muted"]};margin-top:0.25rem;">
             양수: 선물 프리미엄 | 음수: 선물 디스카운트 | 갭이 클수록 헷징 어려움 &#8594; GO 신호
@@ -2223,7 +2223,7 @@ def _render_realtime_gap_section() -> None:
 
 
 # ------------------------------------------------------------------
-# 🔍 빠른 분석 통합 섹션 (현선갭 + DEX 유동성 통합)
+# &#128269; 빠른 분석 통합 섹션 (현선갭 + DEX 유동성 통합)
 # ------------------------------------------------------------------
 
 
@@ -2237,7 +2237,7 @@ def _render_quick_analysis_section() -> None:
     <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
         border:1px solid #3b82f6;border-radius:16px 16px 0 0;padding:1rem 1.25rem 0.75rem 1.25rem;">
         <div style="display:flex;align-items:center;gap:0.5rem;">
-            <span style="font-size:1.3rem;">🔍</span>
+            <span style="font-size:1.3rem;">&#128269;</span>
             <span style="font-size:1.1rem;font-weight:700;color:#fff;">빠른 분석</span>
             <span style="font-size:0.75rem;color:#6b7280;margin-left:0.5rem;">현선갭 + DEX 유동성 통합 조회</span>
         </div>
@@ -2255,12 +2255,12 @@ def _render_quick_analysis_section() -> None:
             label_visibility="collapsed",
         )
     with col2:
-        search_btn = st.button("🚀 분석", key="quick_analysis_btn", use_container_width=True)
+        search_btn = st.button("&#128640; 분석", key="quick_analysis_btn", use_container_width=True)
 
     if search_btn and symbol:
         symbol = symbol.upper().strip()
         
-        with st.spinner(f"🔄 {symbol} 통합 분석 중..."):
+        with st.spinner(f"&#128260; {symbol} 통합 분석 중..."):
             results = {
                 "gap": None, "dex": None, "orderbook": None, "deposit": None,
                 "gap_error": None, "dex_error": None, "orderbook_error": None, "deposit_error": None
@@ -2390,25 +2390,25 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
     if is_reverse and spot_premium is not None:
         # 역프 상황 - 역따리 전략 추천
         if spot_premium < -3.0:
-            overall_signal = "🔄🟢 역따리 GO"
+            overall_signal = "&#128260;&#128994; 역따리 GO"
             signal_color = "#8b5cf6"  # 보라색
         elif spot_premium < -1.5:
-            overall_signal = "🔄 역따리 검토"
+            overall_signal = "&#128260; 역따리 검토"
             signal_color = "#a78bfa"
         else:
-            overall_signal = "🔄⚠️ 역프 주의"
+            overall_signal = "&#128260;&#9888;&#65039; 역프 주의"
             signal_color = "#fbbf24"
     elif go_count >= 2 and nogo_count == 0:
-        overall_signal = "🟢🟢 STRONG GO"
+        overall_signal = "&#128994;&#128994; STRONG GO"
         signal_color = "#4ade80"
     elif go_count >= 1 and nogo_count == 0:
-        overall_signal = "🟢 GO"
+        overall_signal = "&#128994; GO"
         signal_color = "#4ade80"
     elif nogo_count >= 2:
-        overall_signal = "🔴 NO-GO"
+        overall_signal = "&#128308; NO-GO"
         signal_color = "#f87171"
     else:
-        overall_signal = "🟡 CAUTION"
+        overall_signal = "&#128993; CAUTION"
         signal_color = "#fbbf24"
 
     # 메인 결과 카드
@@ -2430,10 +2430,10 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
     
     # 1. 현선갭 결과
     result_html += '<div style="background:#1f2937;border-radius:12px;padding:0.85rem;">'
-    result_html += '<div style="font-size:0.8rem;font-weight:600;color:#60a5fa;margin-bottom:0.6rem;">📊 현선갭</div>'
+    result_html += '<div style="font-size:0.8rem;font-weight:600;color:#60a5fa;margin-bottom:0.6rem;">&#128202; 현선갭</div>'
     
     if results.get("gap_error"):
-        result_html += f'<div style="color:#f87171;font-size:0.75rem;">❌ 에러</div>'
+        result_html += f'<div style="color:#f87171;font-size:0.75rem;">&#10060; 에러</div>'
     elif gap_data and gap_data.get("gaps"):
         for gap in gap_data["gaps"][:2]:
             gap_color = "#4ade80" if gap.gap_percent > 0 else "#f87171"
@@ -2447,7 +2447,7 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
         if spot_prices:
             first_price = list(spot_prices.values())[0] if spot_prices else None
             if first_price and first_price.krw_price:
-                result_html += f'<div style="font-size:0.7rem;color:#6b7280;margin-top:0.3rem;">₩{first_price.krw_price:,.0f}</div>'
+                result_html += f'<div style="font-size:0.7rem;color:#6b7280;margin-top:0.3rem;">&#8361;{first_price.krw_price:,.0f}</div>'
     else:
         result_html += '<div style="color:#6b7280;font-size:0.75rem;">데이터 없음</div>'
     
@@ -2455,10 +2455,10 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
     
     # 2. DEX 유동성 결과
     result_html += '<div style="background:#1f2937;border-radius:12px;padding:0.85rem;">'
-    result_html += '<div style="font-size:0.8rem;font-weight:600;color:#a78bfa;margin-bottom:0.6rem;">💧 DEX 유동성</div>'
+    result_html += '<div style="font-size:0.8rem;font-weight:600;color:#a78bfa;margin-bottom:0.6rem;">&#128167; DEX 유동성</div>'
     
     if results.get("dex_error"):
-        result_html += f'<div style="color:#f87171;font-size:0.75rem;">❌ 에러</div>'
+        result_html += f'<div style="color:#f87171;font-size:0.75rem;">&#10060; 에러</div>'
     elif dex_data:
         dex_color = "#4ade80" if dex_data.go_signal in ["STRONG_GO", "GO"] else "#fbbf24" if dex_data.go_signal == "CAUTION" else "#f87171"
         result_html += f'''
@@ -2481,7 +2481,7 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
     
     # 3. 네트워크 속도 결과 (NEW!)
     result_html += '<div style="background:#1f2937;border-radius:12px;padding:0.85rem;">'
-    result_html += '<div style="font-size:0.8rem;font-weight:600;color:#f59e0b;margin-bottom:0.6rem;">⚡ 네트워크</div>'
+    result_html += '<div style="font-size:0.8rem;font-weight:600;color:#f59e0b;margin-bottom:0.6rem;">&#9889; 네트워크</div>'
     
     if network_info:
         net_color = "#4ade80" if network_info.go_signal == "GO" else "#fbbf24" if network_info.go_signal == "CAUTION" else "#f87171"
@@ -2525,10 +2525,10 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
         
         # 오더북 기반 프리미엄 (10K USD 기준)
         result_html += '<div style="background:#1f2937;border-radius:12px;padding:0.85rem;">'
-        result_html += '<div style="font-size:0.8rem;font-weight:600;color:#10b981;margin-bottom:0.6rem;">📈 오더북 프리미엄 (10K)</div>'
+        result_html += '<div style="font-size:0.8rem;font-weight:600;color:#10b981;margin-bottom:0.6rem;">&#128200; 오더북 프리미엄 (10K)</div>'
         
         if results.get("orderbook_error"):
-            result_html += f'<div style="color:#f87171;font-size:0.75rem;">❌ 에러</div>'
+            result_html += f'<div style="color:#f87171;font-size:0.75rem;">&#10060; 에러</div>'
         elif orderbook_data and len(orderbook_data) > 0:
             for ob in orderbook_data[:2]:
                 prem_color = "#4ade80" if ob.net_premium > 0 else "#f87171"
@@ -2551,10 +2551,10 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
         
         # 입금 상태
         result_html += '<div style="background:#1f2937;border-radius:12px;padding:0.85rem;">'
-        result_html += '<div style="font-size:0.8rem;font-weight:600;color:#ec4899;margin-bottom:0.6rem;">🔄 입출금 상태</div>'
+        result_html += '<div style="font-size:0.8rem;font-weight:600;color:#ec4899;margin-bottom:0.6rem;">&#128260; 입출금 상태</div>'
         
         if results.get("deposit_error"):
-            result_html += f'<div style="color:#f87171;font-size:0.75rem;">❌ 에러</div>'
+            result_html += f'<div style="color:#f87171;font-size:0.75rem;">&#10060; 에러</div>'
         elif deposit_data:
             for exchange, info in list(deposit_data.items())[:3]:
                 signal_color = "#4ade80" if info.go_signal == "GO" else "#fbbf24" if info.go_signal == "CAUTION" else "#f87171"
@@ -2588,7 +2588,7 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
         <div style="background:linear-gradient(135deg, #1e3a5f 0%, #2d1f47 100%);
             border:1px solid #8b5cf6;border-radius:12px;padding:1rem;margin-top:0.75rem;">
             <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
-                <span style="font-size:1.2rem;">🔄</span>
+                <span style="font-size:1.2rem;">&#128260;</span>
                 <span style="font-size:0.9rem;font-weight:700;color:#a78bfa;">역따리 전략 분석</span>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
@@ -2602,7 +2602,7 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
                 </div>
             </div>
             <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #374151;">
-                <p style="font-size:0.7rem;font-weight:600;color:#fff;margin-bottom:0.4rem;">💡 추천 전략:</p>
+                <p style="font-size:0.7rem;font-weight:600;color:#fff;margin-bottom:0.4rem;">&#128161; 추천 전략:</p>
                 <ol style="font-size:0.65rem;color:#9ca3af;margin:0;padding-left:1.2rem;">
                     <li>국내 현물 매수 (업비트/빗썸)</li>
                     <li>해외 선물 숏 진입 (헷징)</li>
@@ -2620,23 +2620,23 @@ def _render_quick_analysis_results(symbol: str, results: dict) -> None:
     render_html(result_html)
 
     # 판정 기준 설명 (접이식)
-    with st.expander("💡 판정 기준", expanded=False):
+    with st.expander("&#128161; 판정 기준", expanded=False):
         st.markdown("""
         **현선갭 (Spot-Futures Gap)**
-        - 🟢 +3% 이상: GO (헷징 어려움 &#8594; 공급 제약)
-        - 🟡 +1~3%: CAUTION
-        - 🔴 +1% 미만: NO-GO
+        - &#128994; +3% 이상: GO (헷징 어려움 &#8594; 공급 제약)
+        - &#128993; +1~3%: CAUTION
+        - &#128308; +1% 미만: NO-GO
         
         **DEX 유동성**
-        - 🟢🟢 $200K 이하: STRONG GO
-        - 🟢 $500K 이하: GO
-        - 🟡 $1M 이하: CAUTION
-        - 🔴 $1M 초과: NO-GO
+        - &#128994;&#128994; $200K 이하: STRONG GO
+        - &#128994; $500K 이하: GO
+        - &#128993; $1M 이하: CAUTION
+        - &#128308; $1M 초과: NO-GO
         
         **네트워크 속도**
-        - 🟢 느림 (BTC, ETH, L2): GO - 선따리 유리
-        - 🟡 보통 (Polygon, BSC): CAUTION
-        - 🔴 빠름 (SOL, SUI, APT): NO-GO - 후따리 쉬움
+        - &#128994; 느림 (BTC, ETH, L2): GO - 선따리 유리
+        - &#128993; 보통 (Polygon, BSC): CAUTION
+        - &#128308; 빠름 (SOL, SUI, APT): NO-GO - 후따리 쉬움
         
         **오더북 프리미엄** (NEW!)
         - 10K USD 거래 기준 실제 체결 가능한 가격
@@ -2700,7 +2700,7 @@ def render_live_tab() -> None:
         mood = get_market_mood_cached()
         kr_dom = mood.get("kr_dominance") or 0
         mood_color = mood.get("color", "#9ca3af")
-        mood_emoji = mood.get("emoji", "❓")
+        mood_emoji = mood.get("emoji", "&#10067;")
         mood_text = mood.get("text", "확인중")
         
         # 직전 상장 트렌드 가져오기
@@ -2708,7 +2708,7 @@ def render_live_tab() -> None:
         trend_signal = trend.get("trend_signal", "CAUTION")
         trend_color = "#4ade80" if trend_signal == "GO" else "#fbbf24" if trend_signal == "CAUTION" else "#f87171"
         heung_rate = trend.get("heung_rate") or 0
-        trend_emoji = trend.get("trend_emoji", "😐")
+        trend_emoji = trend.get("trend_emoji", "&#128528;")
         trend_total = trend.get("total", 0)
         trend_emojis = trend.get("result_emojis", "")
         
@@ -2722,7 +2722,7 @@ def render_live_tab() -> None:
                 border:2px solid #4ade80;border-radius:12px;padding:0.75rem 1rem;margin-bottom:0.75rem;">
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
                     <div style="display:flex;align-items:center;gap:0.75rem;">
-                        <span style="font-size:1.5rem;">🚀</span>
+                        <span style="font-size:1.5rem;">&#128640;</span>
                         <div>
                             <span style="font-size:1.2rem;font-weight:700;color:#4ade80;">GO! {len(go_analyses)}건</span>
                             <span style="font-size:0.8rem;color:#86efac;margin-left:0.5rem;">최고 {best_profit_text}</span>
@@ -2749,7 +2749,7 @@ def render_live_tab() -> None:
         render_html(
             f'''<div style="background:linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%);
                 border:1px dashed #374151;border-radius:16px;padding:2.5rem;text-align:center;margin-bottom:1rem;">
-                <div style="font-size:2.5rem;margin-bottom:0.75rem;">⏳</div>
+                <div style="font-size:2.5rem;margin-bottom:0.75rem;">&#9203;</div>
                 <div style="font-size:1.2rem;color:#9ca3af;margin-bottom:0.5rem;">분석 기록 없음</div>
                 <div style="font-size:0.85rem;color:#6b7280;">
                     수집 데몬이 실행 중이고 새 상장이 감지되면<br>여기에 GO/NO-GO 분석 결과가 표시됩니다.
@@ -2762,7 +2762,7 @@ def render_live_tab() -> None:
         render_html(
             f'''<div style="background:linear-gradient(135deg, #1a1a1a 0%, #262626 100%);
                 border:2px dashed #374151;border-radius:16px;padding:1.5rem;text-align:center;margin-bottom:1rem;">
-                <div style="font-size:1.8rem;margin-bottom:0.5rem;">😴</div>
+                <div style="font-size:1.8rem;margin-bottom:0.5rem;">&#128564;</div>
                 <div style="font-size:1.1rem;color:#9ca3af;">현재 GO 기회 없음</div>
                 <div style="font-size:0.8rem;color:#6b7280;">대기 중... 새 상장 감지 시 알림</div>
             </div>'''
@@ -2774,7 +2774,7 @@ def render_live_tab() -> None:
     col_left, col_right = st.columns([1, 1])
 
     with col_left:
-        # 📊 실시간 시장 정보 - 전체를 하나의 HTML 블록으로
+        # &#128202; 실시간 시장 정보 - 전체를 하나의 HTML 블록으로
         stats = fetch_stats_cached(conn_id)
         
         # 통계 그리드 HTML
@@ -2810,7 +2810,7 @@ def render_live_tab() -> None:
         <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
             border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
             <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.75rem;">
-                📊 실시간 시장 정보
+                &#128202; 실시간 시장 정보
             </div>
             {stats_grid}
         </div>
@@ -2819,12 +2819,12 @@ def render_live_tab() -> None:
         render_html(market_info_html)
         
     with col_right:
-        # 🎯 분석센터 안내 (빠른 분석은 분석센터 탭으로 통합됨)
+        # &#127919; 분석센터 안내 (빠른 분석은 분석센터 탭으로 통합됨)
         render_html('''
         <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             border:1px solid #3b82f6;border-radius:12px;padding:1rem;">
             <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
-                <span style="font-size:1.2rem;">🎯</span>
+                <span style="font-size:1.2rem;">&#127919;</span>
                 <span style="font-size:1rem;font-weight:700;color:#fff;">전략 분석</span>
             </div>
             <p style="font-size:0.8rem;color:#9ca3af;margin-bottom:0.75rem;">
@@ -2832,11 +2832,11 @@ def render_live_tab() -> None:
                 전략 추천은 <b style="color:#60a5fa;">분석센터</b> 탭에서 확인하세요.
             </p>
             <div style="background:#1f2937;border-radius:8px;padding:0.75rem;font-size:0.75rem;">
-                <div style="color:#4ade80;margin-bottom:0.3rem;">✅ 통합 전략 분석</div>
-                <div style="color:#d1d5db;">• 거래소별 현선갭 비교</div>
-                <div style="color:#d1d5db;">• 론 가능 거래소 스캔</div>
-                <div style="color:#d1d5db;">• 흥/망따리 예측</div>
-                <div style="color:#d1d5db;">• 전략 추천 (헷지/후따리)</div>
+                <div style="color:#4ade80;margin-bottom:0.3rem;">&#9989; 통합 전략 분석</div>
+                <div style="color:#d1d5db;">&#8226; 거래소별 현선갭 비교</div>
+                <div style="color:#d1d5db;">&#8226; 론 가능 거래소 스캔</div>
+                <div style="color:#d1d5db;">&#8226; 흥/망따리 예측</div>
+                <div style="color:#d1d5db;">&#8226; 전략 추천 (헷지/후따리)</div>
             </div>
         </div>
         ''')
@@ -2844,7 +2844,7 @@ def render_live_tab() -> None:
     # ============================================================
     # 섹션 3: 차트/상세 정보 (접이식)
     # ============================================================
-    with st.expander("📈 차트 & 상세 분석", expanded=False):
+    with st.expander("&#128200; 차트 & 상세 분석", expanded=False):
         _render_premium_chart_section(conn_id)
         _render_spot_futures_gap_section(conn_id)
 
@@ -2853,9 +2853,9 @@ def render_live_tab() -> None:
     # ============================================================
     if nogo_analyses:
         avg_profit = sum(r.get("net_profit_pct") or 0 for r in nogo_analyses) / len(nogo_analyses)
-        nogo_header = f"🔴 NO-GO ({len(nogo_analyses)}건) · 평균 {avg_profit:.1f}%"
+        nogo_header = f"&#128308; NO-GO ({len(nogo_analyses)}건) · 평균 {avg_profit:.1f}%"
     else:
-        nogo_header = "🔴 NO-GO (0건)"
+        nogo_header = "&#128308; NO-GO (0건)"
     
     with st.expander(nogo_header, expanded=False):
         if nogo_analyses:
@@ -2883,11 +2883,11 @@ def _render_funding_rate_bottom_bar() -> None:
     # 쏠림 방향 & 설명
     if position_bias == "long_heavy":
         bias_color = "#4ade80"
-        bias_text = "롱↑"
+        bias_text = "롱&#8593;"
         meaning = "롱 과열 &#8594; 선물 > 현물"
     elif position_bias == "short_heavy":
         bias_color = "#f87171"
-        bias_text = "숏↑"
+        bias_text = "숏&#8593;"
         meaning = "숏 과열 &#8594; 선물 < 현물"
     else:
         bias_color = "#9ca3af"
@@ -2916,13 +2916,13 @@ def _render_funding_rate_bottom_bar() -> None:
         padding:10px 20px;
         display:flex;align-items:center;justify-content:center;gap:16px;
         backdrop-filter:blur(10px);">
-        <span style="font-size:0.85rem;color:#9ca3af;">💹 펀딩비</span>
+        <span style="font-size:0.85rem;color:#9ca3af;">&#128185; 펀딩비</span>
         <span style="font-size:1rem;font-weight:700;color:{avg_color};">{avg_rate:+.4f}%</span>
         <span style="font-size:0.75rem;color:{bias_color};background:{bias_color}18;
             padding:3px 8px;border-radius:4px;font-weight:600;">{bias_text}</span>
-        <span style="font-size:0.8rem;color:#666;">│</span>
+        <span style="font-size:0.8rem;color:#666;">&#9474;</span>
         <span style="font-size:0.8rem;">{symbols_html}</span>
-        <span style="font-size:0.8rem;color:#666;">│</span>
+        <span style="font-size:0.8rem;color:#666;">&#9474;</span>
         <span style="font-size:0.75rem;color:#888;font-style:italic;">{meaning}</span>
     </div>
     <div style="height:50px;"></div>
@@ -2941,7 +2941,7 @@ def _render_funding_rate_compact() -> None:
         no_data_html = '''
         <div style="background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.06);
             padding:8px 12px;display:flex;align-items:center;gap:12px;">
-            <span style="font-size:0.8rem;color:#6b7280;">💹 펀딩비 로딩 중...</span>
+            <span style="font-size:0.8rem;color:#6b7280;">&#128185; 펀딩비 로딩 중...</span>
         </div>
         '''
         render_html(no_data_html)
@@ -2954,11 +2954,11 @@ def _render_funding_rate_compact() -> None:
     # 쏠림 방향 & 설명
     if position_bias == "long_heavy":
         bias_color = "#4ade80"
-        bias_text = "롱↑"
+        bias_text = "롱&#8593;"
         meaning = "롱 과열 &#8594; 선물가 > 현물가"
     elif position_bias == "short_heavy":
         bias_color = "#f87171"
-        bias_text = "숏↑"
+        bias_text = "숏&#8593;"
         meaning = "숏 과열 &#8594; 선물가 < 현물가"
     else:
         bias_color = "#9ca3af"
@@ -2975,7 +2975,7 @@ def _render_funding_rate_compact() -> None:
             f'<span style="color:#9ca3af;">{sym_name}</span>'
             f'<span style="color:{sym_color};margin-left:2px;">{rate_pct:+.3f}%</span>'
         )
-    symbols_html = " &nbsp;│&nbsp; ".join(symbols_parts)
+    symbols_html = " &nbsp;&#9474;&nbsp; ".join(symbols_parts)
 
     # 평균 색상
     avg_color = "#4ade80" if avg_rate > 0 else "#f87171" if avg_rate < 0 else "#9ca3af"
@@ -2984,11 +2984,11 @@ def _render_funding_rate_compact() -> None:
     <div style="background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.06);
         padding:8px 12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
         <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:0.8rem;color:#9ca3af;">💹</span>
+            <span style="font-size:0.8rem;color:#9ca3af;">&#128185;</span>
             <span style="font-size:0.95rem;font-weight:700;color:{avg_color};">{avg_rate:+.4f}%</span>
             <span style="font-size:0.75rem;color:{bias_color};background:{bias_color}15;
                 padding:2px 6px;border-radius:4px;">{bias_text}</span>
-            <span style="font-size:0.75rem;color:#6b7280;">│</span>
+            <span style="font-size:0.75rem;color:#6b7280;">&#9474;</span>
             <span style="font-size:0.75rem;">{symbols_html}</span>
         </div>
         <div style="font-size:0.7rem;color:#6b7280;font-style:italic;">
