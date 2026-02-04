@@ -276,6 +276,9 @@ def _render_strategy_result(rec):
             </div>'''
         )
     
+    # === 2.5 핫월렛 추적 섹션 ===
+    _render_hot_wallet_section(platforms)
+    
     # === 3. 전략 추천 (컴팩트) ===
     render_html(
         f'''<div style="background:{score_color}15;border-left:3px solid {score_color};border-radius:0 6px 6px 0;padding:8px 12px;margin-bottom:6px;">
@@ -375,6 +378,106 @@ def _render_strategy_result(rec):
     if rec.warnings:
         warnings_html = " · ".join([f'{w}' for w in rec.warnings[:3]])
         render_html(f'''<div style="background:#2d1b0e;border:1px solid #9e6a03;border-radius:6px;padding:8px;font-size:0.8rem;color:#f0883e;">{warnings_html}</div>''')
+
+
+def _render_hot_wallet_section(platforms: list):
+    """핫월렛 추적 섹션 렌더링.
+    
+    Args:
+        platforms: 토큰이 존재하는 체인 목록 (예: ["solana", "ethereum"])
+    """
+    import streamlit as st
+    
+    try:
+        from collectors.hot_wallet_db import get_hot_wallets, get_arkham_link, get_explorer_link
+    except ImportError:
+        return  # 모듈 없으면 스킵
+    
+    # 체인 이름 정규화
+    chain_map = {
+        "solana": "solana",
+        "sol": "solana",
+        "ethereum": "ethereum",
+        "eth": "ethereum",
+        "erc20": "ethereum",
+        "tron": "tron",
+        "trx": "tron",
+        "trc20": "tron",
+        "base": "base",
+        "arbitrum": "arbitrum",
+        "arb": "arbitrum",
+        "optimism": "optimism",
+        "op": "optimism",
+    }
+    
+    # 토큰 체인에서 우리가 가진 핫월렛 체인 찾기
+    matched_chains = []
+    for p in (platforms or []):
+        normalized = chain_map.get(p.lower())
+        if normalized and normalized not in matched_chains:
+            matched_chains.append(normalized)
+    
+    # Arkham 링크 버튼
+    upbit_arkham = get_arkham_link("upbit")
+    bithumb_arkham = get_arkham_link("bithumb")
+    
+    # 핫월렛 주소 수집
+    wallet_info = {}
+    for exchange in ["upbit", "bithumb"]:
+        wallet_info[exchange] = {}
+        for chain in matched_chains:
+            wallets = get_hot_wallets(exchange, chain)
+            if wallets:
+                wallet_info[exchange][chain] = wallets
+    
+    # HTML 생성
+    buttons_html = f'''
+        <a href="{upbit_arkham}" target="_blank" style="display:inline-block;background:#1d4ed8;color:#fff;padding:4px 10px;border-radius:4px;text-decoration:none;font-size:0.75rem;margin-right:6px;">🔍 업비트 Arkham</a>
+        <a href="{bithumb_arkham}" target="_blank" style="display:inline-block;background:#7c3aed;color:#fff;padding:4px 10px;border-radius:4px;text-decoration:none;font-size:0.75rem;">🔍 빗썸 Arkham</a>
+    '''
+    
+    # 체인별 핫월렛 목록 (접이식)
+    wallets_html = ""
+    if matched_chains:
+        for chain in matched_chains:
+            chain_upper = chain.upper()
+            
+            # 업비트 지갑
+            upbit_wallets = wallet_info["upbit"].get(chain, [])
+            bithumb_wallets = wallet_info["bithumb"].get(chain, [])
+            
+            if upbit_wallets or bithumb_wallets:
+                wallet_links = []
+                
+                for addr in upbit_wallets[:3]:  # 최대 3개
+                    link = get_explorer_link(addr, chain)
+                    short = addr[:6] + "..." + addr[-4:]
+                    wallet_links.append(f'<a href="{link}" target="_blank" style="color:#60a5fa;text-decoration:none;font-size:0.7rem;">업빗:{short}</a>')
+                
+                for addr in bithumb_wallets[:3]:
+                    link = get_explorer_link(addr, chain)
+                    short = addr[:6] + "..." + addr[-4:]
+                    wallet_links.append(f'<a href="{link}" target="_blank" style="color:#a78bfa;text-decoration:none;font-size:0.7rem;">빗썸:{short}</a>')
+                
+                wallets_html += f'''
+                    <div style="margin-top:6px;">
+                        <span style="color:#6b7280;font-size:0.7rem;">{chain_upper}:</span>
+                        <span style="margin-left:4px;">{" · ".join(wallet_links)}</span>
+                    </div>
+                '''
+    
+    if not wallets_html:
+        wallets_html = '<div style="color:#4b5563;font-size:0.75rem;margin-top:6px;">해당 체인 핫월렛 없음</div>'
+    
+    render_html(
+        f'''<div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:6px;padding:8px;margin-bottom:6px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:0.75rem;color:#6b7280;">🔍 핫월렛 추적</div>
+                <div>{buttons_html}</div>
+            </div>
+            {wallets_html}
+        </div>'''
+    )
 
 
 def render_gap_monitor_section():
