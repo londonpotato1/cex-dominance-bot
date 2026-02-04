@@ -424,6 +424,7 @@ class HotWalletTracker:
         interval_sec: int = 600,
         exchanges: list[str] | None = None,
         tokens: list[str] | None = None,
+        chains: list[str] | None = None,
     ) -> None:
         """연속 모니터링 시작.
 
@@ -447,10 +448,12 @@ class HotWalletTracker:
             exchanges = list(self._hot_wallets.get("exchanges", {}).keys())
         if tokens is None:
             tokens = list(self._hot_wallets.get("common_tokens", {}).keys())
+        if chains is not None:
+            chains = [c.lower() for c in chains if c]
 
         while self._monitoring:
             try:
-                deposits = await self.detect_deposits(exchanges, tokens)
+                deposits = await self.detect_deposits(exchanges, tokens, chains=chains)
                 if deposits:
                     logger.info(
                         "[HotWalletTracker] %d건 입금 감지", len(deposits),
@@ -471,6 +474,7 @@ class HotWalletTracker:
         self,
         exchanges: list[str],
         tokens: list[str],
+        chains: list[str] | None = None,
     ) -> list[DepositEvent]:
         """입금 감지 (잔액 변화 체크).
 
@@ -482,6 +486,7 @@ class HotWalletTracker:
             감지된 입금 이벤트 목록.
         """
         deposits: list[DepositEvent] = []
+        allowed_chains = set(chains) if chains else None
 
         for exchange in exchanges:
             exchange_config = self._hot_wallets.get("exchanges", {}).get(exchange)
@@ -491,6 +496,8 @@ class HotWalletTracker:
             wallets = exchange_config.get("wallets", {})
 
             for chain, chain_wallets in wallets.items():
+                if allowed_chains and chain not in allowed_chains:
+                    continue
                 rpc_url = self._get_rpc_url(chain)
                 if not rpc_url:
                     continue

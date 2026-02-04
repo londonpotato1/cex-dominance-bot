@@ -152,17 +152,8 @@ def _fetch_market_cap(symbol: str) -> float | None:
         return None
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--window-min", type=int, default=60, help="Tracking window in minutes")
-    parser.add_argument("--interval", type=int, default=20, help="Snapshot interval in seconds")
-    parser.add_argument("--duration", type=int, default=120, help="Runner duration in seconds")
-    args = parser.parse_args()
-
-    window_sec = args.window_min * 60
-    interval = args.interval
-    duration = args.duration
-
+def run_tracker(window_min: int = 60, interval: int = 20, duration: int = 120) -> None:
+    window_sec = window_min * 60
     ex_service = ExchangeService()
 
     start_time = time.time()
@@ -219,7 +210,7 @@ def main():
                         deposit_usd=deposit_usd,
                         deposit_krw=deposit_krw,
                         market_cap_usd=market_cap_usd,
-                        notes=f"window={args.window_min}m",
+                        notes=f"window={window_min}m",
                     )
         finally:
             conn.close()
@@ -227,6 +218,15 @@ def main():
         time.sleep(interval)
 
     print("listing_outcome_tracker finished")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--window-min", type=int, default=60, help="Tracking window in minutes")
+    parser.add_argument("--interval", type=int, default=20, help="Snapshot interval in seconds")
+    parser.add_argument("--duration", type=int, default=120, help="Runner duration in seconds")
+    args = parser.parse_args()
+    run_tracker(window_min=args.window_min, interval=args.interval, duration=args.duration)
 
 
 if __name__ == "__main__":

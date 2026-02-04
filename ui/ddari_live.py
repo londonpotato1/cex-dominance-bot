@@ -679,10 +679,10 @@ def _render_binance_alerts_section() -> None:
         
         <!-- 전략 액션 -->
         {f'''<div style="background:#21262d;border-left:4px solid {border_color};padding:1rem;border-radius:0 8px 8px 0;">
-            <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">\U0001F3AF 추천 액션</div>
+            <div style="font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:0.5rem;">&#127919; 추천 액션</div>
             <div style="color:#f0883e;font-size:0.9rem;">{actions_html}</div>
             <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #30363d;font-size:0.8rem;color:#8b949e;">
-                <span style="color:#3fb950;font-weight:600;">\U0001F331 Seed Tag란?</span> 
+                <span style="color:#3fb950;font-weight:600;">&#127793; Seed Tag란?</span> 
                 바이낸스가 신규/혁신 프로젝트에 붙이는 라벨. 변동성 높지만 <span style="color:#f0883e;">업빗/빗썸 상장 가능성 높음</span> → 따리 대기!
             </div>
         </div>''' if actions_html else ''}
