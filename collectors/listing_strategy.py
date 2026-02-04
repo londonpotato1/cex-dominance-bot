@@ -109,6 +109,7 @@ class StrategyRecommendation:
     volume_24h_usd: Optional[float] = None
     price_change_24h_pct: Optional[float] = None  # 24시간 등락률
     platforms: List[str] = field(default_factory=list)  # 지원 체인
+    contracts: Dict[str, str] = field(default_factory=dict)  # 체인별 컨트랙트 주소
     
     # 거래소별 마켓 정보
     exchange_markets: List[ExchangeMarket] = field(default_factory=list)
@@ -726,6 +727,7 @@ class ListingStrategyAnalyzer:
         total_supply = None
         circulating_percent = None
         platforms = []
+        contracts = {}
         exchange_markets = []
         
         volume_24h_usd = None
@@ -742,6 +744,7 @@ class ListingStrategyAnalyzer:
             volume_24h_usd = listing_intel.volume_24h_usd
             price_change_24h_pct = listing_intel.price_change_24h_pct
             platforms = listing_intel.platforms or []
+            contracts = getattr(listing_intel, 'contracts', {}) or {}
             
             # 거래소별 마켓 정보 (입출금 상태 + 핫월렛 포함)
             if exchange_hot_wallets is None:
@@ -783,6 +786,7 @@ class ListingStrategyAnalyzer:
             volume_24h_usd=volume_24h_usd,
             price_change_24h_pct=price_change_24h_pct,
             platforms=platforms,
+            contracts=contracts,
             exchange_markets=exchange_markets,
             # 갭/론
             best_gap=gap_info,

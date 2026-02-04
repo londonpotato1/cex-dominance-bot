@@ -76,6 +76,7 @@ class ListingIntel:
     
     # 체인/네트워크
     platforms: List[str] = field(default_factory=list)
+    contracts: Dict[str, str] = field(default_factory=dict)  # 체인 -> 컨트랙트 주소
     
     # 거래소별 상태
     exchanges: Dict[str, ExchangeStatus] = field(default_factory=dict)
@@ -216,9 +217,11 @@ class ListingIntelCollector:
                 intel.volume_24h_usd = md.get("total_volume", {}).get("usd")
                 intel.price_change_24h_pct = md.get("price_change_percentage_24h")
                 
-                # 플랫폼
+                # 플랫폼 & 컨트랙트 주소
                 platforms = data.get("platforms", {})
                 intel.platforms = [p for p in platforms.keys() if p]
+                # 컨트랙트 주소 저장 (체인 -> 주소)
+                intel.contracts = {k: v for k, v in platforms.items() if k and v}
                 
         except Exception as e:
             logger.warning("[Intel] CoinGecko 에러: %s", e)
