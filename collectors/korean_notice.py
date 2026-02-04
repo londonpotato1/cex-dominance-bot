@@ -11,10 +11,12 @@ v1: 2026-02-02
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, List
 from enum import Enum
 
@@ -186,6 +188,9 @@ class KoreanNotice:
 class KoreanNoticeFetcher:
     """한국 거래소 공지 수집기."""
     
+    # 마켓 목록 캐시 파일 경로
+    _MARKET_CACHE_FILE = Path(__file__).parent.parent / "data" / "korean_markets_cache.json"
+    
     def __init__(self, seen_ids: set[str] | None = None):
         """
         Args:
@@ -193,6 +198,32 @@ class KoreanNoticeFetcher:
         """
         self._seen_ids = seen_ids or set()
         self._session: Optional[aiohttp.ClientSession] = None
+        self._market_cache = self._load_market_cache()
+    
+    def _load_market_cache(self) -> dict:
+        """마켓 캐시 로드."""
+        try:
+            if self._MARKET_CACHE_FILE.exists():
+                with open(self._MARKET_CACHE_FILE, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return {"upbit": [], "bithumb": [], "last_updated": None}
+    
+    def _save_market_cache(self, upbit_markets: list, bithumb_markets: list):
+        """마켓 캐시 저장."""
+        try:
+            self._MARKET_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            cache = {
+                "upbit": upbit_markets,
+                "bithumb": bithumb_markets,
+                "last_updated": datetime.now().isoformat()
+            }
+            with open(self._MARKET_CACHE_FILE, 'w', encoding='utf-8') as f:
+                json.dump(cache, f, ensure_ascii=False, indent=2)
+            self._market_cache = cache
+        except Exception as e:
+            logger.warning(f"마켓 캐시 저장 실패: {e}")
     
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -433,15 +464,101 @@ class KoreanNoticeFetcher:
         return notices[:limit]
     
     # ------------------------------------------------------------------
+    # 신규 상장 감지 (마켓 API 기반)
+    # ------------------------------------------------------------------
+    
+    async def fetch_new_listings(self) -> List[KoreanNotice]:
+        """업비트/빗썸 신규 상장 감지 (마켓 API 비교)."""
+        notices = []
+        session = await self._get_session()
+        
+        # 현재 마켓 목록 조회
+        current_upbit = []
+        current_bithumb = []
+        
+        try:
+            # 업비트 마켓 조회
+            async with session.get("https://api.upbit.com/v1/market/all") as resp:
+                if resp.status == 200:
+                    markets = await resp.json()
+                    current_upbit = [m["market"].replace("KRW-", "") 
+                                    for m in markets if m["market"].startswith("KRW-")]
+                    logger.debug(f"[KoreanNotice] 업비트 KRW 마켓: {len(current_upbit)}개")
+        except Exception as e:
+            logger.warning(f"[KoreanNotice] 업비트 마켓 조회 실패: {e}")
+        
+        try:
+            # 빗썸 마켓 조회
+            async with session.get("https://api.bithumb.com/public/ticker/ALL_KRW") as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if data.get("status") == "0000":
+                        tickers = data.get("data", {})
+                        current_bithumb = [k for k in tickers.keys() if k != "date"]
+                        logger.debug(f"[KoreanNotice] 빗썸 KRW 마켓: {len(current_bithumb)}개")
+        except Exception as e:
+            logger.warning(f"[KoreanNotice] 빗썸 마켓 조회 실패: {e}")
+        
+        # 이전 캐시와 비교
+        prev_upbit = set(self._market_cache.get("upbit", []))
+        prev_bithumb = set(self._market_cache.get("bithumb", []))
+        
+        # 신규 상장 감지
+        new_upbit = set(current_upbit) - prev_upbit if prev_upbit else set()
+        new_bithumb = set(current_bithumb) - prev_bithumb if prev_bithumb else set()
+        
+        # 업비트 신규 상장 알림 생성
+        for symbol in new_upbit:
+            notice = KoreanNotice(
+                exchange=Exchange.UPBIT,
+                notice_id=f"upbit_listing_{symbol}_{datetime.now().strftime('%Y%m%d')}",
+                title=f"{symbol} 원화(KRW) 마켓 신규 상장",
+                url="https://upbit.com/service_center/notice",
+                published_at=datetime.now(),
+            )
+            notice.symbols = [symbol]
+            notice.notice_type = NoticeType.LISTING
+            notices.append(notice)
+            logger.info(f"[KoreanNotice] 업비트 신규 상장 감지: {symbol}")
+        
+        # 빗썸 신규 상장 알림 생성
+        for symbol in new_bithumb:
+            notice = KoreanNotice(
+                exchange=Exchange.BITHUMB,
+                notice_id=f"bithumb_listing_{symbol}_{datetime.now().strftime('%Y%m%d')}",
+                title=f"{symbol} 원화(KRW) 마켓 신규 상장",
+                url="https://www.bithumb.com/",
+                published_at=datetime.now(),
+            )
+            notice.symbols = [symbol]
+            notice.notice_type = NoticeType.LISTING
+            notices.append(notice)
+            logger.info(f"[KoreanNotice] 빗썸 신규 상장 감지: {symbol}")
+        
+        # 캐시 업데이트 (현재 목록 저장)
+        if current_upbit or current_bithumb:
+            self._save_market_cache(current_upbit, current_bithumb)
+        
+        return notices
+    
+    # ------------------------------------------------------------------
     # 통합 조회
     # ------------------------------------------------------------------
     
     async def fetch_all_notices(self, limit: int = 20) -> List[KoreanNotice]:
-        """모든 한국 거래소 공지 조회."""
-        upbit_notices = await self.fetch_upbit_notices(limit)
-        bithumb_notices = await self.fetch_bithumb_notices(limit=limit)
+        """모든 한국 거래소 공지 조회 (신규 상장 포함)."""
+        # 병렬 조회
+        results = await asyncio.gather(
+            self.fetch_upbit_notices(limit),
+            self.fetch_bithumb_notices(limit=limit),
+            self.fetch_new_listings(),
+            return_exceptions=True
+        )
         
-        all_notices = upbit_notices + bithumb_notices
+        all_notices = []
+        for r in results:
+            if isinstance(r, list):
+                all_notices.extend(r)
         
         # 최신순 정렬
         all_notices.sort(key=lambda x: x.published_at, reverse=True)
