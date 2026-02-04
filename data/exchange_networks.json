@@ -1,0 +1,71 @@
+{
+  "lastUpdated": "2026-02-04",
+  "note": "거래소별 일반적인 지원 네트워크 (토큰별로 다를 수 있음)",
+  "exchanges": {
+    "binance": {
+      "networks": ["ETH", "BSC", "ARB", "OP", "BASE", "SOL", "TRON", "MATIC", "AVAX", "FTM", "KLAY"],
+      "mainNets": ["ETH", "BSC", "SOL", "TRON"],
+      "fastNets": ["SOL", "TRON", "BSC", "ARB", "OP"]
+    },
+    "bybit": {
+      "networks": ["ETH", "BSC", "ARB", "OP", "SOL", "TRON", "MATIC", "AVAX", "BASE"],
+      "mainNets": ["ETH", "BSC", "SOL", "TRON"],
+      "fastNets": ["SOL", "TRON", "BSC", "ARB"]
+    },
+    "okx": {
+      "networks": ["ETH", "BSC", "ARB", "OP", "SOL", "TRON", "MATIC", "AVAX", "BASE", "KLAY"],
+      "mainNets": ["ETH", "BSC", "SOL", "TRON"],
+      "fastNets": ["SOL", "TRON", "BSC", "ARB", "OP"]
+    },
+    "gate": {
+      "networks": ["ETH", "BSC", "ARB", "OP", "SOL", "TRON", "MATIC", "AVAX", "BASE"],
+      "mainNets": ["ETH", "BSC", "SOL", "TRON"],
+      "fastNets": ["SOL", "TRON", "BSC", "ARB"]
+    },
+    "bitget": {
+      "networks": ["ETH", "BSC", "ARB", "OP", "SOL", "TRON", "MATIC", "BASE"],
+      "mainNets": ["ETH", "BSC", "SOL", "TRON"],
+      "fastNets": ["SOL", "TRON", "BSC", "ARB"]
+    },
+    "htx": {
+      "networks": ["ETH", "BSC", "ARB", "SOL", "TRON", "MATIC"],
+      "mainNets": ["ETH", "BSC", "SOL", "TRON"],
+      "fastNets": ["SOL", "TRON", "BSC"]
+    },
+    "mexc": {
+      "networks": ["ETH", "BSC", "ARB", "OP", "SOL", "TRON", "MATIC", "AVAX", "BASE"],
+      "mainNets": ["ETH", "BSC", "SOL", "TRON"],
+      "fastNets": ["SOL", "TRON", "BSC", "ARB"]
+    },
+    "kucoin": {
+      "networks": ["ETH", "BSC", "ARB", "SOL", "TRON", "MATIC", "AVAX", "KCC"],
+      "mainNets": ["ETH", "BSC", "SOL", "TRON"],
+      "fastNets": ["SOL", "TRON", "BSC", "KCC"]
+    },
+    "upbit": {
+      "networks": ["ETH", "SOL", "TRON", "MATIC", "BASE", "ARB", "OP", "KLAY"],
+      "mainNets": ["ETH", "SOL", "TRON"],
+      "fastNets": ["SOL", "TRON"]
+    },
+    "bithumb": {
+      "networks": ["ETH", "SOL", "TRON", "ARB", "OP", "MATIC", "KLAY", "FLR"],
+      "mainNets": ["ETH", "SOL", "TRON"],
+      "fastNets": ["SOL", "TRON"]
+    }
+  },
+  "networkInfo": {
+    "ETH": {"name": "Ethereum", "speed": "slow", "avgTime": "5-15min", "fee": "high"},
+    "BSC": {"name": "BNB Smart Chain", "speed": "fast", "avgTime": "1-3min", "fee": "low"},
+    "ARB": {"name": "Arbitrum", "speed": "fast", "avgTime": "1-5min", "fee": "low"},
+    "OP": {"name": "Optimism", "speed": "fast", "avgTime": "1-5min", "fee": "low"},
+    "BASE": {"name": "Base", "speed": "fast", "avgTime": "1-5min", "fee": "low"},
+    "SOL": {"name": "Solana", "speed": "fast", "avgTime": "1-2min", "fee": "very low"},
+    "TRON": {"name": "Tron", "speed": "fast", "avgTime": "1-3min", "fee": "very low"},
+    "MATIC": {"name": "Polygon", "speed": "fast", "avgTime": "2-5min", "fee": "low"},
+    "AVAX": {"name": "Avalanche", "speed": "fast", "avgTime": "1-3min", "fee": "low"},
+    "FTM": {"name": "Fantom", "speed": "fast", "avgTime": "1-2min", "fee": "very low"},
+    "KLAY": {"name": "Klaytn", "speed": "fast", "avgTime": "1-2min", "fee": "low"},
+    "KCC": {"name": "KuCoin Chain", "speed": "fast", "avgTime": "1-2min", "fee": "low"},
+    "FLR": {"name": "Flare", "speed": "fast", "avgTime": "2-5min", "fee": "low"}
+  }
+}

@@ -220,7 +220,7 @@ def _render_strategy_result(rec):
         </div>'''
     )
     
-    # === 2. 거래소별 마켓 + 입출금 상태 + 핫월렛 (컴팩트) ===
+    # === 2. 거래소별 마켓 + 입출금 상태 + 핫월렛 + 네트워크 (컴팩트) ===
     exchange_markets = getattr(rec, 'exchange_markets', []) or []
     
     # 핫월렛 DB에서 정보 가져오기
@@ -237,6 +237,15 @@ def _render_strategy_result(rec):
     except Exception:
         pass
     
+    # 네트워크 DB에서 정보 가져오기
+    net_db = {}
+    try:
+        from collectors.exchange_network_db import format_networks_str
+        for ex in ['binance', 'bybit', 'okx', 'gate', 'bitget', 'htx', 'mexc', 'kucoin', 'upbit', 'bithumb']:
+            net_db[ex] = format_networks_str(ex, max_count=3)
+    except Exception:
+        pass
+    
     if exchange_markets:
         rows_html = ""
         for em in exchange_markets:
@@ -245,8 +254,13 @@ def _render_strategy_result(rec):
             futures_icon = "🟢" if em.has_futures else "🔴"
             dep_icon = "🟢" if getattr(em, 'deposit_enabled', False) else "⚪"
             wd_icon = "🟢" if getattr(em, 'withdraw_enabled', False) else "⚪"
+            
+            # 네트워크 정보 (DB에서, API 실패 시 fallback)
             networks = getattr(em, 'networks', []) or []
-            net_str = ", ".join(networks[:2]) if networks else "-"
+            if networks:
+                net_str = ", ".join(networks[:3])
+            else:
+                net_str = net_db.get(ex_lower, "-")
             
             # 핫월렛 정보 (DB에서)
             hw_info = hw_db.get(ex_lower, {})
