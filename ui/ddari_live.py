@@ -806,6 +806,119 @@ def _render_korean_listing_card(notice) -> None:
     ''')
 
 
+# ------------------------------------------------------------------
+# v5: DB에서 최근 상장 이벤트 표시 (수동 추가 포함)
+# ------------------------------------------------------------------
+
+def _render_recent_db_listings() -> None:
+    """DB에서 최근 48시간 상장 이벤트를 읽어서 카드로 표시."""
+    import streamlit as st
+    import sqlite3
+    from datetime import datetime, timedelta
+    from pathlib import Path
+    
+    db_path = Path(__file__).parent.parent / "data" / "cex_listing.db"
+    if not db_path.exists():
+        return
+    
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        # 최근 48시간 상장 이벤트 조회
+        cutoff = (datetime.utcnow() - timedelta(hours=48)).strftime("%Y-%m-%d %H:%M:%S")
+        
+        query = """
+        SELECT 
+            a.symbol,
+            e.name as exchange_name,
+            le.listing_type,
+            le.listing_ts,
+            le.source,
+            ne.title
+        FROM listing_events le
+        JOIN assets a ON le.asset_id = a.id
+        JOIN exchanges e ON le.exchange_id = e.id
+        LEFT JOIN notice_events ne ON ne.symbols LIKE '%' || a.symbol || '%' 
+            AND ne.exchange_id = le.exchange_id
+        WHERE le.created_at > ?
+        ORDER BY le.created_at DESC
+        LIMIT 10
+        """
+        
+        cursor.execute(query, (cutoff,))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return
+        
+        # 중복 제거 (같은 심볼+거래소)
+        seen = set()
+        unique_rows = []
+        for row in rows:
+            key = (row[0], row[1])  # symbol, exchange
+            if key not in seen:
+                seen.add(key)
+                unique_rows.append(row)
+        
+        if not unique_rows:
+            return
+        
+        st.markdown("""
+        <div style="margin-bottom:0.75rem;">
+            <span style="font-size:1.1rem;font-weight:600;color:#fff;">
+                🔥 최근 상장 (48시간)
+            </span>
+            <span style="font-size:0.8rem;color:#8b949e;margin-left:0.5rem;">
+                업비트/빗썸 신규 상장
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        for row in unique_rows:
+            symbol, exchange_name, listing_type, listing_ts, source, title = row
+            
+            # 거래소 색상
+            if 'upbit' in exchange_name.lower():
+                ex_color = "#0066ff"
+                ex_display = "업비트"
+            elif 'bithumb' in exchange_name.lower():
+                ex_color = "#f0883e"
+                ex_display = "빗썸"
+            else:
+                ex_color = "#8b949e"
+                ex_display = exchange_name
+            
+            # 시간 표시
+            try:
+                dt = datetime.strptime(listing_ts, "%Y-%m-%d %H:%M:%S")
+                time_str = dt.strftime("%m/%d %H:%M")
+            except:
+                time_str = listing_ts[:16] if listing_ts else ""
+            
+            render_html(f"""
+            <div style="background:#0d1117;border:2px solid {ex_color};border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <span style="background:{ex_color};color:#fff;padding:4px 12px;border-radius:6px;font-size:0.85rem;font-weight:600;">
+                            🚀 {ex_display} 상장
+                        </span>
+                        <span style="font-size:1.5rem;font-weight:700;color:#fff;margin-left:12px;">
+                            {symbol}
+                        </span>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="color:#8b949e;font-size:0.85rem;">📅 {time_str}</div>
+                    </div>
+                </div>
+                {f'<div style="color:#58a6ff;font-size:0.85rem;margin-top:0.5rem;">{title[:80] if title else ""}</div>' if title else ''}
+            </div>
+            """)
+    except Exception as e:
+        pass  # DB 에러 시 조용히 실패
+
+
 def _render_korean_notices_section() -> None:
     """한국 거래소(업비트/빗썸) 공지 섹션 렌더링."""
     import streamlit as st
@@ -2569,6 +2682,11 @@ def render_live_tab() -> None:
     # 섹션 0.5: 한국 거래소 공지 (v4: 업비트/빗썸)
     # ============================================================
     _render_korean_notices_section()
+    
+    # ============================================================
+    # 섹션 0.6: DB에서 최근 상장 이벤트 (v5)
+    # ============================================================
+    _render_recent_db_listings()
 
     # ============================================================
     # 섹션 1: GO 카드 (최상단, 눈에 띄게)
