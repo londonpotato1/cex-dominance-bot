@@ -112,9 +112,13 @@ def get_explorer_link(address: str, chain: str) -> str:
     explorers = {
         "solana": f"https://solscan.io/account/{address}",
         "ethereum": f"https://etherscan.io/address/{address}",
+        "evm": f"https://etherscan.io/address/{address}",  # EVM 기본은 ETH
         "base": f"https://basescan.org/address/{address}",
         "arbitrum": f"https://arbiscan.io/address/{address}",
         "optimism": f"https://optimistic.etherscan.io/address/{address}",
+        "bsc": f"https://bscscan.com/address/{address}",
+        "polygon": f"https://polygonscan.com/address/{address}",
+        "avalanche": f"https://snowtrace.io/address/{address}",
         "tron": f"https://tronscan.org/#/address/{address}",
         "flare": f"https://flarescan.com/address/{address}",
     }

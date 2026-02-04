@@ -1,6 +1,6 @@
 {
   "lastUpdated": "2026-02-04",
-  "source": ["Arkham Intelligence", "On-chain Analysis"],
+  "source": ["Arkham Intelligence", "On-chain Analysis", "hotwallet-dashboard.vercel.app"],
   "exchanges": {
     "upbit": {
       "solana": [
@@ -97,14 +97,82 @@
         "TJkFxLX8QS63WiH5cD8LXQRgRp9TFpA1jg",
         "TN12qS4gM6qs3B2R4XjuT2zf6BomaDGdRY"
       ]
+    },
+    "binance": {
+      "evm": [
+        "0xdfd5293d8e347dfe59e90efd55b2956a1343963d",
+        "0x21a31ee1afc51d94c2efccaa2092ad1028285549",
+        "0x28c6c06298d514db089934071355e5743bf21d60",
+        "0x9696f59e4d72e237be84ffd425dcad154bf96976",
+        "0x8894e0a0c962cb723c1976a4421c95949be2d4e3",
+        "0x98adef6f2ac8572ec48965509d69a8dd5e8bba9d",
+        "0xe2fc31f816a9b94326492132018c3aecc4a93ae1",
+        "0x0a367f918340d47d36b21c93e9a2b6853cc9d6f0",
+        "0x6b5c22a67b44faac1eddd6ae1b284b2606f62071",
+        "0x5a52E96BAcdaBb82fd05763E25335261B270Efcb",
+        "0xF977814e90dA44bFA03b6295A0616a897441aceC",
+        "0x515b72ed8a97f42c568d6a143232775018f133c8",
+        "0xEB2d2F1b8c558a40207669291Fda468E50c8A0bB",
+        "0xa180fe01b906a1be37be6c534a3300785b20d947",
+        "0x3931dab967c3e2dbb492fe12460a66d0fe4cc857",
+        "0xb38e8c17e38363af6ebdcb3dae12e0243582891d",
+        "0x25681ab599b4e2ceea31f8b498052c53fc2d74db",
+        "0xacd03d601e5bb1b275bb94076ff46ed9d753435a",
+        "0x3304e22ddaa22bcdc5fca2269b418046ae7b566a",
+        "0x6d8be5cdf0d7dee1f04e25fd70b001ae3b907824",
+        "0xcddc5d0ebeb71a08fff26909aa6c0d4e256b4fe1",
+        "0x3bce63c6c9abf7a47f52c9a3a7950867700b0158"
+      ]
+    },
+    "bybit": {
+      "evm": [
+        "0xf89d7b9c864f589bbf53a82105107622b35eaa40",
+        "0xA31231E727Ca53Ff95f0D00a06C645110c4aB647",
+        "0xad85405cbb1476825b78a021fa9e543bf7937549",
+        "0x6522B7F9d481eCEB96557F44753a4b893F837E90",
+        "0xEFEF30bD1ccA520619306C95091aB18473fEBC5c",
+        "0xf42aac93ab142090db9fdc0bc86aab73cb36f173",
+        "0xc3121c4ca7402922e025e62e9bb4d5b244303878",
+        "0xbaed383ede0e5d9d72430661f3285daa77e9439f"
+      ]
+    },
+    "gate": {
+      "evm": [
+        "0x0d0707963952f2fba59dd06f2b425ace40b492fe",
+        "0xD13C536e71698e189329e9583BE8b67817E045b0"
+      ]
+    },
+    "bitget": {
+      "evm": [
+        "0x97b9D2102A9a65A26E1EE82D59e42d1B73B68689",
+        "0x5bdf85216ec1e38d6458c870992a69e38e03f7ef",
+        "0x0639556f03714a74a5feeaf5736a4a64ff70d206",
+        "0x1ab4973a48dc892cd9971ece8e01dcc7688f8f23"
+      ]
+    },
+    "htx": {
+      "evm": [
+        "0xa03400e098f4421b34a3a44a1b4e571419517687",
+        "0xdd3CB5c974601BC3974d908Ea4A86020f9999E0c"
+      ]
     }
   },
   "summary": {
     "upbit": {"solana": 9, "ethereum": 24, "base": 4, "tron": 16, "total": 53},
-    "bithumb": {"solana": 5, "ethereum": 9, "arbitrum": 1, "optimism": 1, "flare": 1, "tron": 2, "total": 19}
+    "bithumb": {"solana": 5, "ethereum": 9, "arbitrum": 1, "optimism": 1, "flare": 1, "tron": 2, "total": 19},
+    "binance": {"evm": 22, "total": 22},
+    "bybit": {"evm": 8, "total": 8},
+    "gate": {"evm": 2, "total": 2},
+    "bitget": {"evm": 4, "total": 4},
+    "htx": {"evm": 2, "total": 2}
   },
   "arkhamLinks": {
     "upbit": "https://platform.arkhamintelligence.com/explorer/entity/upbit",
-    "bithumb": "https://platform.arkhamintelligence.com/explorer/entity/bithumb"
+    "bithumb": "https://platform.arkhamintelligence.com/explorer/entity/bithumb",
+    "binance": "https://platform.arkhamintelligence.com/explorer/entity/binance",
+    "bybit": "https://platform.arkhamintelligence.com/explorer/entity/bybit",
+    "gate": "https://platform.arkhamintelligence.com/explorer/entity/gate-io",
+    "bitget": "https://platform.arkhamintelligence.com/explorer/entity/bitget",
+    "htx": "https://platform.arkhamintelligence.com/explorer/entity/htx"
   }
 }
