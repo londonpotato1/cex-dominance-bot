@@ -1,6 +1,6 @@
-"""따리분석 탭 (3탭 구조로 개편).
+"""따리분석 탭 (3탭 구조 - Lazy Loading).
 
-3개 서브탭으로 구성:
+3개 서브탭으로 구성 (선택된 탭만 렌더링):
   1. 📊 대시보드 — GO/NO-GO 현황, 실시간 갭 차트, 시장 분위기
   2. 🎯 분석센터 — 전략 분석기, 갭 모니터링, 상장 히스토리, 시나리오 예측, VC/MM
   3. 📖 학습가이드 — 따리란?, 전략별 가이드, 시스템 작동방식, FAQ
@@ -13,45 +13,81 @@ def render_ddari_tab() -> None:
     """따리분석 탭 렌더링 (app.py에서 호출)."""
     import streamlit as st
 
-    from ui.ddari_live import render_live_tab
-    from ui.ddari_analysis_center import render_analysis_center_tab
-    from ui.ddari_learning_guide import render_learning_guide_tab
     from ui.ddari_common import render_html
 
-    # 탭 중앙 정렬 + 공백 제거 CSS
+    # 탭 옵션
+    TAB_OPTIONS = ["📊 대시보드", "🎯 분석센터", "📖 학습가이드"]
+
+    # 세션 상태 초기화
+    if "ddari_active_tab" not in st.session_state:
+        st.session_state.ddari_active_tab = TAB_OPTIONS[0]
+
+    # 라디오 버튼 스타일 CSS (탭처럼 보이게)
     render_html('''
     <style>
-    /* 탭 중앙 정렬 */
-    .stTabs [data-baseweb="tab-list"] {
-        justify-content: center !important;
-        gap: 1rem !important;
+    /* 라디오 버튼을 탭처럼 스타일링 */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        flex: 0 1 auto !important;
     }
-    .stTabs [data-baseweb="tab"] {
+    .ddari-tab-selector .stRadio > div {
+        flex-direction: row !important;
+        justify-content: center !important;
+        gap: 0.5rem !important;
+    }
+    .ddari-tab-selector .stRadio > div > label {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
+        padding: 0.5rem 1rem !important;
         font-size: 1rem !important;
         font-weight: 600 !important;
+        color: #94a3b8 !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease !important;
     }
-    /* 탭 패널 상단 패딩 제거 */
-    .stTabs [data-baseweb="tab-panel"] {
-        padding-top: 0.5rem !important;
+    .ddari-tab-selector .stRadio > div > label:hover {
+        border-color: #3b82f6 !important;
+        color: #e2e8f0 !important;
     }
-    /* Streamlit 기본 마진 제거 */
-    .stTabs .element-container, .stTabs .stMarkdown {
-        margin-bottom: 0 !important;
+    .ddari-tab-selector .stRadio > div > label[data-checked="true"],
+    .ddari-tab-selector .stRadio > div > label:has(input:checked) {
+        background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%) !important;
+        border-color: #3b82f6 !important;
+        color: #ffffff !important;
+    }
+    /* 라디오 버튼 원형 숨기기 */
+    .ddari-tab-selector .stRadio > div > label > div:first-child {
+        display: none !important;
     }
     </style>
     ''')
 
-    # 3개 서브탭 생성
-    dashboard_tab, analysis_tab, guide_tab = st.tabs([
-        "📊 대시보드",
-        "🎯 분석센터", 
-        "📖 학습가이드"
-    ])
+    # 탭 선택 (라디오 버튼)
+    with st.container():
+        render_html('<div class="ddari-tab-selector">')
+        selected_tab = st.radio(
+            "탭 선택",
+            TAB_OPTIONS,
+            index=TAB_OPTIONS.index(st.session_state.ddari_active_tab),
+            horizontal=True,
+            label_visibility="collapsed",
+            key="ddari_tab_radio"
+        )
+        render_html('</div>')
 
-    with dashboard_tab:
-        # 탭 설명 + 우측 hover 가이드 (마진 완전 제거)
+    # 탭 변경 시 세션 상태 업데이트
+    if selected_tab != st.session_state.ddari_active_tab:
+        st.session_state.ddari_active_tab = selected_tab
+
+    st.markdown("---")
+
+    # === Lazy Loading: 선택된 탭만 렌더링 ===
+    if selected_tab == "📊 대시보드":
+        from ui.ddari_live import render_live_tab
+        
+        # 탭 설명 + 우측 hover 가이드
         render_html(
-            '''<div style="position:relative;margin:0 0 -0.5rem 0;padding:0;">
+            '''<div style="position:relative;margin:0 0 0.5rem 0;padding:0;">
                 <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
                     border:1px solid #3b82f6;border-radius:8px;padding:0.5rem 0.75rem;">
                     <div style="font-size:0.9rem;color:#60a5fa;font-weight:600;">📊 대시보드</div>
@@ -76,10 +112,11 @@ def render_ddari_tab() -> None:
             .hover-trigger:hover { background:#2563eb !important; }
             </style>'''
         )
-        
         render_live_tab()
 
-    with analysis_tab:
+    elif selected_tab == "🎯 분석센터":
+        from ui.ddari_analysis_center import render_analysis_center_tab
+        
         # 탭 설명
         render_html(
             '''<div style="background:linear-gradient(135deg, #1a2e1a 0%, #163e16 100%);
@@ -92,7 +129,9 @@ def render_ddari_tab() -> None:
         )
         render_analysis_center_tab()
 
-    with guide_tab:
+    elif selected_tab == "📖 학습가이드":
+        from ui.ddari_learning_guide import render_learning_guide_tab
+        
         # 탭 설명
         render_html(
             '''<div style="background:linear-gradient(135deg, #2e1a2e 0%, #3e163e 100%);
