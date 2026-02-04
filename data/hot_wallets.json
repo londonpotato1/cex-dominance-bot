@@ -1,0 +1,110 @@
+{
+  "lastUpdated": "2026-02-04",
+  "source": ["Arkham Intelligence", "On-chain Analysis"],
+  "exchanges": {
+    "upbit": {
+      "solana": [
+        "7mhcgF1DVsj5iv4CxZDgp51H6MBBwqamsH1KnqXhSRc5",
+        "EkXz7KmEc6WKJAQt6G3T8Sh463KdkTxSeqFEJaPx3rN4",
+        "4Es1CDCEjmDLmhGTdiB3RRZTLU9bofiuva56uYKGZzk5",
+        "7QDDFAYrmfS2hMvUgmAgPZtZL2xCRG1Boiq1qQmrQYCa",
+        "AQtXEMpMRqTr6kTQcWx9ZcG3pZbpwSfeojE44bD4X4UB",
+        "7rbCh2cNMmwD52RpiMzsFE8n6nsuNvhemkifdUHvo9UH",
+        "93odVNBUZpe765cesNH98w8zz1bMcF1phDkMrWW385T4",
+        "A22xxb8fPmhXXjpBdjN19DbcEBL2cvRU3U6Yq6PjhzbT",
+        "GuweT3VsG7bfgqcswpcHMUjkCgzoJ5nKb9HDMpzhtEfX"
+      ],
+      "ethereum": [
+        "0x86dab8F57E80C4b6E0f7797B62728AcA18fb323E",
+        "0xcae35E657fe52AdBad8954C93331080c5BCe68a6",
+        "0x9EC0e2BBEA4EC3712cA730d38E6E812D20da0BD1",
+        "0x7f7a3dAA21095e13050b1EB92DCB5E462458Fd0E",
+        "0xb7568C02C6c1901F9a0553a70021d67a5654Ff31",
+        "0xD47FD3dc30D6895bdDbD78C231C2Fe8e346a49a7",
+        "0x58f25Fa92926a512848567848F7624F449939CFf",
+        "0x2D2908c5873554f2744dD88C7604847cdcc57Db9",
+        "0x19537cC0De22c2cd34D6299D0e99b28c1e4f90c7",
+        "0x266094F330c150797DFc8a27fA71FD481097Ed70",
+        "0x58dCf20BdA4EEd19FFC00d4367Ea69B92b4ee22A",
+        "0x57FF0a585AA7aDC02099Ae2B3B2D6eeCC53436DE",
+        "0x269F15E0f7253C99cC16104C05C703cc5709455c",
+        "0x497DAEf516e011571f61aBf555ec4C8Be1b4A11A",
+        "0x3F7A4dAa009134CD866979B2A8D3aeF8049631C5",
+        "0x9913967305d64574BF9A2C4c1F552C8FDb3d4D85",
+        "0x0E58e8993100F1CBe45376c410F97f4893d9BfCD",
+        "0x12ef5E054878b225fE3D36e5aa96a3bA41EAc385",
+        "0x55dA5866cfd13366d51599f9628274800A8C1541",
+        "0x8d084cD7C4Bb9145229fC6423e7D2b6EC54a522A",
+        "0x59A50b589F0C7D7088b13665C7d2b20738B6Fc8A",
+        "0x3055E6564a3a436499389ff25bC3054F60738Fc2",
+        "0xC2E9E04Ae1A74a15E14861B636b786bCc6A8CE63",
+        "0xEB62684EBd086509e32035e8D7633DD30450DeCF"
+      ],
+      "base": [
+        "0x7b9188f4BaDf77002Dc45117Ea94289e494e19A4",
+        "0x0ffaA43B7B8f465Ed600Ea9a5A9f1c7FB545A16B",
+        "0x77Ff7f71Cc1518aE9133326BaCBd8d7a07226Cd0",
+        "0x759DBfc8dCc16129b23382b5d4fdD9DE0C6907d5"
+      ],
+      "tron": [
+        "TVEDWbc5qTSuLNFYJ2Nd6hoCUp4zbr2d8G",
+        "TWKC2di5ChgCmsSE5EuhacKmg31c12ev7D",
+        "TFNrJpAuC7aEGsVkfiv2w8SpaQpqNq4raU",
+        "TEbDmHpvvWJJxjfPwRm7xGoahK4RZMjvKY",
+        "TF5v2mwSrFarRWTsr7wN6VyVSW6RMw8YFJ",
+        "TWSv7DbVMFeuBbaUaA9TzRNHf2MKL992EX",
+        "TPCHiN2EYneKJsfbLcS97qE98ydz7ZsZGn",
+        "TVgXg14BRCQdCz1KKToaSdjZA8EWJhkUss",
+        "TFq2cRKsRQ47YUDdK9LrkT6gYvTpjT1cCG",
+        "TVCMH144wzdAFLVwiDA1VeQRRYdVQLz98f",
+        "TKmeR7EqnjHLvwGJDMaKrqPui8eR5EQFG2",
+        "TATu34PFUE2vpnnNTt1HH8jc8DJX2ceA9G",
+        "TG7dQDCq7QFKvLQHy1gqcZNoMTjpu4CRSm",
+        "TPspK9k6EnhccYZBkYWDYEwbqRhERUjiox",
+        "TTgWYgj11NC5wcJ24KGFyJvm6rRkcfSy6S",
+        "TYcK6eFcGaMUTLu1sUj4C5zi8JcQL41njM"
+      ]
+    },
+    "bithumb": {
+      "solana": [
+        "F72zkfNhd4tYUQtBiPnG5n8JfS8rGxWYkCVSrVBD2GFh",
+        "AuPcvFMQyMomwEkUC3SULAHBxVhELGALgkkgCWMeescV",
+        "BcRCT7xE3ZsbpD2RJmTJ9bQ2WAe1Evn8VUVCtGSR76yM",
+        "Fi3kigPLsFtSvq7N1KBtz51C8Gc8XyMFWhYjbRkaFMxS",
+        "7dizKWVhV71otCkwehAKPobTEafV7Q4wzjh4hD5i12L1"
+      ],
+      "ethereum": [
+        "0x7c8f0c13E890d5281569F5Ba5f7247bFc40E2901",
+        "0xD186409f8181608bB482332Dc5DcBB191B3F69e3",
+        "0x71f811eFf218C971f8ccbF9352b2FdCb1695bC7c",
+        "0x224355fCA3E74BBB26bA0972a27c874956346626",
+        "0x4EC8b0C13d155Ce9B2a8d3FA3C0fb9BB4c6F93f2",
+        "0x17E5545B11b468072283Cee1F066a059Fb0dbF24",
+        "0x1F8Bb0933147a92F6526E8e27D10B99DFA869280",
+        "0x74be0CF1c9972C00ed4EF290e0E5BCFd18873f13",
+        "0xcA5fEF2A6dDFF242f602a644ecc00aB42FFbBc26"
+      ],
+      "arbitrum": [
+        "0xFbdA1777254497919df68f7cfC625FE7C4b55552"
+      ],
+      "optimism": [
+        "0xB18fe4B95b7d633c83689B5Ed3ac4ad0a857A2a7"
+      ],
+      "flare": [
+        "0xb2D0E75B7B23123f6c6CEf334E6C6de77E01D8A9"
+      ],
+      "tron": [
+        "TJkFxLX8QS63WiH5cD8LXQRgRp9TFpA1jg",
+        "TN12qS4gM6qs3B2R4XjuT2zf6BomaDGdRY"
+      ]
+    }
+  },
+  "summary": {
+    "upbit": {"solana": 9, "ethereum": 24, "base": 4, "tron": 16, "total": 53},
+    "bithumb": {"solana": 5, "ethereum": 9, "arbitrum": 1, "optimism": 1, "flare": 1, "tron": 2, "total": 19}
+  },
+  "arkhamLinks": {
+    "upbit": "https://platform.arkhamintelligence.com/explorer/entity/upbit",
+    "bithumb": "https://platform.arkhamintelligence.com/explorer/entity/bithumb"
+  }
+}
